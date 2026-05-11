@@ -425,6 +425,26 @@ class DatabaseHelper {
     );
   }
 
+  Future updateTransaction(
+  TransactionModel transaction,
+) async {
+
+  final db = await database;
+
+  await db.update(
+
+    'transactions',
+
+    transaction.toMap(),
+
+    where: 'transaction_id = ?',
+
+    whereArgs: [
+      transaction.transactionId,
+    ],
+  );
+}
+
   Future deleteTransaction(
     int transactionId,
   ) async {
@@ -441,6 +461,8 @@ class DatabaseHelper {
       whereArgs: [transactionId],
     );
   }
+
+  
 
   // ======================================================
   // JOURNAL ENTRY METHODS

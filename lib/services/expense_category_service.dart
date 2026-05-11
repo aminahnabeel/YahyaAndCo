@@ -1,0 +1,36 @@
+import '../db/database_helper.dart';
+import '../models/expense_category_model.dart';
+
+class ExpenseCategoryService {
+
+  // =========================
+  // CREATE CATEGORY
+  // =========================
+
+  Future<int> createCategory(
+    ExpenseCategoryModel category,
+  ) async {
+
+    return await DatabaseHelper
+        .instance
+        .insertExpenseCategory(
+      category,
+    );
+  }
+
+  // =========================
+  // GET CATEGORIES
+  // =========================
+
+  Future<List<ExpenseCategoryModel>>
+      getCategories(
+    int businessId,
+  ) async {
+
+    return await DatabaseHelper
+        .instance
+        .getExpenseCategories(
+      businessId,
+    );
+  }
+}
