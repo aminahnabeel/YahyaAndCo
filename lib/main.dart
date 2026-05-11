@@ -1,12 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'db/database_helper.dart';
+import 'screens/logo_screen.dart';
 
 void main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
 
-  await DatabaseHelper.instance.database;
+  unawaited(DatabaseHelper.instance.database);
 
   runApp(const MyApp());
 }
@@ -34,7 +37,7 @@ class MyApp extends StatelessWidget {
             Colors.grey.shade100,
       ),
 
-      home: const HomeScreen(),
+      home: const LogoScreen(nextScreen: HomeScreen(), duration: Duration(seconds: 3)),
     );
   }
 }
