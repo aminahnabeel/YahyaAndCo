@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 
-class CustomButton extends StatefulWidget {
+class CustomButton extends StatelessWidget {
   /// The text to display on the button
   final String text;
 
@@ -12,28 +12,31 @@ class CustomButton extends StatefulWidget {
   /// Whether the button is in a loading state
   final bool isLoading;
 
-  /// Optional custom width (defaults to 54)
+  /// Optional custom width
   final double? width;
 
-  /// Optional custom height (defaults to 54)
+  /// Optional custom height
   final double? height;
 
-  /// Optional custom border radius (defaults to 32)
+  /// Optional custom border radius
   final double? borderRadius;
 
-  /// Optional custom font size (defaults to 16)
+  /// Optional custom font size
   final double? fontSize;
 
-  /// Optional custom font weight (defaults to w700)
+  /// Optional custom font weight
   final FontWeight? fontWeight;
 
-  /// Optional custom background color (defaults to primary blue)
+  /// Optional custom background color
   final Color? backgroundColor;
 
-  /// Optional custom text color (defaults to white)
+  /// Optional background gradient (overrides backgroundColor when provided)
+  final Gradient? gradient;
+
+  /// Optional custom text color
   final Color? textColor;
 
-  /// Optional custom elevation/shadow (defaults to 4)
+  /// Optional custom elevation/shadow
   final double? elevation;
 
   /// Optional loading indicator color
@@ -59,6 +62,7 @@ class CustomButton extends StatefulWidget {
     this.fontSize,
     this.fontWeight,
     this.backgroundColor,
+    this.gradient,
     this.textColor,
     this.elevation,
     this.loadingColor,
@@ -68,30 +72,105 @@ class CustomButton extends StatefulWidget {
   });
 
   @override
-  State<CustomButton> createState() => _CustomButtonState();
-}
-
-class _CustomButtonState extends State<CustomButton> {
-  @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: widget.width ?? 54,
-      height: widget.height ?? 54,
-      child: ElevatedButton(
-        onPressed: (widget.isLoading || !widget.enabled) ? null : widget.onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: widget.backgroundColor ?? AppColors.primary,
-          foregroundColor: widget.textColor ?? Colors.white,
-          elevation: widget.elevation ?? 4,
-          shadowColor: (widget.backgroundColor ?? AppColors.primary).withOpacity(0.5),
-          padding: widget.padding ?? const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(widget.borderRadius ?? 32),
+    final borderR = BorderRadius.circular(borderRadius ?? 12);
+
+    // If a gradient is provided, render a decorated InkWell to show gradient
+    if (gradient != null) {
+      return SizedBox(
+        width: width ?? double.infinity,
+        height: height ?? 56,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: gradient,
+            borderRadius: borderR,
+            boxShadow: [
+              if ((elevation ?? 2) > 0)
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.12),
+                  blurRadius: (elevation ?? 2) * 4,
+                  offset: Offset(0, (elevation ?? 2)),
+                )
+            ],
           ),
-          disabledBackgroundColor: (widget.backgroundColor ?? AppColors.primary).withOpacity(0.6),
-          disabledForegroundColor: (widget.textColor ?? Colors.white).withOpacity(0.6),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: borderR,
+              onTap: (isLoading || !enabled) ? null : onPressed,
+              child: Center(
+                child: isLoading
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(
+                              color: loadingColor ?? Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Loading...',
+                            style: TextStyle(
+                              fontSize: fontSize ?? 16,
+                              fontWeight: fontWeight ?? FontWeight.w600,
+                              color: textColor ?? Colors.white,
+                              letterSpacing: letterSpacing ?? 0.3,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Text(
+                        text,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: fontSize ?? 16,
+                          fontWeight: fontWeight ?? FontWeight.w600,
+                          color: textColor ?? Colors.white,
+                          letterSpacing: letterSpacing ?? 0.3,
+                        ),
+                      ),
+              ),
+            ),
+          ),
         ),
-        child: widget.isLoading
+      );
+    }
+
+    // Fallback: normal ElevatedButton
+    return SizedBox(
+      width: width ?? double.infinity,
+      height: height ?? 56,
+      child: ElevatedButton(
+        onPressed: (isLoading || !enabled) ? null : onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: backgroundColor ?? AppColors.primary,
+          foregroundColor: textColor ?? Colors.white,
+          elevation: elevation ?? 2,
+          shadowColor:
+              (backgroundColor ?? AppColors.primary).withOpacity(0.25),
+
+          // Better spacing inside button
+          padding:
+              padding ??
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+
+          // Square / rounded rectangle shape
+          shape: RoundedRectangleBorder(
+            borderRadius: borderR,
+          ),
+
+          disabledBackgroundColor:
+              (backgroundColor ?? AppColors.primary).withOpacity(0.6),
+
+          disabledForegroundColor:
+              (textColor ?? Colors.white).withOpacity(0.7),
+        ),
+
+        child: isLoading
             ? Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -99,30 +178,32 @@ class _CustomButtonState extends State<CustomButton> {
                     height: 18,
                     width: 18,
                     child: CircularProgressIndicator(
-                      color: widget.loadingColor ?? Colors.white,
+                      color: loadingColor ?? Colors.white,
                       strokeWidth: 2.5,
                     ),
                   ),
-                  const SizedBox(width: 8),
+
+                  const SizedBox(width: 10),
+
                   Text(
                     'Loading...',
                     style: TextStyle(
-                      fontSize: widget.fontSize ?? 16,
-                      fontWeight: widget.fontWeight ?? FontWeight.w700,
-                      color: widget.textColor ?? Colors.white,
-                      letterSpacing: widget.letterSpacing ?? 0.4,
+                      fontSize: fontSize ?? 16,
+                      fontWeight: fontWeight ?? FontWeight.w600,
+                      color: textColor ?? Colors.white,
+                      letterSpacing: letterSpacing ?? 0.3,
                     ),
                   ),
                 ],
               )
             : Text(
-                widget.text,
+                text,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: widget.fontSize ?? 16,
-                  fontWeight: widget.fontWeight ?? FontWeight.w700,
-                  color: widget.textColor ?? Colors.white,
-                  letterSpacing: widget.letterSpacing ?? 0.4,
+                  fontSize: fontSize ?? 16,
+                  fontWeight: fontWeight ?? FontWeight.w600,
+                  color: textColor ?? Colors.white,
+                  letterSpacing: letterSpacing ?? 0.3,
                 ),
               ),
       ),
