@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'db/database_helper.dart';
 import 'theme.dart';
 import 'screens/logo_screen.dart';
-import 'screens/otp_screen.dart';
+import 'screens/enter_phone_number.dart';
 import 'services/localization_service.dart';
 
 void main() async {
@@ -25,7 +25,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Ledger App',
       theme: AppTheme.theme,
-      home: const LogoScreen(nextScreen: OTPScreen(), duration: Duration(seconds: 3)),
+      home: const LogoScreen(nextScreen: EnterPhoneNumberScreen(), duration: Duration(seconds: 3)),
     );
   }
 }

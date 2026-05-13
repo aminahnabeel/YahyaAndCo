@@ -30,9 +30,6 @@ class CustomButton extends StatelessWidget {
   /// Optional custom background color
   final Color? backgroundColor;
 
-  /// Optional background gradient (overrides backgroundColor when provided)
-  final Gradient? gradient;
-
   /// Optional custom text color
   final Color? textColor;
 
@@ -62,7 +59,6 @@ class CustomButton extends StatelessWidget {
     this.fontSize,
     this.fontWeight,
     this.backgroundColor,
-    this.gradient,
     this.textColor,
     this.elevation,
     this.loadingColor,
@@ -73,94 +69,26 @@ class CustomButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderR = BorderRadius.circular(borderRadius ?? 12);
-
-    // If a gradient is provided, render a decorated InkWell to show gradient
-    if (gradient != null) {
-      return SizedBox(
-        width: width ?? double.infinity,
-        height: height ?? 56,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: gradient,
-            borderRadius: borderR,
-            boxShadow: [
-              if ((elevation ?? 2) > 0)
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.12),
-                  blurRadius: (elevation ?? 2) * 4,
-                  offset: Offset(0, (elevation ?? 2)),
-                )
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: borderR,
-              onTap: (isLoading || !enabled) ? null : onPressed,
-              child: Center(
-                child: isLoading
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(
-                              color: loadingColor ?? Colors.white,
-                              strokeWidth: 2.5,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Loading...',
-                            style: TextStyle(
-                              fontSize: fontSize ?? 16,
-                              fontWeight: fontWeight ?? FontWeight.w600,
-                              color: textColor ?? Colors.white,
-                              letterSpacing: letterSpacing ?? 0.3,
-                            ),
-                          ),
-                        ],
-                      )
-                    : Text(
-                        text,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: fontSize ?? 16,
-                          fontWeight: fontWeight ?? FontWeight.w600,
-                          color: textColor ?? Colors.white,
-                          letterSpacing: letterSpacing ?? 0.3,
-                        ),
-                      ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    // Fallback: normal ElevatedButton
     return SizedBox(
       width: width ?? double.infinity,
-      height: height ?? 56,
+      height: height ?? 54,
       child: ElevatedButton(
         onPressed: (isLoading || !enabled) ? null : onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: backgroundColor ?? AppColors.primary,
           foregroundColor: textColor ?? Colors.white,
-          elevation: elevation ?? 2,
+          elevation: elevation ?? 4,
           shadowColor:
-              (backgroundColor ?? AppColors.primary).withOpacity(0.25),
+              (backgroundColor ?? AppColors.primary).withOpacity(0.18),
 
           // Better spacing inside button
           padding:
               padding ??
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
 
           // Square / rounded rectangle shape
           shape: RoundedRectangleBorder(
-            borderRadius: borderR,
+            borderRadius: BorderRadius.circular(borderRadius ?? 6),
           ),
 
           disabledBackgroundColor:
@@ -191,7 +119,7 @@ class CustomButton extends StatelessWidget {
                       fontSize: fontSize ?? 16,
                       fontWeight: fontWeight ?? FontWeight.w600,
                       color: textColor ?? Colors.white,
-                      letterSpacing: letterSpacing ?? 0.3,
+                      letterSpacing: letterSpacing ?? 0.4,
                     ),
                   ),
                 ],
@@ -203,7 +131,7 @@ class CustomButton extends StatelessWidget {
                   fontSize: fontSize ?? 16,
                   fontWeight: fontWeight ?? FontWeight.w600,
                   color: textColor ?? Colors.white,
-                  letterSpacing: letterSpacing ?? 0.3,
+                  letterSpacing: letterSpacing ?? 0.4,
                 ),
               ),
       ),
