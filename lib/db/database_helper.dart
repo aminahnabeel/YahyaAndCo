@@ -43,6 +43,15 @@ class DatabaseHelper {
 
       version: 1,
 
+      onConfigure: (db) async {
+
+        // ENABLE FOREIGN KEYS
+
+        await db.execute(
+          'PRAGMA foreign_keys = ON',
+        );
+      },
+
       onCreate: onCreate,
     );
   }
@@ -52,9 +61,9 @@ class DatabaseHelper {
     int version,
   ) async {
 
-    // =========================
+    // =====================================================
     // BUSINESS TABLE
-    // =========================
+    // =====================================================
 
     await db.execute('''
     CREATE TABLE business(
@@ -62,15 +71,15 @@ class DatabaseHelper {
       business_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
 
-      name TEXT,
+      name TEXT NOT NULL,
 
-      created_at TEXT
+      created_at TEXT NOT NULL
     )
     ''');
 
-    // =========================
+    // =====================================================
     // ACCOUNTS TABLE
-    // =========================
+    // =====================================================
 
     await db.execute('''
     CREATE TABLE accounts(
@@ -78,25 +87,29 @@ class DatabaseHelper {
       account_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
 
-      business_id INTEGER,
+      business_id INTEGER NOT NULL,
 
-      name TEXT,
+      name TEXT NOT NULL,
 
-      type TEXT,
+      type TEXT NOT NULL,
 
       phone TEXT,
 
-      address TEXT,
+      whatsapp TEXT,
 
-      opening_balance REAL,
+      opening_balance REAL DEFAULT 0,
 
-      created_at TEXT
+      created_at TEXT NOT NULL,
+
+      FOREIGN KEY (business_id)
+      REFERENCES business (business_id)
+      ON DELETE CASCADE
     )
     ''');
 
-    // =========================
+    // =====================================================
     // TRANSACTIONS TABLE
-    // =========================
+    // =====================================================
 
     await db.execute('''
     CREATE TABLE transactions(
@@ -104,27 +117,41 @@ class DatabaseHelper {
       transaction_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
 
-      business_id INTEGER,
+      business_id INTEGER NOT NULL,
 
-      account_id INTEGER,
+      account_id INTEGER NOT NULL,
 
-      amount REAL,
+      voucher_no TEXT,
 
-      type TEXT,
+      voucher_type TEXT,
+
+      amount REAL NOT NULL,
+
+      type TEXT NOT NULL,
 
       note TEXT,
 
       payment_method TEXT,
 
-      date TEXT,
+      image_url TEXT,
 
-      created_at TEXT
+      date TEXT NOT NULL,
+
+      created_at TEXT NOT NULL,
+
+      FOREIGN KEY (business_id)
+      REFERENCES business (business_id)
+      ON DELETE CASCADE,
+
+      FOREIGN KEY (account_id)
+      REFERENCES accounts (account_id)
+      ON DELETE CASCADE
     )
     ''');
 
-    // =========================
+    // =====================================================
     // JOURNAL ENTRY TABLE
-    // =========================
+    // =====================================================
 
     await db.execute('''
     CREATE TABLE journal_entry(
@@ -132,19 +159,35 @@ class DatabaseHelper {
       journal_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
 
-      business_id INTEGER,
+      business_id INTEGER NOT NULL,
 
       transaction_id INTEGER,
 
+      voucher_no TEXT,
+
+      voucher_type TEXT,
+
       description TEXT,
 
-      date TEXT
+      image_url TEXT,
+
+      date TEXT NOT NULL,
+
+      created_at TEXT NOT NULL,
+
+      FOREIGN KEY (business_id)
+      REFERENCES business (business_id)
+      ON DELETE CASCADE,
+
+      FOREIGN KEY (transaction_id)
+      REFERENCES transactions (transaction_id)
+      ON DELETE SET NULL
     )
     ''');
 
-    // =========================
+    // =====================================================
     // JOURNAL LINES TABLE
-    // =========================
+    // =====================================================
 
     await db.execute('''
     CREATE TABLE journal_lines(
@@ -152,19 +195,27 @@ class DatabaseHelper {
       line_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
 
-      journal_id INTEGER,
+      journal_id INTEGER NOT NULL,
 
-      account_id INTEGER,
+      account_id INTEGER NOT NULL,
 
-      debit REAL,
+      debit REAL DEFAULT 0,
 
-      credit REAL
+      credit REAL DEFAULT 0,
+
+      FOREIGN KEY (journal_id)
+      REFERENCES journal_entry (journal_id)
+      ON DELETE CASCADE,
+
+      FOREIGN KEY (account_id)
+      REFERENCES accounts (account_id)
+      ON DELETE CASCADE
     )
     ''');
 
-    // =========================
+    // =====================================================
     // EXPENSE CATEGORY TABLE
-    // =========================
+    // =====================================================
 
     await db.execute('''
     CREATE TABLE expense_categories(
@@ -172,15 +223,19 @@ class DatabaseHelper {
       category_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
 
-      business_id INTEGER,
+      business_id INTEGER NOT NULL,
 
-      name TEXT
+      name TEXT NOT NULL,
+
+      FOREIGN KEY (business_id)
+      REFERENCES business (business_id)
+      ON DELETE CASCADE
     )
     ''');
 
-    // =========================
+    // =====================================================
     // CALCULATOR HISTORY TABLE
-    // =========================
+    // =====================================================
 
     await db.execute('''
     CREATE TABLE calculator_history(
@@ -188,17 +243,17 @@ class DatabaseHelper {
       history_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
 
-      expression TEXT,
+      expression TEXT NOT NULL,
 
-      result TEXT,
+      result TEXT NOT NULL,
 
-      created_at TEXT
+      created_at TEXT NOT NULL
     )
     ''');
 
-    // =========================
+    // =====================================================
     // NOTES TABLE
-    // =========================
+    // =====================================================
 
     await db.execute('''
     CREATE TABLE notes(
@@ -206,20 +261,24 @@ class DatabaseHelper {
       note_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
 
-      business_id INTEGER,
+      business_id INTEGER NOT NULL,
 
-      title TEXT,
+      title TEXT NOT NULL,
 
       description TEXT,
 
-      created_at TEXT
+      created_at TEXT NOT NULL,
+
+      FOREIGN KEY (business_id)
+      REFERENCES business (business_id)
+      ON DELETE CASCADE
     )
     ''');
   }
 
-  // ======================================================
+  // =====================================================
   // BUSINESS METHODS
-  // ======================================================
+  // =====================================================
 
   Future<int> insertBusiness(
     BusinessModel business,
@@ -243,7 +302,8 @@ class DatabaseHelper {
 
       'business',
 
-      orderBy: 'business_id DESC',
+      orderBy:
+          'business_id DESC',
     );
 
     return List.generate(
@@ -293,9 +353,9 @@ class DatabaseHelper {
     );
   }
 
-  // ======================================================
+  // =====================================================
   // ACCOUNT METHODS
-  // ======================================================
+  // =====================================================
 
   Future<int> insertAccount(
     AccountModel account,
@@ -325,7 +385,8 @@ class DatabaseHelper {
 
       whereArgs: [businessId],
 
-      orderBy: 'account_id DESC',
+      orderBy:
+          'account_id DESC',
     );
 
     return List.generate(
@@ -375,9 +436,9 @@ class DatabaseHelper {
     );
   }
 
-  // ======================================================
+  // =====================================================
   // TRANSACTION METHODS
-  // ======================================================
+  // =====================================================
 
   Future<int> insertTransaction(
     TransactionModel transaction,
@@ -426,24 +487,25 @@ class DatabaseHelper {
   }
 
   Future updateTransaction(
-  TransactionModel transaction,
-) async {
+    TransactionModel transaction,
+  ) async {
 
-  final db = await database;
+    final db = await database;
 
-  await db.update(
+    await db.update(
 
-    'transactions',
+      'transactions',
 
-    transaction.toMap(),
+      transaction.toMap(),
 
-    where: 'transaction_id = ?',
+      where:
+          'transaction_id = ?',
 
-    whereArgs: [
-      transaction.transactionId,
-    ],
-  );
-}
+      whereArgs: [
+        transaction.transactionId,
+      ],
+    );
+  }
 
   Future deleteTransaction(
     int transactionId,
@@ -462,11 +524,9 @@ class DatabaseHelper {
     );
   }
 
-  
-
-  // ======================================================
+  // =====================================================
   // JOURNAL ENTRY METHODS
-  // ======================================================
+  // =====================================================
 
   Future<int> insertJournalEntry(
     JournalEntryModel journal,
@@ -497,6 +557,9 @@ class DatabaseHelper {
       where: 'business_id = ?',
 
       whereArgs: [businessId],
+
+      orderBy:
+          'journal_id DESC',
     );
 
     return List.generate(
@@ -511,9 +574,45 @@ class DatabaseHelper {
     );
   }
 
-  // ======================================================
+  Future updateJournalEntry(
+    JournalEntryModel journal,
+  ) async {
+
+    final db = await database;
+
+    await db.update(
+
+      'journal_entry',
+
+      journal.toMap(),
+
+      where: 'journal_id = ?',
+
+      whereArgs: [
+        journal.journalId,
+      ],
+    );
+  }
+
+  Future deleteJournalEntry(
+    int journalId,
+  ) async {
+
+    final db = await database;
+
+    await db.delete(
+
+      'journal_entry',
+
+      where: 'journal_id = ?',
+
+      whereArgs: [journalId],
+    );
+  }
+
+  // =====================================================
   // JOURNAL LINE METHODS
-  // ======================================================
+  // =====================================================
 
   Future<int> insertJournalLine(
     JournalLineModel line,
@@ -558,9 +657,9 @@ class DatabaseHelper {
     );
   }
 
-  // ======================================================
+  // =====================================================
   // EXPENSE CATEGORY METHODS
-  // ======================================================
+  // =====================================================
 
   Future<int> insertExpenseCategory(
     ExpenseCategoryModel category,
@@ -605,9 +704,9 @@ class DatabaseHelper {
     );
   }
 
-  // ======================================================
+  // =====================================================
   // NOTE METHODS
-  // ======================================================
+  // =====================================================
 
   Future<int> insertNote(
     NoteModel note,
@@ -637,7 +736,8 @@ class DatabaseHelper {
 
       whereArgs: [businessId],
 
-      orderBy: 'note_id DESC',
+      orderBy:
+          'note_id DESC',
     );
 
     return List.generate(
@@ -651,9 +751,9 @@ class DatabaseHelper {
     );
   }
 
-  // ======================================================
+  // =====================================================
   // CALCULATOR HISTORY METHODS
-  // ======================================================
+  // =====================================================
 
   Future<void> insertCalculatorHistory(
     CalculatorHistoryModel history,
@@ -661,16 +761,12 @@ class DatabaseHelper {
 
     final db = await database;
 
-    // INSERT NEW HISTORY
-
     await db.insert(
 
       'calculator_history',
 
       history.toMap(),
     );
-
-    // TOTAL COUNT
 
     final List<Map<String, dynamic>>
         countResult =
@@ -684,8 +780,6 @@ class DatabaseHelper {
     int total =
         countResult.first['total']
             as int;
-
-    // KEEP ONLY LATEST 10
 
     if (total > 10) {
 
@@ -718,7 +812,8 @@ class DatabaseHelper {
 
       'calculator_history',
 
-      orderBy: 'history_id DESC',
+      orderBy:
+          'history_id DESC',
     );
 
     return List.generate(

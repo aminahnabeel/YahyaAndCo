@@ -4,11 +4,19 @@ class JournalEntryModel {
 
   int businessId;
 
-  int transactionId;
+  int? transactionId;
+
+  String voucherNo;
+
+  String voucherType;
 
   String description;
 
+  String? imageUrl;
+
   String date;
+
+  String createdAt;
 
   JournalEntryModel({
 
@@ -16,11 +24,19 @@ class JournalEntryModel {
 
     required this.businessId,
 
-    required this.transactionId,
+    this.transactionId,
+
+    required this.voucherNo,
+
+    required this.voucherType,
 
     required this.description,
 
+    this.imageUrl,
+
     required this.date,
+
+    required this.createdAt,
   });
 
   Map<String, dynamic> toMap() {
@@ -29,15 +45,29 @@ class JournalEntryModel {
 
       'journal_id': journalId,
 
-      'business_id': businessId,
+      'business_id':
+          businessId,
 
       'transaction_id':
           transactionId,
 
+      'voucher_no':
+          voucherNo,
+
+      'voucher_type':
+          voucherType,
+
       'description':
           description,
 
-      'date': date,
+      'image_url':
+          imageUrl,
+
+      'date':
+          date,
+
+      'created_at':
+          createdAt,
     };
   }
 
@@ -56,11 +86,23 @@ class JournalEntryModel {
       transactionId:
           map['transaction_id'],
 
+      voucherNo:
+          map['voucher_no'],
+
+      voucherType:
+          map['voucher_type'],
+
       description:
           map['description'],
 
+      imageUrl:
+          map['image_url'],
+
       date:
           map['date'],
+
+      createdAt:
+          map['created_at'],
     );
   }
 }
