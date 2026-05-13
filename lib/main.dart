@@ -1,15 +1,22 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 import 'db/database_helper.dart';
 import 'theme.dart';
+import 'screens/enter_email.dart';
 import 'screens/logo_screen.dart';
-import 'screens/enter_phone_number.dart';
+import 'screens/business_details.dart';
 import 'services/localization_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   unawaited(DatabaseHelper.instance.database);
 
@@ -25,7 +32,10 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Ledger App',
       theme: AppTheme.theme,
-      home: const LogoScreen(nextScreen: EnterPhoneNumberScreen(), duration: Duration(seconds: 3)),
+      home: const LogoScreen(nextScreen: EnterEmailScreen(), duration: Duration(seconds: 3)),
+      routes: {
+        '/business-details': (context) => const BusinessDetailsScreen(),
+      },
     );
   }
 }

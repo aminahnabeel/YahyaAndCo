@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "396051505153",
+    "project_id": "yahyaandco-5de39",
+    "storage_bucket": "yahyaandco-5de39.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:396051505153:android:a5262b7ec1affb65e02000",
+        "android_client_info": {
+          "package_name": "com.example.yahya_and_co"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB7qHKP8NvXzQO0Ynr42_t5SNCzEct6_yY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

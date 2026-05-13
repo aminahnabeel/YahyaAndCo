@@ -1,56 +1,94 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-import 'otp_screen.dart';
+import 'email_verification.dart';
 import '../services/localization_service.dart';
 import '../theme.dart';
 import '../widgets/custom_button.dart';
 
-class EnterPhoneNumberScreen extends StatefulWidget {
-  const EnterPhoneNumberScreen({super.key});
+class EnterEmailScreen extends StatefulWidget {
+  const EnterEmailScreen({super.key});
 
   @override
-  State<EnterPhoneNumberScreen> createState() => _EnterPhoneNumberScreenState();
+  State<EnterEmailScreen> createState() => _EnterEmailScreenState();
 }
 
-class _EnterPhoneNumberScreenState extends State<EnterPhoneNumberScreen> {
-  final TextEditingController _phoneController = TextEditingController();
+class _EnterEmailScreenState extends State<EnterEmailScreen> {
+  final TextEditingController _emailController = TextEditingController();
   bool _loading = false;
 
-  String _formatPhoneNumber(String value) {
-    final digits = value.replaceAll(' ', '');
-    if (digits.length <= 3) return digits;
-    return '${digits.substring(0, 3)} ${digits.substring(3)}';
+  String _passwordForEmail(String email) {
+    final normalized = email.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final seed = normalized.isEmpty ? 'user' : normalized;
+    return 'Yahya#${seed}2026';
   }
 
-  bool _isValidPakistaniMobile(String value) {
-    return value.length == 10 && value.startsWith('3');
+  bool _isValidEmail(String value) {
+    final emailRegex = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
+    return emailRegex.hasMatch(value);
   }
 
   Future<void> _onSendOTP() async {
-    final phone = _phoneController.text.replaceAll(' ', '');
-    if (!_isValidPakistaniMobile(phone)) {
+    final email = _emailController.text.trim();
+    if (!_isValidEmail(email)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(LocalizationService.instance.t('invalid_phone'))),
+        SnackBar(content: Text(LocalizationService.instance.t('invalid_email'))),
       );
       return;
     }
 
     setState(() => _loading = true);
+    final password = _passwordForEmail(email);
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('seen_otp', true);
+    try {
+      try {
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'email-already-in-use') {
+          await FirebaseAuth.instance.signInWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+        } else {
+          rethrow;
+        }
+      }
 
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(builder: (_) => const OTPScreen()),
-    );
+      await FirebaseAuth.instance.currentUser?.sendEmailVerification();
+
+      // Store email in SharedPreferences for later verification
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('seen_otp', true);
+      await prefs.setString('verified_email', email);
+
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => const OTPScreen()),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? LocalizationService.instance.t('verification_error'))),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(LocalizationService.instance.t('verification_error'))),
+      );
+    }
   }
 
   @override
   void dispose() {
-    _phoneController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -58,7 +96,7 @@ class _EnterPhoneNumberScreenState extends State<EnterPhoneNumberScreen> {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String>(
       valueListenable: LocalizationService.instance.language,
-      builder: (context, lang, _) {
+      builder: (context, _, _) {
         return Scaffold(
           backgroundColor: AppColors.scaffoldBackground,
           body: SafeArea(
@@ -86,13 +124,18 @@ class _EnterPhoneNumberScreenState extends State<EnterPhoneNumberScreen> {
                               ),
                               const SizedBox(height: 40),
                               Center(
-                                child: Text(
-                                  LocalizationService.instance.t('enter_phone'),
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.grey.shade900,
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    LocalizationService.instance.t('enter_email'),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.grey.shade900,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -111,86 +154,35 @@ class _EnterPhoneNumberScreenState extends State<EnterPhoneNumberScreen> {
                                   ],
                                 ),
                                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      '+92',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.primary,
-                                        letterSpacing: 0.5,
-                                      ),
+                                child: TextField(
+                                  controller: _emailController,
+                                  keyboardType: TextInputType.emailAddress,
+                                  decoration: InputDecoration(
+                                    hintText: LocalizationService.instance.t('email_hint'),
+                                    hintStyle: TextStyle(
+                                      color: Colors.grey.shade400,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w400,
                                     ),
-                                    const SizedBox(width: 12),
-                                    Container(
-                                      width: 1,
-                                      height: 28,
-                                      color: Colors.grey.shade300,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: TextField(
-                                        controller: _phoneController,
-                                        keyboardType: TextInputType.number,
-                                        inputFormatters: [
-                                          FilteringTextInputFormatter.digitsOnly,
-                                          LengthLimitingTextInputFormatter(10),
-                                        ],
-                                        onChanged: (value) {
-                                          final digits = value.replaceAll(' ', '');
-                                          final formatted = _formatPhoneNumber(digits);
-                                          if (formatted != _phoneController.text) {
-                                            _phoneController.value = TextEditingValue(
-                                              text: formatted,
-                                              selection: TextSelection.collapsed(offset: formatted.length),
-                                            );
-                                          }
-                                        },
-                                        decoration: InputDecoration(
-                                          hintText: LocalizationService.instance.t('phone_hint'),
-                                          hintStyle: TextStyle(
-                                            color: Colors.grey.shade400,
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w400,
-                                          ),
-                                          border: InputBorder.none,
-                                          enabledBorder: InputBorder.none,
-                                          focusedBorder: InputBorder.none,
-                                          contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 16),
-                                        ),
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.black87,
-                                          letterSpacing: 0.3,
-                                        ),
-                                        cursorColor: AppColors.primary,
-                                        cursorWidth: 2,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 80),
-                              Center(
-                                child: Text(
-                                  LocalizationService.instance.t('ready_otp'),
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.grey.shade600,
-                                    letterSpacing: 0.1,
-                                    height: 1.35,
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 16),
                                   ),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                    letterSpacing: 0.3,
+                                  ),
+                                  cursorColor: AppColors.primary,
+                                  cursorWidth: 2,
                                 ),
                               ),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 100),
                               Center(
                                 child: CustomButton(
-                                  text: LocalizationService.instance.t('send_otp'),
+                                  text: LocalizationService.instance.t('verify_email'),
                                   onPressed: _onSendOTP,
                                   isLoading: _loading,
                                   width: 180,
