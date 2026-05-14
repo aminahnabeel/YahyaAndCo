@@ -69,6 +69,11 @@ class LocalizationService {
       'pin_set_success': 'PIN set successfully!',
       'sign_up': 'SignUp',
       'skip': 'Skip',
+      'enter_pin_to_login': 'Remember this pin to login app everytime',
+      'verify': 'Verify',
+      'forgot_pin': 'Forgot Pin?',
+      'forgot_pin_contact_support': 'Please contact support to reset your PIN',
+      'pin_verified_success': 'PIN verified successfully!',
     },
     'roman': {
       'title': 'Yahya&Co',
@@ -132,6 +137,11 @@ class LocalizationService {
       'pin_set_success': 'PIN kamyabi se set ho gya!',
       'sign_up': 'SignUp',
       'skip': 'Chhod Den',
+      'enter_pin_to_login': 'Is pin ko har baar app login karte waqt yaad rakhein',
+      'verify': 'Verify Karen',
+      'forgot_pin': 'PIN bhool gaye?',
+      'forgot_pin_contact_support': 'Aapka PIN reset karne ke liye support se rabta karen',
+      'pin_verified_success': 'PIN kamyabi se verify ho gya!',
     },
   };
 
