@@ -1,9 +1,7 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-
 import 'db/database_helper.dart';
 import 'theme.dart';
 import 'screens/enter_email.dart';
@@ -14,9 +12,7 @@ import 'services/localization_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   unawaited(DatabaseHelper.instance.database);
 
@@ -32,10 +28,8 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Ledger App',
       theme: AppTheme.theme,
-      home: const LogoScreen(nextScreen: EnterEmailScreen(), duration: Duration(seconds: 3)),
-      routes: {
-        '/business-details': (context) => const BusinessDetailsScreen(),
-      },
+      home: const BusinessDetailsScreen(),
+      routes: {'/business-details': (context) => const BusinessDetailsScreen()},
     );
   }
 }
@@ -58,7 +52,10 @@ class SuccessScreen extends StatelessWidget {
                 const SizedBox(height: 24),
                 Text(
                   LocalizationService.instance.t('phone_verified'),
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Text(
