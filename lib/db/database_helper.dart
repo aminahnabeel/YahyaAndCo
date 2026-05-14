@@ -33,33 +33,11 @@ class DatabaseHelper {
     return await openDatabase(
       path,
 
-      version: 3,
+      version: 1,
 
       onCreate: onCreate,
-
-      onUpgrade: onUpgrade,
     );
   }
-
-  Future onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 2) {
-      // Add type column to business table
-      try {
-        await db.execute('ALTER TABLE business ADD COLUMN type TEXT');
-      } catch (e) {
-        print('Error adding type column: $e');
-      }
-    }
-    if (oldVersion < 3) {
-      // Add pin column to business table
-      try {
-        await db.execute('ALTER TABLE business ADD COLUMN pin TEXT');
-      } catch (e) {
-        print('Error adding pin column: $e');
-      }
-    }
-  }
-
   Future onCreate(Database db, int version) async {
     // =========================
     // BUSINESS TABLE
