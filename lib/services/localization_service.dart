@@ -11,7 +11,7 @@ class LocalizationService {
 
   final Map<String, Map<String, String>> _t = {
     'en': {
-      'title': 'Ledger App',
+      'title': 'Yahya&Co',
       'enter_email': 'Please enter your email address',
       'email_hint': 'Email Address',
       'invalid_email': 'Please enter a valid email address',
@@ -59,7 +59,7 @@ class LocalizationService {
       'business_created_success': 'Business created successfully!',
     },
     'roman': {
-      'title': 'Ledger App',
+      'title': 'Yahya&Co',
       'enter_email': 'Baraye mehrbani apna email address darj karen',
       'email_hint': 'Email Address',
       'invalid_email': 'Baraye mehrbani sahih email address darj karen',

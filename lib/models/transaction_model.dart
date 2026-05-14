@@ -14,6 +14,8 @@ class TransactionModel {
 
   String paymentMethod;
 
+  String? imageUrl;
+
   String date;
 
   String createdAt;
@@ -34,6 +36,8 @@ class TransactionModel {
 
     required this.paymentMethod,
 
+    this.imageUrl,
+
     required this.date,
 
     required this.createdAt,
@@ -43,23 +47,35 @@ class TransactionModel {
 
     return {
 
-      'transaction_id': transactionId,
+      'transaction_id':
+          transactionId,
 
-      'business_id': businessId,
+      'business_id':
+          businessId,
 
-      'account_id': accountId,
+      'account_id':
+          accountId,
 
-      'amount': amount,
+      'amount':
+          amount,
 
-      'type': type,
+      'type':
+          type,
 
-      'note': note,
+      'note':
+          note,
 
-      'payment_method': paymentMethod,
+      'payment_method':
+          paymentMethod,
 
-      'date': date,
+      'image_url':
+          imageUrl,
 
-      'created_at': createdAt,
+      'date':
+          date,
+
+      'created_at':
+          createdAt,
     };
   }
 
@@ -89,6 +105,9 @@ class TransactionModel {
 
       paymentMethod:
           map['payment_method'],
+
+      imageUrl:
+          map['image_url'],
 
       date:
           map['date'],

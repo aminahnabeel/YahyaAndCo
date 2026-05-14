@@ -20,6 +20,36 @@ class JournalService {
   }
 
   // =========================
+  // UPDATE JOURNAL ENTRY
+  // =========================
+
+  Future updateJournalEntry(
+    JournalEntryModel journal,
+  ) async {
+
+    await DatabaseHelper
+        .instance
+        .updateJournalEntry(
+      journal,
+    );
+  }
+
+  // =========================
+  // DELETE JOURNAL ENTRY
+  // =========================
+
+  Future deleteJournalEntry(
+    int journalId,
+  ) async {
+
+    await DatabaseHelper
+        .instance
+        .deleteJournalEntry(
+      journalId,
+    );
+  }
+
+  // =========================
   // CREATE JOURNAL LINE
   // =========================
 
