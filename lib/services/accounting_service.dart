@@ -1,5 +1,3 @@
-import 'package:sqflite/sqflite.dart';
-
 import '../db/database_helper.dart';
 import '../models/journal_entry_model.dart';
 import '../models/journal_line_model.dart';

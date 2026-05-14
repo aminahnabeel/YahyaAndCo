@@ -406,6 +406,27 @@ class DatabaseHelper {
     });
   }
 
+  Future updateJournalEntry(JournalEntryModel journal) async {
+    final db = await database;
+
+    return await db.update(
+      'journal_entry',
+      journal.toMap(),
+      where: 'journal_id = ?',
+      whereArgs: [journal.journalId],
+    );
+  }
+
+  Future deleteJournalEntry(int journalId) async {
+    final db = await database;
+
+    return await db.delete(
+      'journal_entry',
+      where: 'journal_id = ?',
+      whereArgs: [journalId],
+    );
+  }
+
   // ======================================================
   // JOURNAL LINE METHODS
   // ======================================================

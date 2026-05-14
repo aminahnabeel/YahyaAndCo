@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../services/localization_service.dart';
 import '../services/business_service.dart';
 import '../models/business_model.dart';
@@ -104,7 +103,6 @@ class _BusinessDetailsScreenState extends State<BusinessDetailsScreen> {
       valueListenable: LocalizationService.instance.language,
       builder: (context, lang, _) {
         final localization = LocalizationService.instance;
-        final mediaQuery = MediaQuery.of(context);
 
         return Scaffold(
           backgroundColor: AppColors.scaffoldBackground,
