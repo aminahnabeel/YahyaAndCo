@@ -9,6 +9,7 @@ import '../models/journal_entry_model.dart';
 import '../models/journal_line_model.dart';
 import '../models/note_model.dart';
 import '../models/transaction_model.dart';
+import '../models/user_model.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper();
@@ -206,6 +207,81 @@ class DatabaseHelper {
       created_at TEXT
     )
     ''');
+
+    // =========================
+    // USERS TABLE
+    // =========================
+
+    await db.execute('''
+    CREATE TABLE users(
+
+      user_id INTEGER
+      PRIMARY KEY AUTOINCREMENT,
+
+      firebase_uid TEXT,
+
+      name TEXT,
+
+      email TEXT,
+
+      password TEXT,
+
+      is_verified INTEGER,
+
+      created_at TEXT
+    )
+    ''');
+  }
+
+  // ======================================================
+  // USER METHODS
+  // ======================================================
+
+  Future<int> insertUser(UserModel user) async {
+    final db = await database;
+
+    return await db.insert('users', user.toMap());
+  }
+
+  Future<UserModel?> getUserByEmail(String email) async {
+    final db = await database;
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      'users',
+      where: 'email = ?',
+      whereArgs: [email],
+      limit: 1,
+    );
+
+    if (maps.isEmpty) return null;
+
+    return UserModel.fromMap(maps.first);
+  }
+
+  Future<UserModel?> getUserByFirebaseUid(String uid) async {
+    final db = await database;
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      'users',
+      where: 'firebase_uid = ?',
+      whereArgs: [uid],
+      limit: 1,
+    );
+
+    if (maps.isEmpty) return null;
+
+    return UserModel.fromMap(maps.first);
+  }
+
+  Future updateUser(UserModel user) async {
+    final db = await database;
+
+    await db.update(
+      'users',
+      user.toMap(),
+      where: 'user_id = ?',
+      whereArgs: [user.userId],
+    );
   }
 
   // ======================================================
