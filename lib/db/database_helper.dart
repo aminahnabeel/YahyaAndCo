@@ -11,14 +11,11 @@ import '../models/note_model.dart';
 import '../models/transaction_model.dart';
 
 class DatabaseHelper {
-
-  static final DatabaseHelper instance =
-      DatabaseHelper();
+  static final DatabaseHelper instance = DatabaseHelper();
 
   static Database? _database;
 
   Future<Database> get database async {
-
     if (_database != null) {
       return _database!;
     }
@@ -29,41 +26,22 @@ class DatabaseHelper {
   }
 
   Future<Database> initDB() async {
-
-    String path = join(
-      await getDatabasesPath(),
-      'ledger.db',
-    );
+    String path = join(await getDatabasesPath(), 'ledger.db');
 
     print("DATABASE PATH: $path");
 
     return await openDatabase(
-
       path,
 
       version: 1,
 
-      onConfigure: (db) async {
-
-        // ENABLE FOREIGN KEYS
-
-        await db.execute(
-          'PRAGMA foreign_keys = ON',
-        );
-      },
-
       onCreate: onCreate,
     );
   }
-
-  Future onCreate(
-    Database db,
-    int version,
-  ) async {
-
-    // =====================================================
+  Future onCreate(Database db, int version) async {
+    // =========================
     // BUSINESS TABLE
-    // =====================================================
+    // =========================
 
     await db.execute('''
     CREATE TABLE business(
@@ -71,15 +49,19 @@ class DatabaseHelper {
       business_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
 
-      name TEXT NOT NULL,
+      name TEXT,
 
-      created_at TEXT NOT NULL
+      type TEXT,
+
+      pin TEXT,
+
+      created_at TEXT
     )
     ''');
 
-    // =====================================================
+    // =========================
     // ACCOUNTS TABLE
-    // =====================================================
+    // =========================
 
     await db.execute('''
     CREATE TABLE accounts(
@@ -87,29 +69,25 @@ class DatabaseHelper {
       account_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
 
-      business_id INTEGER NOT NULL,
+      business_id INTEGER,
 
-      name TEXT NOT NULL,
+      name TEXT,
 
-      type TEXT NOT NULL,
+      type TEXT,
 
       phone TEXT,
 
-      whatsapp TEXT,
+      address TEXT,
 
-      opening_balance REAL DEFAULT 0,
+      opening_balance REAL,
 
-      created_at TEXT NOT NULL,
-
-      FOREIGN KEY (business_id)
-      REFERENCES business (business_id)
-      ON DELETE CASCADE
+      created_at TEXT
     )
     ''');
 
-    // =====================================================
+    // =========================
     // TRANSACTIONS TABLE
-    // =====================================================
+    // =========================
 
     await db.execute('''
     CREATE TABLE transactions(
@@ -117,41 +95,27 @@ class DatabaseHelper {
       transaction_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
 
-      business_id INTEGER NOT NULL,
+      business_id INTEGER,
 
-      account_id INTEGER NOT NULL,
+      account_id INTEGER,
 
-      voucher_no TEXT,
+      amount REAL,
 
-      voucher_type TEXT,
-
-      amount REAL NOT NULL,
-
-      type TEXT NOT NULL,
+      type TEXT,
 
       note TEXT,
 
       payment_method TEXT,
 
-      image_url TEXT,
+      date TEXT,
 
-      date TEXT NOT NULL,
-
-      created_at TEXT NOT NULL,
-
-      FOREIGN KEY (business_id)
-      REFERENCES business (business_id)
-      ON DELETE CASCADE,
-
-      FOREIGN KEY (account_id)
-      REFERENCES accounts (account_id)
-      ON DELETE CASCADE
+      created_at TEXT
     )
     ''');
 
-    // =====================================================
+    // =========================
     // JOURNAL ENTRY TABLE
-    // =====================================================
+    // =========================
 
     await db.execute('''
     CREATE TABLE journal_entry(
@@ -159,35 +123,19 @@ class DatabaseHelper {
       journal_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
 
-      business_id INTEGER NOT NULL,
+      business_id INTEGER,
 
       transaction_id INTEGER,
 
-      voucher_no TEXT,
-
-      voucher_type TEXT,
-
       description TEXT,
 
-      image_url TEXT,
-
-      date TEXT NOT NULL,
-
-      created_at TEXT NOT NULL,
-
-      FOREIGN KEY (business_id)
-      REFERENCES business (business_id)
-      ON DELETE CASCADE,
-
-      FOREIGN KEY (transaction_id)
-      REFERENCES transactions (transaction_id)
-      ON DELETE SET NULL
+      date TEXT
     )
     ''');
 
-    // =====================================================
+    // =========================
     // JOURNAL LINES TABLE
-    // =====================================================
+    // =========================
 
     await db.execute('''
     CREATE TABLE journal_lines(
@@ -195,27 +143,19 @@ class DatabaseHelper {
       line_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
 
-      journal_id INTEGER NOT NULL,
+      journal_id INTEGER,
 
-      account_id INTEGER NOT NULL,
+      account_id INTEGER,
 
-      debit REAL DEFAULT 0,
+      debit REAL,
 
-      credit REAL DEFAULT 0,
-
-      FOREIGN KEY (journal_id)
-      REFERENCES journal_entry (journal_id)
-      ON DELETE CASCADE,
-
-      FOREIGN KEY (account_id)
-      REFERENCES accounts (account_id)
-      ON DELETE CASCADE
+      credit REAL
     )
     ''');
 
-    // =====================================================
+    // =========================
     // EXPENSE CATEGORY TABLE
-    // =====================================================
+    // =========================
 
     await db.execute('''
     CREATE TABLE expense_categories(
@@ -223,19 +163,15 @@ class DatabaseHelper {
       category_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
 
-      business_id INTEGER NOT NULL,
+      business_id INTEGER,
 
-      name TEXT NOT NULL,
-
-      FOREIGN KEY (business_id)
-      REFERENCES business (business_id)
-      ON DELETE CASCADE
+      name TEXT
     )
     ''');
 
-    // =====================================================
+    // =========================
     // CALCULATOR HISTORY TABLE
-    // =====================================================
+    // =========================
 
     await db.execute('''
     CREATE TABLE calculator_history(
@@ -243,17 +179,17 @@ class DatabaseHelper {
       history_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
 
-      expression TEXT NOT NULL,
+      expression TEXT,
 
-      result TEXT NOT NULL,
+      result TEXT,
 
-      created_at TEXT NOT NULL
+      created_at TEXT
     )
     ''');
 
-    // =====================================================
+    // =========================
     // NOTES TABLE
-    // =====================================================
+    // =========================
 
     await db.execute('''
     CREATE TABLE notes(
@@ -261,90 +197,59 @@ class DatabaseHelper {
       note_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
 
-      business_id INTEGER NOT NULL,
+      business_id INTEGER,
 
-      title TEXT NOT NULL,
+      title TEXT,
 
       description TEXT,
 
-      created_at TEXT NOT NULL,
-
-      FOREIGN KEY (business_id)
-      REFERENCES business (business_id)
-      ON DELETE CASCADE
+      created_at TEXT
     )
     ''');
   }
 
-  // =====================================================
+  // ======================================================
   // BUSINESS METHODS
-  // =====================================================
+  // ======================================================
 
-  Future<int> insertBusiness(
-    BusinessModel business,
-  ) async {
-
+  Future<int> insertBusiness(BusinessModel business) async {
     final db = await database;
 
-    return await db.insert(
-      'business',
-      business.toMap(),
-    );
+    return await db.insert('business', business.toMap());
   }
 
-  Future<List<BusinessModel>>
-      getBusinesses() async {
-
+  Future<List<BusinessModel>> getBusinesses() async {
     final db = await database;
 
-    final List<Map<String, dynamic>>
-        maps = await db.query(
-
+    final List<Map<String, dynamic>> maps = await db.query(
       'business',
 
-      orderBy:
-          'business_id DESC',
+      orderBy: 'business_id DESC',
     );
 
-    return List.generate(
-      maps.length,
-      (index) {
-
-        return BusinessModel.fromMap(
-          maps[index],
-        );
-      },
-    );
+    return List.generate(maps.length, (index) {
+      return BusinessModel.fromMap(maps[index]);
+    });
   }
 
-  Future updateBusiness(
-    BusinessModel business,
-  ) async {
-
+  Future updateBusiness(BusinessModel business) async {
     final db = await database;
 
     await db.update(
-
       'business',
 
       business.toMap(),
 
       where: 'business_id = ?',
 
-      whereArgs: [
-        business.businessId,
-      ],
+      whereArgs: [business.businessId],
     );
   }
 
-  Future deleteBusiness(
-    int businessId,
-  ) async {
-
+  Future deleteBusiness(int businessId) async {
     final db = await database;
 
     await db.delete(
-
       'business',
 
       where: 'business_id = ?',
@@ -353,81 +258,52 @@ class DatabaseHelper {
     );
   }
 
-  // =====================================================
+  // ======================================================
   // ACCOUNT METHODS
-  // =====================================================
+  // ======================================================
 
-  Future<int> insertAccount(
-    AccountModel account,
-  ) async {
-
+  Future<int> insertAccount(AccountModel account) async {
     final db = await database;
 
-    return await db.insert(
-      'accounts',
-      account.toMap(),
-    );
+    return await db.insert('accounts', account.toMap());
   }
 
-  Future<List<AccountModel>>
-      getAccountsByBusiness(
-    int businessId,
-  ) async {
-
+  Future<List<AccountModel>> getAccountsByBusiness(int businessId) async {
     final db = await database;
 
-    final List<Map<String, dynamic>>
-        maps = await db.query(
-
+    final List<Map<String, dynamic>> maps = await db.query(
       'accounts',
 
       where: 'business_id = ?',
 
       whereArgs: [businessId],
 
-      orderBy:
-          'account_id DESC',
+      orderBy: 'account_id DESC',
     );
 
-    return List.generate(
-      maps.length,
-      (index) {
-
-        return AccountModel.fromMap(
-          maps[index],
-        );
-      },
-    );
+    return List.generate(maps.length, (index) {
+      return AccountModel.fromMap(maps[index]);
+    });
   }
 
-  Future updateAccount(
-    AccountModel account,
-  ) async {
-
+  Future updateAccount(AccountModel account) async {
     final db = await database;
 
     await db.update(
-
       'accounts',
 
       account.toMap(),
 
       where: 'account_id = ?',
 
-      whereArgs: [
-        account.accountId,
-      ],
+      whereArgs: [account.accountId],
     );
   }
 
-  Future deleteAccount(
-    int accountId,
-  ) async {
-
+  Future deleteAccount(int accountId) async {
     final db = await database;
 
     await db.delete(
-
       'accounts',
 
       where: 'account_id = ?',
@@ -436,208 +312,123 @@ class DatabaseHelper {
     );
   }
 
-  // =====================================================
+  // ======================================================
   // TRANSACTION METHODS
-  // =====================================================
+  // ======================================================
 
-  Future<int> insertTransaction(
-    TransactionModel transaction,
-  ) async {
-
+  Future<int> insertTransaction(TransactionModel transaction) async {
     final db = await database;
 
-    return await db.insert(
-
-      'transactions',
-
-      transaction.toMap(),
-    );
+    return await db.insert('transactions', transaction.toMap());
   }
 
-  Future<List<TransactionModel>>
-      getTransactionsByBusiness(
+  Future<List<TransactionModel>> getTransactionsByBusiness(
     int businessId,
   ) async {
-
     final db = await database;
 
-    final List<Map<String, dynamic>>
-        maps = await db.query(
-
+    final List<Map<String, dynamic>> maps = await db.query(
       'transactions',
 
       where: 'business_id = ?',
 
       whereArgs: [businessId],
 
-      orderBy:
-          'transaction_id DESC',
+      orderBy: 'transaction_id DESC',
     );
 
-    return List.generate(
-      maps.length,
-      (index) {
-
-        return TransactionModel
-            .fromMap(
-          maps[index],
-        );
-      },
-    );
+    return List.generate(maps.length, (index) {
+      return TransactionModel.fromMap(maps[index]);
+    });
   }
 
-  Future updateTransaction(
-    TransactionModel transaction,
-  ) async {
-
+  Future updateTransaction(TransactionModel transaction) async {
     final db = await database;
 
     await db.update(
-
       'transactions',
 
       transaction.toMap(),
 
-      where:
-          'transaction_id = ?',
+      where: 'transaction_id = ?',
 
-      whereArgs: [
-        transaction.transactionId,
-      ],
+      whereArgs: [transaction.transactionId],
     );
   }
 
-  Future deleteTransaction(
-    int transactionId,
-  ) async {
-
+  Future deleteTransaction(int transactionId) async {
     final db = await database;
 
     await db.delete(
-
       'transactions',
 
-      where:
-          'transaction_id = ?',
+      where: 'transaction_id = ?',
 
       whereArgs: [transactionId],
     );
   }
 
-  // =====================================================
+  // ======================================================
   // JOURNAL ENTRY METHODS
-  // =====================================================
+  // ======================================================
 
-  Future<int> insertJournalEntry(
-    JournalEntryModel journal,
-  ) async {
-
+  Future<int> insertJournalEntry(JournalEntryModel journal) async {
     final db = await database;
 
-    return await db.insert(
-
-      'journal_entry',
-
-      journal.toMap(),
-    );
+    return await db.insert('journal_entry', journal.toMap());
   }
 
-  Future<List<JournalEntryModel>>
-      getJournalEntries(
-    int businessId,
-  ) async {
-
+  Future<List<JournalEntryModel>> getJournalEntries(int businessId) async {
     final db = await database;
 
-    final List<Map<String, dynamic>>
-        maps = await db.query(
-
+    final List<Map<String, dynamic>> maps = await db.query(
       'journal_entry',
 
       where: 'business_id = ?',
 
       whereArgs: [businessId],
-
-      orderBy:
-          'journal_id DESC',
     );
 
-    return List.generate(
-      maps.length,
-      (index) {
-
-        return JournalEntryModel
-            .fromMap(
-          maps[index],
-        );
-      },
-    );
+    return List.generate(maps.length, (index) {
+      return JournalEntryModel.fromMap(maps[index]);
+    });
   }
 
-  Future updateJournalEntry(
-    JournalEntryModel journal,
-  ) async {
-
+  Future updateJournalEntry(JournalEntryModel journal) async {
     final db = await database;
 
-    await db.update(
-
+    return await db.update(
       'journal_entry',
-
       journal.toMap(),
-
       where: 'journal_id = ?',
-
-      whereArgs: [
-        journal.journalId,
-      ],
+      whereArgs: [journal.journalId],
     );
   }
 
-  Future deleteJournalEntry(
-    int journalId,
-  ) async {
-
+  Future deleteJournalEntry(int journalId) async {
     final db = await database;
 
-    await db.delete(
-
+    return await db.delete(
       'journal_entry',
-
       where: 'journal_id = ?',
-
       whereArgs: [journalId],
     );
   }
 
-  // =====================================================
+  // ======================================================
   // JOURNAL LINE METHODS
-  // =====================================================
+  // ======================================================
 
-  Future<int> insertJournalLine(
-    JournalLineModel line,
-  ) async {
-
+  Future<int> insertJournalLine(JournalLineModel line) async {
     final db = await database;
 
-    return await db.insert(
-
-      'journal_lines',
-
-      line.toMap(),
-    );
+    return await db.insert('journal_lines', line.toMap());
   }
 
-  Future<List<JournalLineModel>>
-      getJournalLines(
-    int journalId,
-  ) async {
-
+  Future<List<JournalLineModel>> getJournalLines(int journalId) async {
     final db = await database;
 
-    final List<Map<String, dynamic>>
-        maps = await db.query(
-
+    final List<Map<String, dynamic>> maps = await db.query(
       'journal_lines',
 
       where: 'journal_id = ?',
@@ -645,46 +436,27 @@ class DatabaseHelper {
       whereArgs: [journalId],
     );
 
-    return List.generate(
-      maps.length,
-      (index) {
-
-        return JournalLineModel
-            .fromMap(
-          maps[index],
-        );
-      },
-    );
+    return List.generate(maps.length, (index) {
+      return JournalLineModel.fromMap(maps[index]);
+    });
   }
 
-  // =====================================================
+  // ======================================================
   // EXPENSE CATEGORY METHODS
-  // =====================================================
+  // ======================================================
 
-  Future<int> insertExpenseCategory(
-    ExpenseCategoryModel category,
-  ) async {
-
+  Future<int> insertExpenseCategory(ExpenseCategoryModel category) async {
     final db = await database;
 
-    return await db.insert(
-
-      'expense_categories',
-
-      category.toMap(),
-    );
+    return await db.insert('expense_categories', category.toMap());
   }
 
-  Future<List<ExpenseCategoryModel>>
-      getExpenseCategories(
+  Future<List<ExpenseCategoryModel>> getExpenseCategories(
     int businessId,
   ) async {
-
     final db = await database;
 
-    final List<Map<String, dynamic>>
-        maps = await db.query(
-
+    final List<Map<String, dynamic>> maps = await db.query(
       'expense_categories',
 
       where: 'business_id = ?',
@@ -692,99 +464,63 @@ class DatabaseHelper {
       whereArgs: [businessId],
     );
 
-    return List.generate(
-      maps.length,
-      (index) {
-
-        return ExpenseCategoryModel
-            .fromMap(
-          maps[index],
-        );
-      },
-    );
+    return List.generate(maps.length, (index) {
+      return ExpenseCategoryModel.fromMap(maps[index]);
+    });
   }
 
-  // =====================================================
+  // ======================================================
   // NOTE METHODS
-  // =====================================================
+  // ======================================================
 
-  Future<int> insertNote(
-    NoteModel note,
-  ) async {
-
+  Future<int> insertNote(NoteModel note) async {
     final db = await database;
 
-    return await db.insert(
-      'notes',
-      note.toMap(),
-    );
+    return await db.insert('notes', note.toMap());
   }
 
-  Future<List<NoteModel>>
-      getNotes(
-    int businessId,
-  ) async {
-
+  Future<List<NoteModel>> getNotes(int businessId) async {
     final db = await database;
 
-    final List<Map<String, dynamic>>
-        maps = await db.query(
-
+    final List<Map<String, dynamic>> maps = await db.query(
       'notes',
 
       where: 'business_id = ?',
 
       whereArgs: [businessId],
 
-      orderBy:
-          'note_id DESC',
+      orderBy: 'note_id DESC',
     );
 
-    return List.generate(
-      maps.length,
-      (index) {
-
-        return NoteModel.fromMap(
-          maps[index],
-        );
-      },
-    );
+    return List.generate(maps.length, (index) {
+      return NoteModel.fromMap(maps[index]);
+    });
   }
 
-  // =====================================================
+  // ======================================================
   // CALCULATOR HISTORY METHODS
-  // =====================================================
+  // ======================================================
 
-  Future<void> insertCalculatorHistory(
-    CalculatorHistoryModel history,
-  ) async {
-
+  Future<void> insertCalculatorHistory(CalculatorHistoryModel history) async {
     final db = await database;
 
-    await db.insert(
+    // INSERT NEW HISTORY
 
-      'calculator_history',
+    await db.insert('calculator_history', history.toMap());
 
-      history.toMap(),
-    );
+    // TOTAL COUNT
 
-    final List<Map<String, dynamic>>
-        countResult =
-        await db.rawQuery(
-      '''
+    final List<Map<String, dynamic>> countResult = await db.rawQuery('''
       SELECT COUNT(*) as total
       FROM calculator_history
-      ''',
-    );
+      ''');
 
-    int total =
-        countResult.first['total']
-            as int;
+    int total = countResult.first['total'] as int;
+
+    // KEEP ONLY LATEST 10
 
     if (total > 10) {
-
-      await db.rawDelete(
-        '''
+      await db.rawDelete('''
         DELETE FROM calculator_history
 
         WHERE history_id NOT IN (
@@ -797,44 +533,27 @@ class DatabaseHelper {
 
           LIMIT 10
         )
-        ''',
-      );
+        ''');
     }
   }
 
-  Future<List<CalculatorHistoryModel>>
-      getCalculatorHistory() async {
-
+  Future<List<CalculatorHistoryModel>> getCalculatorHistory() async {
     final db = await database;
 
-    final List<Map<String, dynamic>>
-        maps = await db.query(
-
+    final List<Map<String, dynamic>> maps = await db.query(
       'calculator_history',
 
-      orderBy:
-          'history_id DESC',
+      orderBy: 'history_id DESC',
     );
 
-    return List.generate(
-      maps.length,
-      (index) {
-
-        return CalculatorHistoryModel
-            .fromMap(
-          maps[index],
-        );
-      },
-    );
+    return List.generate(maps.length, (index) {
+      return CalculatorHistoryModel.fromMap(maps[index]);
+    });
   }
 
-  Future clearCalculatorHistory()
-  async {
-
+  Future clearCalculatorHistory() async {
     final db = await database;
 
-    await db.delete(
-      'calculator_history',
-    );
+    await db.delete('calculator_history');
   }
 }
