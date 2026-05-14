@@ -102,6 +102,40 @@ class _BusinessDetailsScreenState extends State<BusinessDetailsScreen> {
     }
   }
 
+  Future<void> _goToSetPin() async {
+    final localization = LocalizationService.instance;
+
+    if (_businessNameController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(localization.t('please_enter_business_name')),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_selectedBusinessType == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(localization.t('please_select_business_type')),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final business = BusinessModel(
+      name: _businessNameController.text.trim(),
+      type: _selectedBusinessType!,
+      createdAt: DateTime.now().toIso8601String(),
+    );
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (context) => SetPinScreen(business: business)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String>(
@@ -251,7 +285,7 @@ class _BusinessDetailsScreenState extends State<BusinessDetailsScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: _isLoading ? null : _createBusiness,
+                      onPressed: _isLoading ? null : _goToSetPin,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         disabledBackgroundColor: Colors.grey.shade400,

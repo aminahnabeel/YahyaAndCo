@@ -7,10 +7,7 @@ import '../theme.dart';
 class SetPinScreen extends StatefulWidget {
   final BusinessModel business;
 
-  const SetPinScreen({
-    super.key,
-    required this.business,
-  });
+  const SetPinScreen({super.key, required this.business});
 
   @override
   State<SetPinScreen> createState() => _SetPinScreenState();
@@ -111,10 +108,6 @@ class _SetPinScreenState extends State<SetPinScreen> {
     }
   }
 
-  Future<void> _skipPin() async {
-    Navigator.of(context).pop();
-  }
-
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String>(
@@ -147,10 +140,7 @@ class _SetPinScreenState extends State<SetPinScreen> {
                   const SizedBox(height: 8),
                   Text(
                     localization.t('secure_your_account'),
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                   ),
                   const SizedBox(height: 32),
 
@@ -260,9 +250,7 @@ class _SetPinScreenState extends State<SetPinScreen> {
                             color: Colors.grey.shade600,
                           ),
                           onPressed: () {
-                            setState(
-                              () => _showConfirmPin = !_showConfirmPin,
-                            );
+                            setState(() => _showConfirmPin = !_showConfirmPin);
                           },
                         ),
                       ),
@@ -270,7 +258,7 @@ class _SetPinScreenState extends State<SetPinScreen> {
                   ),
                   const SizedBox(height: 48),
 
-                  // Set PIN Button
+                  // SignUp Button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -296,39 +284,12 @@ class _SetPinScreenState extends State<SetPinScreen> {
                               ),
                             )
                           : Text(
-                              localization.t('set_pin'),
+                              localization.t('sign_up'),
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Skip Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: _isLoading ? null : _skipPin,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        disabledForegroundColor: Colors.grey.shade400,
-                        side: BorderSide(
-                          color: AppColors.primary,
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(
-                        localization.t('skip'),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
                     ),
                   ),
                 ],

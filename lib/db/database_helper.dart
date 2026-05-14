@@ -31,14 +31,9 @@ class DatabaseHelper {
 
     print("DATABASE PATH: $path");
 
-    return await openDatabase(
-      path,
-
-      version: 1,
-
-      onCreate: onCreate,
-    );
+    return await openDatabase(path, version: 1, onCreate: onCreate);
   }
+
   Future onCreate(Database db, int version) async {
     // =========================
     // BUSINESS TABLE

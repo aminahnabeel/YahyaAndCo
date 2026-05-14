@@ -67,6 +67,7 @@ class LocalizationService {
       'pin_too_short': 'PIN must be 4 digits',
       'please_enter_pin': 'Please enter a PIN',
       'pin_set_success': 'PIN set successfully!',
+      'sign_up': 'SignUp',
       'skip': 'Skip',
     },
     'roman': {
@@ -129,6 +130,7 @@ class LocalizationService {
       'pin_too_short': 'PIN 4 digits ka hona chahiye',
       'please_enter_pin': 'Baraye mehrbani PIN darj karen',
       'pin_set_success': 'PIN kamyabi se set ho gya!',
+      'sign_up': 'SignUp',
       'skip': 'Chhod Den',
     },
   };
