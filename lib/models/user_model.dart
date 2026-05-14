@@ -24,6 +24,8 @@ class UserModel {
 
     required this.email,
 
+    this.password,
+
     required this.isVerified,
 
     required this.createdAt,
@@ -67,8 +69,7 @@ class UserModel {
       email:
           map['email'],
 
-        password:
-          map['password'],
+      password: map['password'],
 
       isVerified:
           map['is_verified'],
