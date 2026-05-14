@@ -3,6 +3,7 @@ import '../services/localization_service.dart';
 import '../services/business_service.dart';
 import '../models/business_model.dart';
 import '../theme.dart';
+import 'set_pin_screen.dart';
 
 class BusinessDetailsScreen extends StatefulWidget {
   const BusinessDetailsScreen({super.key});
@@ -75,10 +76,14 @@ class _BusinessDetailsScreenState extends State<BusinessDetailsScreen> {
           ),
         );
 
-        // Navigate to next screen after 1 second
+        // Navigate to Set PIN screen after 1 second
         await Future.delayed(const Duration(seconds: 1));
         if (mounted) {
-          Navigator.of(context).pushReplacementNamed('/business-details');
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => SetPinScreen(business: business),
+            ),
+          );
         }
       }
     } catch (e) {

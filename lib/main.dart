@@ -5,6 +5,7 @@ import 'firebase_options.dart';
 import 'db/database_helper.dart';
 import 'theme.dart';
 import 'screens/business_details.dart';
+import 'screens/set_pin_screen.dart';
 import 'services/localization_service.dart';
 
 void main() async {

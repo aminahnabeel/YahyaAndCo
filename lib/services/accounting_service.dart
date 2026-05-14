@@ -3,23 +3,14 @@ import '../models/journal_entry_model.dart';
 import '../models/journal_line_model.dart';
 
 class AccountingService {
-
   // =====================================================
   // GENERATE JOURNAL VOUCHER
   // =====================================================
 
-  Future<String>
-      generateJournalVoucher() async {
+  Future<String> generateJournalVoucher() async {
+    final db = await DatabaseHelper.instance.database;
 
-    final db =
-        await DatabaseHelper
-            .instance
-            .database;
-
-    final List<Map<String, dynamic>>
-        result =
-        await db.rawQuery(
-      '''
+    final List<Map<String, dynamic>> result = await db.rawQuery('''
       SELECT voucher_no
       FROM journal_entry
 
@@ -28,23 +19,15 @@ class AccountingService {
       ORDER BY journal_id DESC
 
       LIMIT 1
-      ''',
-    );
+      ''');
 
     if (result.isEmpty) {
-
       return 'JV-1';
     }
 
-    String lastVoucher =
-        result.first['voucher_no'];
+    String lastVoucher = result.first['voucher_no'];
 
-    int number = int.parse(
-      lastVoucher.replaceAll(
-        'JV-',
-        '',
-      ),
-    );
+    int number = int.parse(lastVoucher.replaceAll('JV-', ''));
 
     number++;
 
@@ -55,18 +38,10 @@ class AccountingService {
   // GENERATE CASH VOUCHER
   // =====================================================
 
-  Future<String>
-      generateCashVoucher() async {
+  Future<String> generateCashVoucher() async {
+    final db = await DatabaseHelper.instance.database;
 
-    final db =
-        await DatabaseHelper
-            .instance
-            .database;
-
-    final List<Map<String, dynamic>>
-        result =
-        await db.rawQuery(
-      '''
+    final List<Map<String, dynamic>> result = await db.rawQuery('''
       SELECT voucher_no
       FROM journal_entry
 
@@ -75,23 +50,15 @@ class AccountingService {
       ORDER BY journal_id DESC
 
       LIMIT 1
-      ''',
-    );
+      ''');
 
     if (result.isEmpty) {
-
       return 'CP-1';
     }
 
-    String lastVoucher =
-        result.first['voucher_no'];
+    String lastVoucher = result.first['voucher_no'];
 
-    int number = int.parse(
-      lastVoucher.replaceAll(
-        'CP-',
-        '',
-      ),
-    );
+    int number = int.parse(lastVoucher.replaceAll('CP-', ''));
 
     number++;
 
@@ -103,26 +70,17 @@ class AccountingService {
   // =====================================================
 
   Future createCompleteJournal({
+    required JournalEntryModel journalEntry,
 
-    required JournalEntryModel
-        journalEntry,
-
-    required List<JournalLineModel>
-        journalLines,
-
+    required List<JournalLineModel> journalLines,
   }) async {
-
-    final db =
-        await DatabaseHelper
-            .instance
-            .database;
+    final db = await DatabaseHelper.instance.database;
 
     double totalDebit = 0;
 
     double totalCredit = 0;
 
     for (var line in journalLines) {
-
       totalDebit += line.debit;
 
       totalCredit += line.credit;
@@ -131,68 +89,38 @@ class AccountingService {
     // VALIDATION
 
     if (totalDebit != totalCredit) {
-
-      throw Exception(
-        'Debit and Credit must be equal',
-      );
+      throw Exception('Debit and Credit must be equal');
     }
 
-    await db.transaction(
-      (txn) async {
+    await db.transaction((txn) async {
+      // INSERT JOURNAL ENTRY
 
-        // INSERT JOURNAL ENTRY
+      int journalId = await txn.insert('journal_entry', journalEntry.toMap());
 
-        int journalId =
-            await txn.insert(
+      // INSERT JOURNAL LINES
 
-          'journal_entry',
+      for (var line in journalLines) {
+        await txn.insert('journal_lines', {
+          'journal_id': journalId,
 
-          journalEntry.toMap(),
-        );
+          'account_id': line.accountId,
 
-        // INSERT JOURNAL LINES
+          'debit': line.debit,
 
-        for (var line
-            in journalLines) {
-
-          await txn.insert(
-            'journal_lines',
-            {
-
-              'journal_id':
-                  journalId,
-
-              'account_id':
-                  line.accountId,
-
-              'debit':
-                  line.debit,
-
-              'credit':
-                  line.credit,
-            },
-          );
-        }
-      },
-    );
+          'credit': line.credit,
+        });
+      }
+    });
   }
 
   // =====================================================
   // GET ACCOUNT BALANCE
   // =====================================================
 
-  Future<double>
-      getAccountBalance(
-    int accountId,
-  ) async {
+  Future<double> getAccountBalance(int accountId) async {
+    final db = await DatabaseHelper.instance.database;
 
-    final db =
-        await DatabaseHelper
-            .instance
-            .database;
-
-    final debitResult =
-        await db.rawQuery(
+    final debitResult = await db.rawQuery(
       '''
       SELECT SUM(debit)
       as totalDebit
@@ -205,8 +133,7 @@ class AccountingService {
       [accountId],
     );
 
-    final creditResult =
-        await db.rawQuery(
+    final creditResult = await db.rawQuery(
       '''
       SELECT SUM(credit)
       as totalCredit
@@ -219,56 +146,33 @@ class AccountingService {
       [accountId],
     );
 
-    double totalDebit =
-        debitResult.first[
-                    'totalDebit'] ==
-                null
-            ? 0
-            : debitResult.first[
-                'totalDebit']
-            as double;
+    double totalDebit = debitResult.first['totalDebit'] == null
+        ? 0
+        : debitResult.first['totalDebit'] as double;
 
-    double totalCredit =
-        creditResult.first[
-                    'totalCredit'] ==
-                null
-            ? 0
-            : creditResult.first[
-                'totalCredit']
-            as double;
+    double totalCredit = creditResult.first['totalCredit'] == null
+        ? 0
+        : creditResult.first['totalCredit'] as double;
 
-    return totalDebit -
-        totalCredit;
+    return totalDebit - totalCredit;
   }
 
   // =====================================================
   // GET CASH IN HAND
   // =====================================================
 
-  Future<double>
-      getCashInHand(
-    int cashAccountId,
-  ) async {
-
-    return await getAccountBalance(
-      cashAccountId,
-    );
+  Future<double> getCashInHand(int cashAccountId) async {
+    return await getAccountBalance(cashAccountId);
   }
 
   // =====================================================
   // GET TRIAL BALANCE
   // =====================================================
 
-  Future<List<Map<String, dynamic>>>
-      getTrialBalance() async {
+  Future<List<Map<String, dynamic>>> getTrialBalance() async {
+    final db = await DatabaseHelper.instance.database;
 
-    final db =
-        await DatabaseHelper
-            .instance
-            .database;
-
-    return await db.rawQuery(
-      '''
+    return await db.rawQuery('''
       SELECT
 
       accounts.account_id,
@@ -290,23 +194,15 @@ class AccountingService {
       journal_lines.account_id
 
       GROUP BY accounts.account_id
-      ''',
-    );
+      ''');
   }
 
   // =====================================================
   // GET LEDGER
   // =====================================================
 
-  Future<List<Map<String, dynamic>>>
-      getLedger(
-    int accountId,
-  ) async {
-
-    final db =
-        await DatabaseHelper
-            .instance
-            .database;
+  Future<List<Map<String, dynamic>>> getLedger(int accountId) async {
+    final db = await DatabaseHelper.instance.database;
 
     return await db.rawQuery(
       '''

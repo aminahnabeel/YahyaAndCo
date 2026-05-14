@@ -33,7 +33,7 @@ class DatabaseHelper {
     return await openDatabase(
       path,
 
-      version: 2,
+      version: 3,
 
       onCreate: onCreate,
 
@@ -48,6 +48,14 @@ class DatabaseHelper {
         await db.execute('ALTER TABLE business ADD COLUMN type TEXT');
       } catch (e) {
         print('Error adding type column: $e');
+      }
+    }
+    if (oldVersion < 3) {
+      // Add pin column to business table
+      try {
+        await db.execute('ALTER TABLE business ADD COLUMN pin TEXT');
+      } catch (e) {
+        print('Error adding pin column: $e');
       }
     }
   }
@@ -66,6 +74,8 @@ class DatabaseHelper {
       name TEXT,
 
       type TEXT,
+
+      pin TEXT,
 
       created_at TEXT
     )
