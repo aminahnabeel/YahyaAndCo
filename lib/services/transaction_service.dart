@@ -34,6 +34,10 @@ class TransactionService {
     );
   }
 
+  Future<List<Map<String, dynamic>>> getTransactionRowsByBusiness(int businessId) async {
+    return await DatabaseHelper.instance.getTransactionLedgerRows(businessId);
+  }
+
   // =========================
   // UPDATE TRANSACTION
   // =========================

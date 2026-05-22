@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/localization_service.dart';
+import '../services/business_service.dart';
+import '../services/account_service.dart';
 import '../models/business_model.dart';
 import '../theme.dart';
 import 'enter_pin_screen.dart';
@@ -16,6 +18,8 @@ class SetPinScreen extends StatefulWidget {
 class _SetPinScreenState extends State<SetPinScreen> {
   final _pinController = TextEditingController();
   final _confirmPinController = TextEditingController();
+  final _businessService = BusinessService();
+  final _accountService = AccountService();
   bool _isLoading = false;
   bool _showPin = false;
   bool _showConfirmPin = false;
@@ -73,10 +77,12 @@ class _SetPinScreenState extends State<SetPinScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // TODO: Uncomment database save when backend is ready
-      // widget.business.pin = _pinController.text;
-      // await _businessService.updateBusiness(widget.business);
+      widget.business.pin = _pinController.text;
+      final businessId = await _businessService.createBusiness(widget.business);
+      widget.business.businessId = businessId;
+      await _accountService.createDefaultAccounts(businessId);
 
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -90,7 +96,7 @@ class _SetPinScreenState extends State<SetPinScreen> {
         if (mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
-              builder: (context) => const EnterPinScreen(),
+              builder: (context) => EnterPinScreen(businessId: businessId),
             ),
           );
         }

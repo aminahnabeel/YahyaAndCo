@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/localization_service.dart';
-import '../services/business_service.dart';
 import '../models/business_model.dart';
 import '../theme.dart';
 import 'set_pin_screen.dart';
@@ -14,7 +13,6 @@ class BusinessDetailsScreen extends StatefulWidget {
 
 class _BusinessDetailsScreenState extends State<BusinessDetailsScreen> {
   final _businessNameController = TextEditingController();
-  final _businessService = BusinessService();
   String? _selectedBusinessType;
   bool _isLoading = false;
 
@@ -32,74 +30,6 @@ class _BusinessDetailsScreenState extends State<BusinessDetailsScreen> {
   void dispose() {
     _businessNameController.dispose();
     super.dispose();
-  }
-
-  Future<void> _createBusiness() async {
-    final localization = LocalizationService.instance;
-
-    if (_businessNameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(localization.t('please_enter_business_name')),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    if (_selectedBusinessType == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(localization.t('please_select_business_type')),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      final business = BusinessModel(
-        name: _businessNameController.text.trim(),
-        type: _selectedBusinessType!,
-        createdAt: DateTime.now().toIso8601String(),
-      );
-
-      await _businessService.createBusiness(business);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(localization.t('business_created_success')),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // Navigate to Set PIN screen after 1 second
-        await Future.delayed(const Duration(seconds: 1));
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => SetPinScreen(business: business),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
   }
 
   Future<void> _goToSetPin() async {

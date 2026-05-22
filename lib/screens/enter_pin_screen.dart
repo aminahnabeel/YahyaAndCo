@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import '../db/database_helper.dart';
 import '../services/localization_service.dart';
+import 'dashboard/dashboard_screen.dart';
 import '../theme.dart';
 
 class EnterPinScreen extends StatefulWidget {
-  const EnterPinScreen({super.key});
+  final int businessId;
+
+  const EnterPinScreen({super.key, required this.businessId});
 
   @override
   State<EnterPinScreen> createState() => _EnterPinScreenState();
@@ -11,12 +15,22 @@ class EnterPinScreen extends StatefulWidget {
 
 class _EnterPinScreenState extends State<EnterPinScreen> {
   final _pinController = TextEditingController();
+  final _pinFocus = FocusNode();
   bool _isLoading = false;
   List<bool> _pinDots = [false, false, false, false];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _pinFocus.requestFocus();
+    });
+  }
+
+  @override
   void dispose() {
     _pinController.dispose();
+    _pinFocus.dispose();
     super.dispose();
   }
 
@@ -55,8 +69,12 @@ class _EnterPinScreenState extends State<EnterPinScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // TODO: Implement PIN verification logic with database
-      // For now, just show success
+      final business = await DatabaseHelper.instance.getBusinessById(widget.businessId);
+
+      if (business == null || business.pin != _pinController.text) {
+        throw Exception(localization.t('invalid_pin'));
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -68,14 +86,19 @@ class _EnterPinScreenState extends State<EnterPinScreen> {
         // Navigate to home/dashboard after 1 second
         await Future.delayed(const Duration(seconds: 1));
         if (mounted) {
-          Navigator.of(context).pop();
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (_) => DashboardScreen(businessId: widget.businessId),
+            ),
+            (route) => false,
+          );
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString()}'),
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
             backgroundColor: Colors.red,
           ),
         );
@@ -133,22 +156,27 @@ class _EnterPinScreenState extends State<EnterPinScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // PIN Dots Display
-                  Center(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(
-                        4,
-                        (index) => Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: Container(
-                            width: 16,
-                            height: 16,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: _pinDots[index]
-                                  ? AppColors.primary
-                                  : Colors.grey.shade300,
+                  // PIN Dots Display (Tappable to show keyboard)
+                  GestureDetector(
+                    onTap: () {
+                      _pinFocus.requestFocus();
+                    },
+                    child: Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(
+                          4,
+                          (index) => Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Container(
+                              width: 16,
+                              height: 16,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _pinDots[index]
+                                    ? AppColors.primary
+                                    : Colors.grey.shade300,
+                              ),
                             ),
                           ),
                         ),
@@ -160,6 +188,7 @@ class _EnterPinScreenState extends State<EnterPinScreen> {
                   // Hidden PIN Input Field
                   TextField(
                     controller: _pinController,
+                    focusNode: _pinFocus,
                     enabled: !_isLoading,
                     obscureText: true,
                     keyboardType: TextInputType.number,

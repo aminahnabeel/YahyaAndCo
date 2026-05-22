@@ -10,7 +10,7 @@ class AccountModel {
 
   String? phone;
 
-  String? whatsapp;
+  String? address;
 
   double openingBalance;
 
@@ -28,7 +28,7 @@ class AccountModel {
 
     this.phone,
 
-    this.whatsapp,
+    this.address,
 
     required this.openingBalance,
 
@@ -49,7 +49,7 @@ class AccountModel {
 
       'phone': phone,
 
-      'whatsapp': whatsapp,
+      'address': address,
 
       'opening_balance':
           openingBalance,
@@ -79,8 +79,8 @@ class AccountModel {
       phone:
           map['phone'],
 
-      whatsapp:
-          map['whatsapp'],
+      address:
+          map['address'],
 
       openingBalance:
           map['opening_balance'],

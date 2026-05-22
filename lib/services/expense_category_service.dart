@@ -7,7 +7,8 @@ class ExpenseCategoryService {
   // CREATE CATEGORY
   // =========================
 
-  Future<int> createCategory(
+  Future<int>
+      createExpenseCategory(
     ExpenseCategoryModel category,
   ) async {
 
@@ -23,7 +24,7 @@ class ExpenseCategoryService {
   // =========================
 
   Future<List<ExpenseCategoryModel>>
-      getCategories(
+      getExpenseCategories(
     int businessId,
   ) async {
 

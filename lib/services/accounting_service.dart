@@ -1,11 +1,49 @@
 import '../db/database_helper.dart';
 import '../models/journal_entry_model.dart';
 import '../models/journal_line_model.dart';
+import '../models/account_model.dart';
+import '../models/transaction_model.dart';
 
 class AccountingService {
   // =====================================================
+  // HELPER: Convert value to double safely
+  // =====================================================
+  // Handles null, int, double, and string conversions
+
+  double _asDouble(dynamic value) {
+    if (value == null) return 0;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString()) ?? 0;
+  }
+
+  DateTime? _asDate(dynamic value) {
+    if (value == null) return null;
+    return DateTime.tryParse(value.toString());
+  }
+
+  String calculatePaymentStatus({
+    required double amount,
+    required double remainingAmount,
+    String? dueDate,
+  }) {
+    final parsedDueDate = _asDate(dueDate);
+    final today = DateTime.now();
+    final isOverdue = parsedDueDate != null &&
+        parsedDueDate.isBefore(DateTime(today.year, today.month, today.day)) &&
+        remainingAmount > 0;
+
+    if (remainingAmount <= 0) return 'Paid';
+    if (isOverdue) return 'Overdue';
+    if (remainingAmount >= amount) return 'Pending';
+    return 'Partial';
+  }
+
+  // =====================================================
   // GENERATE JOURNAL VOUCHER
   // =====================================================
+  // Auto-generates sequential voucher numbers for journal entries
+  // Pattern: JV-1, JV-2, JV-3, etc.
+  // These are required for audit trail and accounting standards
 
   Future<String> generateJournalVoucher() async {
     final db = await DatabaseHelper.instance.database;
@@ -37,6 +75,8 @@ class AccountingService {
   // =====================================================
   // GENERATE CASH VOUCHER
   // =====================================================
+  // Auto-generates sequential voucher numbers for cash transactions
+  // Pattern: CP-1, CP-2, CP-3, etc. (CP = Cash Payment/Receipt)
 
   Future<String> generateCashVoucher() async {
     final db = await DatabaseHelper.instance.database;
@@ -113,9 +153,43 @@ class AccountingService {
     });
   }
 
+  Future<void> updatePaymentStatus({
+    required String tableName,
+    required int id,
+    required double amount,
+    required double remainingAmount,
+    String? dueDate,
+  }) async {
+    final db = await DatabaseHelper.instance.database;
+    final status = calculatePaymentStatus(
+      amount: amount,
+      remainingAmount: remainingAmount,
+      dueDate: dueDate,
+    );
+
+    final payload = {
+      'payment_status': status,
+      'remaining_amount': remainingAmount,
+      'due_date': dueDate,
+    };
+
+    final idColumn = tableName == 'transactions' ? 'transaction_id' : 'journal_id';
+    await db.update(tableName, payload, where: '$idColumn = ?', whereArgs: [id]);
+  }
+
   // =====================================================
   // GET ACCOUNT BALANCE
   // =====================================================
+  // Calculates balance for a specific account using double-entry bookkeeping
+  // Formula: SUM(debit) - SUM(credit)
+  // 
+  // This works for all account types:
+  // - Assets: Debit positive = increase
+  // - Liabilities/Equity: Credit positive = increase
+  // - Income: Credit positive = increase
+  // - Expense: Debit positive = increase
+  //
+  // Includes opening balance through account's opening_balance field
 
   Future<double> getAccountBalance(int accountId) async {
     final db = await DatabaseHelper.instance.database;
@@ -146,15 +220,358 @@ class AccountingService {
       [accountId],
     );
 
-    double totalDebit = debitResult.first['totalDebit'] == null
-        ? 0
-        : debitResult.first['totalDebit'] as double;
-
-    double totalCredit = creditResult.first['totalCredit'] == null
-        ? 0
-        : creditResult.first['totalCredit'] as double;
+    final double totalDebit = _asDouble(debitResult.first['totalDebit']);
+    final double totalCredit = _asDouble(creditResult.first['totalCredit']);
 
     return totalDebit - totalCredit;
+  }
+
+  Future<double> getOutstandingAmount(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+    final result = await db.rawQuery('''
+      SELECT SUM(remaining_amount) AS total
+      FROM (
+        SELECT remaining_amount FROM transactions WHERE business_id = ?
+        UNION ALL
+        SELECT remaining_amount FROM journal_entry WHERE business_id = ?
+      )
+      ''', [businessId, businessId]);
+    return _asDouble(result.first['total']);
+  }
+
+  // =====================================================
+  // GET CASH ACCOUNT ID
+  // =====================================================
+  // Finds the Cash account for a business
+  // The Cash account is a required system account created automatically
+
+  Future<int?> getCashAccountId(int businessId) async {
+    final accounts = await DatabaseHelper.instance.getAccountsByBusiness(businessId);
+
+    for (final account in accounts) {
+      final name = account.name.toLowerCase();
+      // Look for account with "Cash" in name (primary lookup)
+      if (name == 'cash') {
+        return account.accountId;
+      }
+    }
+
+    return null;
+  }
+
+  Future<double> getCashBalanceForBusiness(int businessId) async {
+    final cashAccountId = await getCashAccountId(businessId);
+    
+    if (cashAccountId == null) {
+      return 0;
+    }
+
+    // Get account opening balance
+    final account = await DatabaseHelper.instance.getAccountById(cashAccountId);
+    double balance = account?.openingBalance ?? 0;
+    
+    // Add journal entries balance (debit - credit)
+    balance += await getAccountBalance(cashAccountId);
+    
+    return balance;
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingTransactions(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+    return await db.rawQuery('''
+      SELECT t.*, a.name AS account_name
+      FROM transactions t
+      INNER JOIN accounts a ON a.account_id = t.account_id
+      LEFT JOIN journal_entry je ON je.transaction_id = t.transaction_id
+      WHERE t.business_id = ?
+        AND t.remaining_amount > 0
+        AND LOWER(COALESCE(t.payment_status, '')) IN ('pending', 'partial')
+      ORDER BY COALESCE(t.due_date, t.date) ASC
+      ''', [businessId]);
+  }
+
+  Future<List<Map<String, dynamic>>> getOverdueTransactions(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+    return await db.rawQuery('''
+      SELECT t.*, a.name AS account_name
+      FROM transactions t
+      INNER JOIN accounts a ON a.account_id = t.account_id
+      LEFT JOIN journal_entry je ON je.transaction_id = t.transaction_id
+      WHERE t.business_id = ?
+        AND t.remaining_amount > 0
+        AND (
+          LOWER(COALESCE(t.payment_status, '')) = 'overdue'
+          OR DATE(t.due_date) < DATE('now')
+        )
+      ORDER BY t.due_date ASC
+      ''', [businessId]);
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingJournals(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+    return await db.rawQuery('''
+      SELECT je.*, a.name AS account_name
+      FROM journal_entry je
+      LEFT JOIN journal_lines jl ON jl.journal_id = je.journal_id
+      LEFT JOIN accounts a ON a.account_id = jl.account_id
+      WHERE je.business_id = ?
+        AND je.remaining_amount > 0
+        AND LOWER(COALESCE(je.payment_status, '')) IN ('pending', 'partial')
+      GROUP BY je.journal_id
+      ORDER BY COALESCE(je.due_date, je.date) ASC
+      ''', [businessId]);
+  }
+
+  Future<List<Map<String, dynamic>>> getOverdueJournals(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+    return await db.rawQuery('''
+      SELECT je.*, a.name AS account_name
+      FROM journal_entry je
+      LEFT JOIN journal_lines jl ON jl.journal_id = je.journal_id
+      LEFT JOIN accounts a ON a.account_id = jl.account_id
+      WHERE je.business_id = ?
+        AND je.remaining_amount > 0
+        AND (
+          LOWER(COALESCE(je.payment_status, '')) = 'overdue'
+          OR DATE(je.due_date) < DATE('now')
+        )
+      GROUP BY je.journal_id
+      ORDER BY je.due_date ASC
+      ''', [businessId]);
+  }
+
+  Future<List<Map<String, dynamic>>> getDueToday(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+    return await db.rawQuery('''
+      SELECT * FROM (
+        SELECT 'Transaction' AS record_type, t.transaction_id AS record_id, COALESCE(je.voucher_no, 'TX-' || t.transaction_id) AS voucher_no,
+               t.amount AS amount, t.remaining_amount AS remaining_amount, t.due_date AS due_date,
+               t.payment_status AS payment_status, t.type AS voucher_type, t.payment_method AS payment_method,
+               t.note AS description, a.name AS account_name
+        FROM transactions t
+        INNER JOIN accounts a ON a.account_id = t.account_id
+        LEFT JOIN journal_entry je ON je.transaction_id = t.transaction_id
+        WHERE t.business_id = ?
+        UNION ALL
+        SELECT 'Journal' AS record_type, je.journal_id AS record_id, je.voucher_no AS voucher_no,
+               je.remaining_amount AS amount, je.remaining_amount AS remaining_amount, je.due_date AS due_date,
+               je.payment_status AS payment_status, je.voucher_type AS voucher_type,
+               NULL AS payment_method, je.description AS description, a.name AS account_name
+        FROM journal_entry je
+        LEFT JOIN journal_lines jl ON jl.journal_id = je.journal_id
+        LEFT JOIN accounts a ON a.account_id = jl.account_id
+        WHERE je.business_id = ?
+      )
+      WHERE DATE(due_date) = DATE('now')
+        AND remaining_amount > 0
+      ORDER BY due_date ASC
+      ''', [businessId, businessId]);
+  }
+
+  Future<List<Map<String, dynamic>>> getUpcomingDuePayments(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+    return await db.rawQuery('''
+      SELECT * FROM (
+        SELECT 'Transaction' AS record_type, t.transaction_id AS record_id, COALESCE(je.voucher_no, 'TX-' || t.transaction_id) AS voucher_no,
+               t.amount AS amount, t.remaining_amount AS remaining_amount, t.due_date AS due_date,
+               t.payment_status AS payment_status, t.type AS voucher_type, t.payment_method AS payment_method,
+               t.note AS description, a.name AS account_name
+        FROM transactions t
+        INNER JOIN accounts a ON a.account_id = t.account_id
+        LEFT JOIN journal_entry je ON je.transaction_id = t.transaction_id
+        WHERE t.business_id = ?
+        UNION ALL
+        SELECT 'Journal' AS record_type, je.journal_id AS record_id, je.voucher_no AS voucher_no,
+               je.remaining_amount AS amount, je.remaining_amount AS remaining_amount, je.due_date AS due_date,
+               je.payment_status AS payment_status, je.voucher_type AS voucher_type,
+               NULL AS payment_method, je.description AS description, a.name AS account_name
+        FROM journal_entry je
+        LEFT JOIN journal_lines jl ON jl.journal_id = je.journal_id
+        LEFT JOIN accounts a ON a.account_id = jl.account_id
+        WHERE je.business_id = ?
+      )
+      WHERE DATE(due_date) > DATE('now')
+        AND DATE(due_date) <= DATE('now', '+7 day')
+        AND remaining_amount > 0
+      ORDER BY due_date ASC
+      ''', [businessId, businessId]);
+  }
+
+  Future<List<Map<String, dynamic>>> getAllOutstandingRecords(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+    return await db.rawQuery('''
+      SELECT * FROM (
+        SELECT 'Transaction' AS record_type, t.transaction_id AS record_id, COALESCE(je.voucher_no, 'TX-' || t.transaction_id) AS voucher_no,
+               t.amount AS amount, t.remaining_amount AS remaining_amount, t.due_date AS due_date,
+               t.payment_status AS payment_status, t.type AS voucher_type, t.payment_method AS payment_method,
+               t.note AS description, a.name AS account_name
+        FROM transactions t
+        INNER JOIN accounts a ON a.account_id = t.account_id
+        LEFT JOIN journal_entry je ON je.transaction_id = t.transaction_id
+        WHERE t.business_id = ?
+        UNION ALL
+        SELECT 'Journal' AS record_type, je.journal_id AS record_id, je.voucher_no AS voucher_no,
+               je.remaining_amount AS amount, je.remaining_amount AS remaining_amount, je.due_date AS due_date,
+               je.payment_status AS payment_status, je.voucher_type AS voucher_type,
+               NULL AS payment_method, je.description AS description, a.name AS account_name
+        FROM journal_entry je
+        LEFT JOIN journal_lines jl ON jl.journal_id = je.journal_id
+        LEFT JOIN accounts a ON a.account_id = jl.account_id
+        WHERE je.business_id = ?
+      )
+      WHERE remaining_amount > 0
+      ORDER BY COALESCE(due_date, '') ASC
+      ''', [businessId, businessId]);
+  }
+
+  // =====================================================
+  // GET BUSINESS TOTAL DEBIT
+  // =====================================================
+  // Calculates total debit from all journal entries for a business
+  // Query: SUM(journal_lines.debit) WHERE business_id = ?
+
+  Future<double> getBusinessTotalDebit(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+    final result = await db.rawQuery('''
+      SELECT SUM(journal_lines.debit) AS total
+      FROM journal_lines
+      INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
+      WHERE journal_entry.business_id = ?
+      ''', [businessId]);
+    return _asDouble(result.first['total']);
+  }
+
+  Future<double> getBusinessTotalCredit(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+    final result = await db.rawQuery('''
+      SELECT SUM(journal_lines.credit) AS total
+      FROM journal_lines
+      INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
+      WHERE journal_entry.business_id = ?
+      ''', [businessId]);
+    return _asDouble(result.first['total']);
+  }
+
+  Future<double> getBusinessIncome(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+    final result = await db.rawQuery('''
+      SELECT SUM(journal_lines.credit) AS total
+      FROM journal_lines
+      INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
+      INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
+      WHERE journal_entry.business_id = ?
+        AND LOWER(accounts.type) IN ('revenue', 'income')
+      ''', [businessId]);
+    return _asDouble(result.first['total']);
+  }
+
+  Future<double> getBusinessExpense(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+    final result = await db.rawQuery('''
+      SELECT SUM(journal_lines.debit) AS total
+      FROM journal_lines
+      INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
+      INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
+      WHERE journal_entry.business_id = ?
+        AND LOWER(accounts.type) = 'expense'
+      ''', [businessId]);
+    return _asDouble(result.first['total']);
+  }
+
+  Future<Map<String, double>> getDashboardSummary(int businessId) async {
+    final results = await Future.wait<double>([
+      getCashBalanceForBusiness(businessId),
+      getBusinessTotalCredit(businessId),
+      getBusinessTotalDebit(businessId),
+      getBusinessIncome(businessId),
+      getBusinessExpense(businessId),
+    ]);
+
+    return {
+      'totalCash': results[0],
+      'totalCredit': results[1],
+      'totalDebit': results[2],
+      'totalIncome': results[3],
+      'totalExpense': results[4],
+    };
+  }
+
+  // =====================================================
+  // GET TRIAL BALANCE FOR A BUSINESS
+  // Returns account-wise total debit and credit for the specified business
+  // =====================================================
+
+  Future<List<Map<String, dynamic>>> getTrialBalanceForBusiness(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+
+    return await db.rawQuery('''
+      SELECT
+        accounts.account_id,
+        accounts.name,
+        SUM(journal_lines.debit) as total_debit,
+        SUM(journal_lines.credit) as total_credit
+      FROM journal_lines
+      INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
+      INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
+      WHERE journal_entry.business_id = ?
+      GROUP BY accounts.account_id
+      ''', [businessId]);
+  }
+
+  // =====================================================
+  // GET CASH BOOK (ledger rows for Cash account only)
+  // =====================================================
+
+  Future<List<Map<String, dynamic>>> getCashBook(int businessId) async {
+    final cashId = await getCashAccountId(businessId);
+    if (cashId == null) return [];
+
+    final db = await DatabaseHelper.instance.database;
+    return await db.rawQuery('''
+      SELECT journal_entry.date as date,
+             journal_entry.voucher_no as voucher_no,
+             journal_entry.due_date as due_date,
+             journal_entry.payment_status as payment_status,
+             journal_entry.remaining_amount as remaining_amount,
+             journal_lines.debit as debit,
+             journal_lines.credit as credit,
+             journal_entry.description as description,
+             accounts.name as account_name
+      FROM journal_lines
+      INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
+      INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
+      WHERE journal_entry.business_id = ?
+        AND journal_lines.account_id = ?
+        AND LOWER(COALESCE(journal_entry.payment_status, 'paid')) = 'paid'
+      ORDER BY journal_entry.date ASC, journal_entry.journal_id ASC
+      ''', [businessId, cashId]);
+  }
+
+  // =====================================================
+  // GET LEDGER FOR ACCOUNT
+  // =====================================================
+
+  Future<List<Map<String, dynamic>>> getLedgerForAccount(int businessId, int accountId) async {
+    final db = await DatabaseHelper.instance.database;
+
+    final rows = await db.rawQuery('''
+        SELECT journal_entry.date as date,
+          journal_entry.voucher_no as voucher_no,
+          journal_entry.due_date as due_date,
+          journal_entry.payment_status as payment_status,
+          journal_entry.remaining_amount as remaining_amount,
+          journal_lines.debit as debit,
+          journal_lines.credit as credit,
+          journal_entry.description as description,
+          accounts.name as account_name
+      FROM journal_lines
+      INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
+        INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
+      WHERE journal_entry.business_id = ? AND journal_lines.account_id = ?
+      ORDER BY journal_entry.date ASC, journal_entry.journal_id ASC
+    ''', [businessId, accountId]);
+
+    return rows;
   }
 
   // =====================================================
@@ -198,6 +615,58 @@ class AccountingService {
   }
 
   // =====================================================
+  // GET PROFIT & LOSS
+  // =====================================================
+
+  Future<Map<String, dynamic>> getProfitLoss(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+
+    final rows = await db.rawQuery('''
+      SELECT
+        accounts.account_id,
+        accounts.name,
+        accounts.type,
+        SUM(journal_lines.debit) as total_debit,
+        SUM(journal_lines.credit) as total_credit
+      FROM journal_lines
+      INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
+      INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
+      WHERE journal_entry.business_id = ?
+        AND LOWER(accounts.type) IN ('income', 'revenue', 'expense')
+      GROUP BY accounts.account_id
+      ORDER BY accounts.type, accounts.name
+      ''', [businessId]);
+
+    double income = 0;
+    double expense = 0;
+
+    final incomeAccounts = <Map<String, dynamic>>[];
+    final expenseAccounts = <Map<String, dynamic>>[];
+
+    for (final row in rows) {
+      final type = (row['type'] ?? '').toString().toLowerCase();
+      final totalDebit = _asDouble(row['total_debit']);
+      final totalCredit = _asDouble(row['total_credit']);
+
+      if (type == 'expense') {
+        expense += totalDebit;
+        expenseAccounts.add({...row, 'net_balance': totalDebit - totalCredit});
+      } else if (type == 'income' || type == 'revenue') {
+        income += totalCredit;
+        incomeAccounts.add({...row, 'net_balance': totalCredit - totalDebit});
+      }
+    }
+
+    return {
+      'income': income,
+      'expense': expense,
+      'profit': income - expense,
+      'incomeAccounts': incomeAccounts,
+      'expenseAccounts': expenseAccounts,
+    };
+  }
+
+  // =====================================================
   // GET LEDGER
   // =====================================================
 
@@ -231,5 +700,62 @@ class AccountingService {
 
       [accountId],
     );
+  }
+
+  // =====================================================
+  // Compatibility / Requested API
+  // =====================================================
+
+  Future<double> getTotalCash(int businessId) async {
+    return await getCashBalanceForBusiness(businessId);
+  }
+
+  Future<double> getTotalDebit(int businessId) async {
+    return await getBusinessTotalDebit(businessId);
+  }
+
+  Future<double> getTotalCredit(int businessId) async {
+    return await getBusinessTotalCredit(businessId);
+  }
+
+  Future<double> getTotalIncome(int businessId) async {
+    return await getBusinessIncome(businessId);
+  }
+
+  Future<double> getTotalExpense(int businessId) async {
+    return await getBusinessExpense(businessId);
+  }
+
+  // Create default system accounts for a newly created business
+  Future<void> createDefaultAccounts(int businessId) async {
+    final now = DateTime.now().toIso8601String();
+
+    final defaultAccounts = <AccountModel>[
+      AccountModel(
+        businessId: businessId,
+        name: 'Cash',
+        type: 'Asset',
+        openingBalance: 0,
+        createdAt: now,
+      ),
+      AccountModel(
+        businessId: businessId,
+        name: 'General Expense',
+        type: 'Expense',
+        openingBalance: 0,
+        createdAt: now,
+      ),
+      AccountModel(
+        businessId: businessId,
+        name: 'Owner Capital',
+        type: 'Equity',
+        openingBalance: 0,
+        createdAt: now,
+      ),
+    ];
+
+    for (final acc in defaultAccounts) {
+      await DatabaseHelper.instance.insertAccount(acc);
+    }
   }
 }

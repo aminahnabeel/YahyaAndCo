@@ -12,6 +12,12 @@ class JournalEntryModel {
 
   String description;
 
+    String? dueDate;
+
+    String paymentStatus;
+
+    double remainingAmount;
+
   String? imageUrl;
 
   String date;
@@ -31,6 +37,12 @@ class JournalEntryModel {
     required this.voucherType,
 
     required this.description,
+
+    this.dueDate,
+
+    this.paymentStatus = 'Paid',
+
+    this.remainingAmount = 0,
 
     this.imageUrl,
 
@@ -59,6 +71,12 @@ class JournalEntryModel {
 
       'description':
           description,
+
+      'due_date': dueDate,
+
+      'payment_status': paymentStatus,
+
+      'remaining_amount': remainingAmount,
 
       'image_url':
           imageUrl,
@@ -94,6 +112,15 @@ class JournalEntryModel {
 
       description:
           map['description'],
+
+      dueDate:
+          map['due_date'],
+
+      paymentStatus:
+          map['payment_status'] ?? 'Paid',
+
+      remainingAmount:
+          (map['remaining_amount'] as num?)?.toDouble() ?? 0,
 
       imageUrl:
           map['image_url'],

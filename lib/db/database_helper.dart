@@ -31,7 +31,46 @@ class DatabaseHelper {
 
     print("DATABASE PATH: $path");
 
-    return await openDatabase(path, version: 1, onCreate: onCreate);
+    return await openDatabase(
+      path,
+      version: 4,
+      onCreate: onCreate,
+      onUpgrade: onUpgrade,
+    );
+  }
+
+  Future<void> onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await _addColumnIfMissing(db, 'transactions', 'image_url', 'TEXT');
+      await _addColumnIfMissing(db, 'journal_entry', 'image_url', 'TEXT');
+    }
+
+    if (oldVersion < 3) {
+      await _addColumnIfMissing(db, 'journal_entry', 'created_at', 'TEXT');
+    }
+
+    if (oldVersion < 4) {
+      await _addColumnIfMissing(db, 'transactions', 'due_date', 'TEXT');
+      await _addColumnIfMissing(db, 'transactions', 'payment_status', 'TEXT');
+      await _addColumnIfMissing(db, 'transactions', 'remaining_amount', 'REAL DEFAULT 0');
+      await _addColumnIfMissing(db, 'journal_entry', 'due_date', 'TEXT');
+      await _addColumnIfMissing(db, 'journal_entry', 'payment_status', 'TEXT');
+      await _addColumnIfMissing(db, 'journal_entry', 'remaining_amount', 'REAL DEFAULT 0');
+    }
+  }
+
+  Future<void> _addColumnIfMissing(
+    Database db,
+    String tableName,
+    String columnName,
+    String columnDefinition,
+  ) async {
+    final columns = await db.rawQuery('PRAGMA table_info($tableName)');
+    final hasColumn = columns.any((column) => column['name'] == columnName);
+
+    if (!hasColumn) {
+      await db.execute('ALTER TABLE $tableName ADD COLUMN $columnName $columnDefinition');
+    }
   }
 
   Future onCreate(Database db, int version) async {
@@ -103,6 +142,14 @@ class DatabaseHelper {
 
       payment_method TEXT,
 
+      due_date TEXT,
+
+      payment_status TEXT,
+
+      remaining_amount REAL DEFAULT 0,
+
+      image_url TEXT,
+
       date TEXT,
 
       created_at TEXT
@@ -125,7 +172,21 @@ class DatabaseHelper {
 
       description TEXT,
 
-      date TEXT
+      image_url TEXT,
+
+      date TEXT,
+
+      voucher_no TEXT,
+
+      voucher_type TEXT,
+
+      due_date TEXT,
+
+      payment_status TEXT,
+
+      remaining_amount REAL DEFAULT 0,
+
+      created_at TEXT
     )
     ''');
 
@@ -286,7 +347,45 @@ class DatabaseHelper {
   Future<int> insertBusiness(BusinessModel business) async {
     final db = await database;
 
-    return await db.insert('business', business.toMap());
+    // Insert business and create default system accounts atomically
+    return await db.transaction<int>((txn) async {
+      final businessId = await txn.insert('business', business.toMap());
+
+      final now = business.createdAt;
+
+      // Default accounts: Cash (Asset), General Expense (Expense), Owner Capital (Equity)
+      await txn.insert('accounts', {
+        'business_id': businessId,
+        'name': 'Cash',
+        'type': 'Asset',
+        'phone': null,
+        'address': null,
+        'opening_balance': 0,
+        'created_at': now,
+      });
+
+      await txn.insert('accounts', {
+        'business_id': businessId,
+        'name': 'General Expense',
+        'type': 'Expense',
+        'phone': null,
+        'address': null,
+        'opening_balance': 0,
+        'created_at': now,
+      });
+
+      await txn.insert('accounts', {
+        'business_id': businessId,
+        'name': 'Owner Capital',
+        'type': 'Equity',
+        'phone': null,
+        'address': null,
+        'opening_balance': 0,
+        'created_at': now,
+      });
+
+      return businessId;
+    });
   }
 
   Future<List<BusinessModel>> getBusinesses() async {
@@ -301,6 +400,35 @@ class DatabaseHelper {
     return List.generate(maps.length, (index) {
       return BusinessModel.fromMap(maps[index]);
     });
+  }
+
+  Future<BusinessModel?> getBusinessById(int businessId) async {
+    final db = await database;
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      'business',
+      where: 'business_id = ?',
+      whereArgs: [businessId],
+      limit: 1,
+    );
+
+    if (maps.isEmpty) return null;
+
+    return BusinessModel.fromMap(maps.first);
+  }
+
+  Future<BusinessModel?> getLatestBusiness() async {
+    final db = await database;
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      'business',
+      orderBy: 'business_id DESC',
+      limit: 1,
+    );
+
+    if (maps.isEmpty) return null;
+
+    return BusinessModel.fromMap(maps.first);
   }
 
   Future updateBusiness(BusinessModel business) async {
@@ -355,6 +483,21 @@ class DatabaseHelper {
     return List.generate(maps.length, (index) {
       return AccountModel.fromMap(maps[index]);
     });
+  }
+
+  Future<AccountModel?> getAccountById(int accountId) async {
+    final db = await database;
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      'accounts',
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+      limit: 1,
+    );
+
+    if (maps.isEmpty) return null;
+
+    return AccountModel.fromMap(maps.first);
   }
 
   Future updateAccount(AccountModel account) async {
@@ -413,6 +556,32 @@ class DatabaseHelper {
     });
   }
 
+  Future<List<Map<String, dynamic>>> getTransactionLedgerRows(int businessId) async {
+    final db = await database;
+
+    return await db.rawQuery('''
+      SELECT
+        transactions.transaction_id,
+        transactions.business_id,
+        transactions.account_id,
+        transactions.amount,
+        transactions.type,
+        transactions.note,
+        transactions.payment_method,
+        transactions.due_date,
+        transactions.payment_status,
+        transactions.remaining_amount,
+        transactions.image_url,
+        transactions.date,
+        transactions.created_at,
+        accounts.name AS account_name
+      FROM transactions
+      INNER JOIN accounts ON accounts.account_id = transactions.account_id
+      WHERE transactions.business_id = ?
+      ORDER BY transactions.transaction_id DESC
+      ''', [businessId]);
+  }
+
   Future updateTransaction(TransactionModel transaction) async {
     final db = await database;
 
@@ -463,6 +632,50 @@ class DatabaseHelper {
     return List.generate(maps.length, (index) {
       return JournalEntryModel.fromMap(maps[index]);
     });
+  }
+
+  Future<List<Map<String, dynamic>>> getJournalLedgerRows(int businessId) async {
+    final db = await database;
+
+    return await db.rawQuery('''
+      SELECT
+        journal_entry.journal_id,
+        journal_entry.business_id,
+        journal_entry.transaction_id,
+        journal_entry.description,
+        journal_entry.voucher_no,
+        journal_entry.voucher_type,
+        journal_entry.due_date,
+        journal_entry.payment_status,
+        journal_entry.remaining_amount,
+        journal_entry.image_url,
+        journal_entry.date,
+        journal_entry.created_at,
+        journal_lines.account_id,
+        journal_lines.debit,
+        journal_lines.credit,
+        accounts.name AS account_name
+      FROM journal_entry
+      INNER JOIN journal_lines ON journal_lines.journal_id = journal_entry.journal_id
+      INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
+      WHERE journal_entry.business_id = ?
+      ORDER BY journal_entry.journal_id DESC, journal_lines.line_id ASC
+      ''', [businessId]);
+  }
+
+  Future<JournalEntryModel?> getJournalEntryByTransactionId(int transactionId) async {
+    final db = await database;
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      'journal_entry',
+      where: 'transaction_id = ?',
+      whereArgs: [transactionId],
+      limit: 1,
+    );
+
+    if (maps.isEmpty) return null;
+
+    return JournalEntryModel.fromMap(maps.first);
   }
 
   Future updateJournalEntry(JournalEntryModel journal) async {
@@ -626,5 +839,64 @@ class DatabaseHelper {
     final db = await database;
 
     await db.delete('calculator_history');
+  }
+
+  // ======================================================
+  // ACCOUNT BALANCE METHODS
+  // ======================================================
+
+  Future<List<TransactionModel>> getTransactionsByAccountId(int accountId) async {
+    final db = await database;
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      'transactions',
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+      orderBy: 'date DESC',
+    );
+
+    return List.generate(maps.length, (index) {
+      return TransactionModel.fromMap(maps[index]);
+    });
+  }
+
+  Future<List<JournalLineModel>> getJournalLinesByAccountId(int accountId) async {
+    final db = await database;
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      'journal_lines',
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+    );
+
+    return List.generate(maps.length, (index) {
+      return JournalLineModel.fromMap(maps[index]);
+    });
+  }
+
+  Future<double> getAccountClosingBalance(int accountId) async {
+    final account = await getAccountById(accountId);
+    if (account == null) return 0;
+
+    double balance = account.openingBalance;
+
+    // Get all journal lines for this account
+    final journalLines = await getJournalLinesByAccountId(accountId);
+    for (var line in journalLines) {
+      balance += line.debit;
+      balance -= line.credit;
+    }
+
+    // Get all transactions for this account
+    final transactions = await getTransactionsByAccountId(accountId);
+    for (var transaction in transactions) {
+      if (transaction.type.toLowerCase() == 'debit' || transaction.type.toLowerCase() == 'deposit') {
+        balance += transaction.amount;
+      } else if (transaction.type.toLowerCase() == 'credit' || transaction.type.toLowerCase() == 'withdrawal') {
+        balance -= transaction.amount;
+      }
+    }
+
+    return balance;
   }
 }

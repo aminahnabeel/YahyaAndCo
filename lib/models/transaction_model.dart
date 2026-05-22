@@ -14,6 +14,12 @@ class TransactionModel {
 
   String paymentMethod;
 
+    String? dueDate;
+
+    String paymentStatus;
+
+    double remainingAmount;
+
   String? imageUrl;
 
   String date;
@@ -35,6 +41,12 @@ class TransactionModel {
     required this.note,
 
     required this.paymentMethod,
+
+    this.dueDate,
+
+    this.paymentStatus = 'Paid',
+
+    this.remainingAmount = 0,
 
     this.imageUrl,
 
@@ -67,6 +79,12 @@ class TransactionModel {
 
       'payment_method':
           paymentMethod,
+
+      'due_date': dueDate,
+
+      'payment_status': paymentStatus,
+
+      'remaining_amount': remainingAmount,
 
       'image_url':
           imageUrl,
@@ -105,6 +123,15 @@ class TransactionModel {
 
       paymentMethod:
           map['payment_method'],
+
+      dueDate:
+          map['due_date'],
+
+      paymentStatus:
+          map['payment_status'] ?? 'Paid',
+
+      remainingAmount:
+          (map['remaining_amount'] as num?)?.toDouble() ?? 0,
 
       imageUrl:
           map['image_url'],
