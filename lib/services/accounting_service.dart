@@ -2,7 +2,6 @@ import '../db/database_helper.dart';
 import '../models/journal_entry_model.dart';
 import '../models/journal_line_model.dart';
 import '../models/account_model.dart';
-import '../models/transaction_model.dart';
 
 class AccountingService {
   // =====================================================
@@ -33,9 +32,7 @@ class AccountingService {
         remainingAmount > 0;
 
     if (remainingAmount <= 0) return 'Paid';
-    if (isOverdue) return 'Overdue';
-    if (remainingAmount >= amount) return 'Pending';
-    return 'Partial';
+    return isOverdue ? 'Overdue' : 'Pending';
   }
 
   // =====================================================
@@ -285,7 +282,7 @@ class AccountingService {
       LEFT JOIN journal_entry je ON je.transaction_id = t.transaction_id
       WHERE t.business_id = ?
         AND t.remaining_amount > 0
-        AND LOWER(COALESCE(t.payment_status, '')) IN ('pending', 'partial')
+        AND LOWER(COALESCE(t.payment_status, '')) = 'pending'
       ORDER BY COALESCE(t.due_date, t.date) ASC
       ''', [businessId]);
   }
@@ -316,7 +313,7 @@ class AccountingService {
       LEFT JOIN accounts a ON a.account_id = jl.account_id
       WHERE je.business_id = ?
         AND je.remaining_amount > 0
-        AND LOWER(COALESCE(je.payment_status, '')) IN ('pending', 'partial')
+        AND LOWER(COALESCE(je.payment_status, '')) = 'pending'
       GROUP BY je.journal_id
       ORDER BY COALESCE(je.due_date, je.date) ASC
       ''', [businessId]);
@@ -421,6 +418,59 @@ class AccountingService {
       )
       WHERE remaining_amount > 0
       ORDER BY COALESCE(due_date, '') ASC
+      ''', [businessId, businessId]);
+  }
+
+  Future<List<Map<String, dynamic>>> getReminderEntries(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+    return await db.rawQuery('''
+      SELECT * FROM (
+        SELECT
+          'Transaction' AS record_type,
+          t.transaction_id AS record_id,
+          t.transaction_id AS transaction_id,
+          NULL AS journal_id,
+          COALESCE(je.voucher_no, 'TX-' || t.transaction_id) AS voucher_no,
+          t.amount AS amount,
+          t.remaining_amount AS remaining_amount,
+          t.due_date AS due_date,
+          t.payment_status AS payment_status,
+          t.payment_method AS payment_method,
+          t.type AS voucher_type,
+          t.note AS description,
+          a.name AS account_name,
+          t.date AS date,
+          t.created_at AS created_at,
+          'transactions' AS source_table
+        FROM transactions t
+        INNER JOIN accounts a ON a.account_id = t.account_id
+        LEFT JOIN journal_entry je ON je.transaction_id = t.transaction_id
+        WHERE t.business_id = ?
+        UNION ALL
+        SELECT
+          'Journal' AS record_type,
+          je.journal_id AS record_id,
+          NULL AS transaction_id,
+          je.journal_id AS journal_id,
+          je.voucher_no AS voucher_no,
+          je.remaining_amount AS amount,
+          je.remaining_amount AS remaining_amount,
+          je.due_date AS due_date,
+          je.payment_status AS payment_status,
+          NULL AS payment_method,
+          je.voucher_type AS voucher_type,
+          je.description AS description,
+          COALESCE(MIN(a.name), 'Journal Entry') AS account_name,
+          je.date AS date,
+          je.created_at AS created_at,
+          'journal_entry' AS source_table
+        FROM journal_entry je
+        LEFT JOIN journal_lines jl ON jl.journal_id = je.journal_id
+        LEFT JOIN accounts a ON a.account_id = jl.account_id
+        WHERE je.business_id = ?
+        GROUP BY je.journal_id
+      )
+      ORDER BY COALESCE(due_date, date) DESC, record_type ASC, record_id DESC
       ''', [businessId, businessId]);
   }
 

@@ -3,11 +3,6 @@ import 'trial_balance_screen.dart';
 import 'profit_loss_screen.dart';
 import 'balance_sheet_screen.dart';
 import 'cash_book_screen.dart';
-import 'expense_report_screen.dart';
-import '../reminders/reminder_screen.dart';
-import 'outstanding_report_screen.dart';
-import 'overdue_report_screen.dart';
-import 'recovery_report_screen.dart';
 
 class ReportsScreen extends StatelessWidget {
   final int businessId;
@@ -19,45 +14,62 @@ class ReportsScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Reports')),
       body: Padding(
         padding: const EdgeInsets.all(12),
-        child: ListView(
+        child: Column(
           children: [
-            ListTile(
-              title: const Text('Trial Balance'),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TrialBalanceScreen(businessId: businessId))),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: const [
+                Text('Reports', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                SizedBox(width: 8),
+              ],
             ),
-            ListTile(
-              title: const Text('Profit & Loss'),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfitLossScreen(businessId: businessId))),
-            ),
-            ListTile(
-              title: const Text('Balance Sheet'),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BalanceSheetScreen(businessId: businessId))),
-            ),
-            ListTile(
-              title: const Text('Cash Book'),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CashBookScreen(businessId: businessId))),
-            ),
-            ListTile(
-              title: const Text('Expense Report'),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ExpenseReportScreen(businessId: businessId))),
-            ),
-            ListTile(
-              title: const Text('Reminder'),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ReminderScreen(businessId: businessId))),
-            ),
-            ListTile(
-              title: const Text('Outstanding Report'),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OutstandingReportScreen(businessId: businessId))),
-            ),
-            ListTile(
-              title: const Text('Overdue Report'),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OverdueReportScreen(businessId: businessId))),
-            ),
-            ListTile(
-              title: const Text('Recovery Report'),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RecoveryReportScreen(businessId: businessId))),
+            const SizedBox(height: 12),
+            GridView.count(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                _reportCard(context, title: 'Trial Balance', icon: Icons.balance, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TrialBalanceScreen(businessId: businessId)))),
+                _reportCard(context, title: 'Profit & Loss', icon: Icons.show_chart, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfitLossScreen(businessId: businessId)))),
+                _reportCard(context, title: 'Balance Sheet', icon: Icons.account_tree_outlined, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BalanceSheetScreen(businessId: businessId)))),
+                _reportCard(context, title: 'Cash Book', icon: Icons.menu_book, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CashBookScreen(businessId: businessId)))),
+              ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _reportCard(BuildContext context, {required String title, required IconData icon, required VoidCallback onTap}) {
+    final color = Theme.of(context).colorScheme.primary;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withOpacity(0.08)),
+            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 6, offset: const Offset(0,2))],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+                child: Icon(icon, color: color, size: 30),
+              ),
+              const SizedBox(height: 12),
+              Text(title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700)),
+            ],
+          ),
         ),
       ),
     );

@@ -12,64 +12,39 @@ import '../../services/accounting_service.dart';
 import '../../services/localization_service.dart';
 import '../../services/transaction_service.dart';
 
-class AddTransactionScreen
-    extends StatefulWidget {
-
+class AddTransactionScreen extends StatefulWidget {
   final int businessId;
 
   const AddTransactionScreen({
-
     super.key,
-
     required this.businessId,
   });
 
   @override
-  State<AddTransactionScreen>
-      createState() =>
-          _AddTransactionScreenState();
+  State<AddTransactionScreen> createState() => _AddTransactionScreenState();
 }
 
-class _AddTransactionScreenState
-    extends State<AddTransactionScreen> {
+class _AddTransactionScreenState extends State<AddTransactionScreen> {
+  final _formKey = GlobalKey<FormState>();
 
-  final _formKey =
-      GlobalKey<FormState>();
+  final TransactionService _transactionService = TransactionService();
+  final AccountingService _accountingService = AccountingService();
+  final AccountService _accountService = AccountService();
 
-  final TransactionService
-      _transactionService =
-      TransactionService();
+  final TextEditingController amountController = TextEditingController();
+  final TextEditingController noteController = TextEditingController();
 
-  final AccountingService
-      _accountingService =
-      AccountingService();
-
-  final AccountService
-      _accountService =
-      AccountService();
-
-  final TextEditingController
-      amountController =
-      TextEditingController();
-
-  final TextEditingController
-      noteController =
-      TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _amountFieldKey = GlobalKey();
+  final GlobalKey _noteFieldKey = GlobalKey();
+  bool _isScrolling = false;
 
   List<AccountModel> accounts = [];
-
   AccountModel? selectedAccount;
-
   int? cashAccountId;
-
-  String transactionType =
-      'Payment';
-
-  String paymentMethod =
-      'Cash';
-
+  String transactionType = 'Payment';
+  String paymentMethod = 'Cash';
   bool isLoading = false;
-
   String side = 'Debit'; // 'Debit' or 'Credit'
 
   DateTime _selectedDate = DateTime.now();
@@ -77,10 +52,43 @@ class _AddTransactionScreenState
   String? _imagePath;
 
   @override
+  void dispose() {
+    amountController.dispose();
+    noteController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _scrollToField(GlobalKey key) async {
+    if (!_scrollController.hasClients) return;
+    if (_isScrolling) return;
+    _isScrolling = true;
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    if (!mounted) {
+      _isScrolling = false;
+      return;
+    }
+    final fieldContext = key.currentContext;
+    if (fieldContext != null) {
+      try {
+        final RenderBox renderBox = fieldContext.findRenderObject() as RenderBox;
+        final position = renderBox.localToGlobal(Offset.zero);
+        final offset = _scrollController.offset + position.dy - 100;
+        final maxScroll = _scrollController.position.maxScrollExtent;
+        final targetOffset = offset.clamp(0.0, maxScroll);
+        await _scrollController.animateTo(
+          targetOffset,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOut,
+        );
+      } catch (_) {}
+    }
+    _isScrolling = false;
+  }
+
+  @override
   void initState() {
-
     super.initState();
-
     loadAccounts();
   }
 
@@ -106,7 +114,6 @@ class _AddTransactionScreenState
     });
   }
 
-
   Future<void> _pickDueDate() async {
     final date = await showDatePicker(
       context: context,
@@ -121,6 +128,7 @@ class _AddTransactionScreenState
       _dueDate = date;
     });
   }
+
   Future<void> _pickImage() async {
     try {
       final picker = ImagePicker();
@@ -135,28 +143,15 @@ class _AddTransactionScreenState
     }
   }
 
-  // =========================
-  // LOAD ACCOUNTS
-  // =========================
-  // Loads all accounts EXCEPT Cash (Cash is counter-account automatically)
-
   Future loadAccounts() async {
-
     await _accountService.ensureDefaultAccounts(widget.businessId);
-
     cashAccountId = await _accountingService.getCashAccountId(widget.businessId);
 
-    final allAccounts =
-        await _accountService
-            .getAccountsByBusiness(
+    final allAccounts = await _accountService.getAccountsByBusiness(
       widget.businessId,
     );
 
-    // Filter out Cash account - it's used as counter-account automatically
-    accounts = allAccounts
-        .where((account) => 
-            account.accountId != cashAccountId)
-        .toList();
+    accounts = allAccounts.where((account) => account.accountId != cashAccountId).toList();
 
     if (accounts.isNotEmpty) {
       selectedAccount = accounts.first;
@@ -167,27 +162,7 @@ class _AddTransactionScreenState
     setState(() {});
   }
 
-  // =========================
-  // SAVE TRANSACTION
-  // =========================
-  // Creates proper double-entry journal:
-  // 
-  // If Debit selected:
-  //   - Selected Account: Debit (amount increases)
-  //   - Cash Account: Credit (cash decreases)
-  //   Example: Expense of 1000
-  //   - Expense: Debit 1000 (expense increases)
-  //   - Cash: Credit 1000 (cash decreases)
-  //
-  // If Credit selected:
-  //   - Cash Account: Debit (cash increases)
-  //   - Selected Account: Credit (amount increases)
-  //   Example: Income of 1000
-  //   - Cash: Debit 1000 (cash increases)
-  //   - Income: Credit 1000 (income increases)
-
   Future saveTransaction() async {
-
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -208,7 +183,6 @@ class _AddTransactionScreenState
       return;
     }
 
-    // Validate: Selected account should NOT be Cash
     if (selectedAccount!.accountId == cashAccountId) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -221,13 +195,9 @@ class _AddTransactionScreenState
     setState(() => isLoading = true);
 
     try {
-      // Generate voucher number
       String voucherNo = await _accountingService.generateCashVoucher();
-
-      // Parse amount once and reuse
       double amount = double.parse(amountController.text);
 
-      // Create transaction record
       TransactionModel transaction = TransactionModel(
         businessId: widget.businessId,
         accountId: selectedAccount!.accountId!,
@@ -249,7 +219,6 @@ class _AddTransactionScreenState
 
       int transactionId = await _transactionService.createTransaction(transaction);
 
-      // Create journal entry header
       JournalEntryModel journalEntry = JournalEntryModel(
         businessId: widget.businessId,
         transactionId: transactionId,
@@ -268,66 +237,44 @@ class _AddTransactionScreenState
         createdAt: DateTime.now().toIso8601String(),
       );
 
-      // Create double-entry journal lines
-      // ====================================
-      // ACCOUNTING RULE:
-      // - Debit increases: Assets, Expenses
-      // - Credit increases: Liabilities, Equity, Income
-      // 
-      // For each transaction between Cash and Another Account:
-      // One gets Debit, other gets Credit (always balances)
-      // ====================================
-
       List<JournalLineModel> journalLines = [];
 
       if (side == 'Debit') {
-        // DEBIT SIDE: Amount going OUT of cash
-        // Selected account increases (Debit it)
-        // Cash decreases (Credit it)
-        
         journalLines.add(
           JournalLineModel(
             journalId: 0,
             accountId: selectedAccount!.accountId!,
-            debit: amount,  // Selected account: Debit increases
+            debit: amount,
             credit: 0,
           ),
         );
-        
         journalLines.add(
           JournalLineModel(
             journalId: 0,
             accountId: cashAccountId!,
             debit: 0,
-            credit: amount,  // Cash: Credit decreases
+            credit: amount,
           ),
         );
       } else {
-        // CREDIT SIDE: Amount coming INTO cash
-        // Cash increases (Debit it)
-        // Selected account increases (Credit it)
-        
         journalLines.add(
           JournalLineModel(
             journalId: 0,
             accountId: cashAccountId!,
-            debit: amount,  // Cash: Debit increases
+            debit: amount,
             credit: 0,
           ),
         );
-        
         journalLines.add(
           JournalLineModel(
             journalId: 0,
             accountId: selectedAccount!.accountId!,
             debit: 0,
-            credit: amount,  // Selected account: Credit increases
+            credit: amount,
           ),
         );
       }
 
-      // Save complete journal with double-entry validation
-      // (validates SUM(debit) = SUM(credit))
       await _accountingService.createCompleteJournal(
         journalEntry: journalEntry,
         journalLines: journalLines,
@@ -343,7 +290,6 @@ class _AddTransactionScreenState
       );
 
       Navigator.pop(context);
-
     } catch (e) {
       setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -357,133 +303,82 @@ class _AddTransactionScreenState
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-
+      resizeToAvoidBottomInset: true, // Let Scaffold automatically handle view insets
       appBar: AppBar(
-
-        title: const Text(
-          'Add Transaction',
-        ),
+        title: const Text('Add Transaction'),
       ),
-
-      body: Padding(
-
-        padding:
-            EdgeInsets.fromLTRB(
-              16,
-              16,
-              16,
-              16 + MediaQuery.of(context).viewInsets.bottom,
-            ),
-
+      body: SafeArea(
+        // Removed AnimatedPadding with MediaQuery viewInsets bottom
         child: Form(
-
           key: _formKey,
-
-          child: SafeArea(
-
-            child: ListView(
-
+          child: ListView(
+            controller: _scrollController,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
             children: [
-
               // =====================
               // ACCOUNT
               // =====================
-
-              DropdownButtonFormField<
-                  AccountModel>(
-
-                value: (selectedAccount != null && accounts.any((account) => account.accountId == selectedAccount!.accountId))
+              DropdownButtonFormField<AccountModel>(
+                value: (selectedAccount != null &&
+                        accounts.any((account) => account.accountId == selectedAccount!.accountId))
                     ? selectedAccount
                     : null,
-
-                decoration:
-                    const InputDecoration(
-
-                  labelText:
-                      'Select Account',
-
-                  border:
-                      OutlineInputBorder(),
+                decoration: const InputDecoration(
+                  labelText: 'Select Account',
+                  border: OutlineInputBorder(),
                 ),
-
-                items: accounts.map(
-                  (account) {
-
-                    return DropdownMenuItem(
-
-                      value: account,
-
-                      child: Text(
-                        account.name,
-                      ),
-                    );
-                  },
-                ).toList(),
-
+                items: accounts.map((account) {
+                  return DropdownMenuItem(
+                    value: account,
+                    child: Text(account.name),
+                  );
+                }).toList(),
                 onChanged: (value) {
-
                   setState(() {
-
-                    selectedAccount =
-                        value;
+                    selectedAccount = value;
                   });
                 },
               ),
-
-              const SizedBox(
-                height: 15,
-              ),
+              const SizedBox(height: 15),
 
               // =====================
               // AMOUNT
               // =====================
-
-              TextFormField(
-
-                controller:
-                    amountController,
-
-                keyboardType:
-                    TextInputType.number,
-
-                decoration:
-                    const InputDecoration(
-
-                  labelText:
-                      'Amount',
-
-                  border:
-                      OutlineInputBorder(),
-                ),
-
-                validator: (value) {
-
-                  if (value == null ||
-                      value.isEmpty) {
-
-                    return 'Enter amount';
-                  }
-
-                  return null;
+              Focus(
+                onFocusChange: (hasFocus) {
+                  if (hasFocus) _scrollToField(_amountFieldKey);
                 },
+                child: TextFormField(
+                  key: _amountFieldKey,
+                  controller: amountController,
+                  keyboardType: TextInputType.number,
+                  textAlignVertical: TextAlignVertical.center,
+                  textInputAction: TextInputAction.next,
+                  scrollPadding: const EdgeInsets.only(bottom: 240), // Increased to give comfortable separation from keyboard
+                  decoration: const InputDecoration(
+                    labelText: 'Amount',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Enter amount';
+                    }
+                    return null;
+                  },
+                ),
               ),
-
-              const SizedBox(
-                height: 15,
-              ),
+              const SizedBox(height: 15),
 
               // =====================
-              // TRANSACTION TYPE (Debit/Credit with clear labels)
+              // TRANSACTION TYPE
               // =====================
-
               Text(
                 'Transaction Type',
                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
-              
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -493,7 +388,6 @@ class _AddTransactionScreenState
                 ),
                 child: Column(
                   children: [
-                    // Debit Option
                     InkWell(
                       onTap: () => setState(() => side = 'Debit'),
                       child: Row(
@@ -522,8 +416,6 @@ class _AddTransactionScreenState
                       ),
                     ),
                     const Divider(height: 12),
-                    
-                    // Credit Option
                     InkWell(
                       onTap: () => setState(() => side = 'Credit'),
                       child: Row(
@@ -554,13 +446,11 @@ class _AddTransactionScreenState
                   ],
                 ),
               ),
-
               const SizedBox(height: 15),
 
               // =====================
               // HELP TEXT
               // =====================
-
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -581,10 +471,7 @@ class _AddTransactionScreenState
                   ],
                 ),
               ),
-
-              const SizedBox(
-                height: 15,
-              ),
+              const SizedBox(height: 15),
 
               // =====================
               // DATE & TIME PICKER
@@ -603,7 +490,6 @@ class _AddTransactionScreenState
                   ),
                 ),
               ),
-
               const SizedBox(height: 12),
 
               // Due date
@@ -621,7 +507,6 @@ class _AddTransactionScreenState
                   ),
                 ),
               ),
-
               const SizedBox(height: 12),
 
               // Image picker
@@ -639,103 +524,68 @@ class _AddTransactionScreenState
                     ),
                 ],
               ),
-
               const SizedBox(height: 12),
 
               // Description
-              TextFormField(
-                controller: noteController,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  border: OutlineInputBorder(),
+              Focus(
+                onFocusChange: (hasFocus) {
+                  if (hasFocus) _scrollToField(_noteFieldKey);
+                },
+                child: TextFormField(
+                  key: _noteFieldKey,
+                  controller: noteController,
+                  maxLines: 3,
+                  textAlignVertical: TextAlignVertical.top,
+                  textInputAction: TextInputAction.newline,
+                  scrollPadding: const EdgeInsets.only(bottom: 240), // Increased scroll margin
+                  decoration: const InputDecoration(
+                    labelText: 'Description',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
               ),
-
               const SizedBox(height: 15),
 
               // =====================
               // PAYMENT METHOD
               // =====================
-
               DropdownButtonFormField(
-
-                value:
-                    paymentMethod,
-
-                decoration:
-                    const InputDecoration(
-
-                  labelText:
-                      'Payment Method',
-
-                  border:
-                      OutlineInputBorder(),
+                value: paymentMethod,
+                decoration: const InputDecoration(
+                  labelText: 'Payment Method',
+                  border: OutlineInputBorder(),
                 ),
-
                 items: [
-
                   'Cash',
-
                   'Bank',
-
                   'Online',
-                ].map(
-                  (method) {
-
-                    return DropdownMenuItem(
-
-                      value: method,
-
-                      child: Text(
-                        method,
-                      ),
-                    );
-                  },
-                ).toList(),
-
+                ].map((method) {
+                  return DropdownMenuItem(
+                    value: method,
+                    child: Text(method),
+                  );
+                }).toList(),
                 onChanged: (value) {
-
                   setState(() {
-
-                    paymentMethod =
-                        value!;
+                    paymentMethod = value!;
                   });
                 },
               ),
-
-              const SizedBox(
-                height: 15,
-              ),
-
+              const SizedBox(height: 15),
 
               // =====================
               // SAVE BUTTON
               // =====================
-
               SizedBox(
-
                 height: 55,
-
                 child: ElevatedButton(
-
-                  onPressed:
-                      isLoading
-                          ? null
-                          : saveTransaction,
-
+                  onPressed: isLoading ? null : saveTransaction,
                   child: isLoading
-
-                      ? const
-                          CircularProgressIndicator()
-
-                      : const Text(
-                          'Save Transaction',
-                        ),
+                      ? const CircularProgressIndicator()
+                      : const Text('Save Transaction'),
                 ),
               ),
             ],
-          ),
           ),
         ),
       ),

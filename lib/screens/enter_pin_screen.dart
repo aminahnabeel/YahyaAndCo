@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../db/database_helper.dart';
 import '../services/localization_service.dart';
 import 'dashboard/dashboard_screen.dart';
+import 'set_pin_screen.dart';
 import '../theme.dart';
 
 class EnterPinScreen extends StatefulWidget {
@@ -88,7 +89,10 @@ class _EnterPinScreenState extends State<EnterPinScreen> {
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(
-              builder: (_) => DashboardScreen(businessId: widget.businessId),
+                builder: (_) => DashboardScreen(
+                  businessId: widget.businessId,
+                  businessName: business.name,
+                ),
             ),
             (route) => false,
           );
@@ -111,12 +115,33 @@ class _EnterPinScreenState extends State<EnterPinScreen> {
   }
 
   void _forgotPin() {
-    // TODO: Implement forgot PIN flow
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(LocalizationService.instance.t('forgot_pin_contact_support')),
-        backgroundColor: Colors.orange,
-      ),
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Reset PIN'),
+          content: const Text('Do you want to set a new PIN for this business?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                final business = await DatabaseHelper.instance.getBusinessById(widget.businessId);
+                if (!mounted || business == null) return;
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SetPinScreen(business: business),
+                  ),
+                );
+              },
+              child: const Text('Reset PIN'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -156,62 +181,79 @@ class _EnterPinScreenState extends State<EnterPinScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // PIN Dots Display (Tappable to show keyboard)
-                  GestureDetector(
-                    onTap: () {
-                      _pinFocus.requestFocus();
-                    },
-                    child: Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(
-                          4,
-                          (index) => Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Container(
-                              width: 16,
-                              height: 16,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: _pinDots[index]
-                                    ? AppColors.primary
-                                    : Colors.grey.shade300,
-                              ),
+                  // PIN Dots Display (visual progress)
+                  Center(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        4,
+                        (index) => Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Container(
+                            width: 16,
+                            height: 16,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _pinDots[index]
+                                  ? AppColors.primary
+                                  : Colors.grey.shade300,
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 48),
+                  const SizedBox(height: 24),
 
-                  // Hidden PIN Input Field
+                  // Visible PIN Input Field
                   TextField(
                     controller: _pinController,
                     focusNode: _pinFocus,
                     enabled: !_isLoading,
+                    onTap: () => _pinFocus.requestFocus(),
                     obscureText: true,
                     keyboardType: TextInputType.number,
                     maxLength: 4,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      letterSpacing: 8,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
                     onChanged: (_) => _updatePinDots(),
                     decoration: InputDecoration(
-                      hintText: localization.t('enter_pin'),
-                      hintStyle: TextStyle(color: Colors.grey.shade400),
+                      hintText: localization.t('pin_hint'),
+                      hintStyle: TextStyle(
+                        color: Colors.grey.shade400,
+                        letterSpacing: 1,
+                      ),
                       filled: true,
-                      fillColor: Colors.transparent,
+                      fillColor: Colors.white,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
-                        vertical: 14,
+                        vertical: 16,
                       ),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: AppColors.primary,
+                          width: 2,
+                        ),
+                      ),
                       counterText: '',
                     ),
-                    style: const TextStyle(fontSize: 0),
-                    cursorColor: Colors.transparent,
                   ),
-                  const SizedBox(height: 48),
+                  const SizedBox(height: 32),
 
                   // Verify Button
                   SizedBox(

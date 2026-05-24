@@ -34,6 +34,9 @@ class DatabaseHelper {
     return await openDatabase(
       path,
       version: 4,
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
       onCreate: onCreate,
       onUpgrade: onUpgrade,
     );
@@ -116,7 +119,9 @@ class DatabaseHelper {
 
       opening_balance REAL,
 
-      created_at TEXT
+      created_at TEXT,
+
+      FOREIGN KEY(business_id) REFERENCES business(business_id) ON DELETE CASCADE
     )
     ''');
 
@@ -152,7 +157,10 @@ class DatabaseHelper {
 
       date TEXT,
 
-      created_at TEXT
+      created_at TEXT,
+
+      FOREIGN KEY(business_id) REFERENCES business(business_id) ON DELETE CASCADE,
+      FOREIGN KEY(account_id) REFERENCES accounts(account_id) ON DELETE SET NULL
     )
     ''');
 
@@ -186,7 +194,10 @@ class DatabaseHelper {
 
       remaining_amount REAL DEFAULT 0,
 
-      created_at TEXT
+      created_at TEXT,
+
+      FOREIGN KEY(business_id) REFERENCES business(business_id) ON DELETE CASCADE,
+      FOREIGN KEY(transaction_id) REFERENCES transactions(transaction_id) ON DELETE SET NULL
     )
     ''');
 
@@ -206,7 +217,10 @@ class DatabaseHelper {
 
       debit REAL,
 
-      credit REAL
+      credit REAL,
+
+      FOREIGN KEY(journal_id) REFERENCES journal_entry(journal_id) ON DELETE CASCADE,
+      FOREIGN KEY(account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
     )
     ''');
 

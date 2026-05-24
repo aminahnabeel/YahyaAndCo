@@ -5,6 +5,7 @@ import '../db/database_helper.dart';
 import '../models/business_model.dart';
 import 'business_details.dart';
 import 'dashboard/dashboard_screen.dart';
+import 'enter_pin_screen.dart';
 import 'auth_screen.dart';
 import 'email_verification_pending_screen.dart';
 
@@ -45,7 +46,14 @@ class StartupGate extends StatelessWidget {
               return const BusinessDetailsScreen();
             }
 
-            return DashboardScreen(businessId: business.businessId!);
+            if (business.pin != null && business.pin!.isNotEmpty) {
+              return EnterPinScreen(businessId: business.businessId!);
+            }
+
+            return DashboardScreen(
+              businessId: business.businessId!,
+              businessName: business.name,
+            );
           },
         );
       },

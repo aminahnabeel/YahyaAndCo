@@ -10,6 +10,7 @@ class _JournalFormRow {
   AccountModel? account;
   final TextEditingController debitController = TextEditingController(text: '0.00');
   final TextEditingController creditController = TextEditingController(text: '0.00');
+  final GlobalKey rowKey = GlobalKey(); // Har individual row ke liye unique key
 
   void dispose() {
     debitController.dispose();
@@ -31,10 +32,14 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
   final AccountService _accountService = AccountService();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _dueDateController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _descriptionFieldKey = GlobalKey();
+  final GlobalKey _dueDateFieldKey = GlobalKey();
   final TextEditingController _dateController = TextEditingController(
     text: DateTime.now().toIso8601String().split('T').first,
   );
-  DateTime? _dueDate;
+  bool _isScrolling = false;
 
   final List<_JournalFormRow> _rows = [];
   List<AccountModel> _accounts = [];
@@ -43,6 +48,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
   bool _loading = true;
   String _voucherType = 'JV';
   String _voucherNo = '';
+  DateTime? _dueDate;
 
   @override
   void initState() {
@@ -56,8 +62,37 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
       row.dispose();
     }
     _descriptionController.dispose();
+    _dueDateController.dispose();
     _dateController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _scrollToField(GlobalKey key) async {
+    if (!_scrollController.hasClients) return;
+    if (_isScrolling) return;
+    _isScrolling = true;
+    
+    // Keyboard open hone ka thoda wait karein taake safe calculation ho sake
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    if (!mounted) {
+      _isScrolling = false;
+      return;
+    }
+    final fieldContext = key.currentContext;
+    if (fieldContext != null) {
+      try {
+        Scrollable.ensureVisible(
+          fieldContext,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+          alignment: 0.15, // Field ko viewport me clear aur upar rakhta hai
+        );
+      } catch (_) {
+        // ignore exceptions
+      }
+    }
+    _isScrolling = false;
   }
 
   Future<void> _loadInitialData() async {
@@ -131,6 +166,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
 
     setState(() {
       _dueDate = picked;
+      _dueDateController.text = picked.toIso8601String().split('T').first;
     });
   }
 
@@ -217,13 +253,13 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
         voucherNo: _voucherNo,
         voucherType: _voucherType,
         description: _descriptionController.text.trim(),
-          dueDate: _dueDate?.toIso8601String().split('T').first,
+        dueDate: _dueDate?.toIso8601String().split('T').first,
+        remainingAmount: _dueDate == null ? 0 : totalDebit,
+        paymentStatus: _accountingService.calculatePaymentStatus(
+          amount: totalDebit,
           remainingAmount: _dueDate == null ? 0 : totalDebit,
-          paymentStatus: _accountingService.calculatePaymentStatus(
-            amount: totalDebit,
-            remainingAmount: _dueDate == null ? 0 : totalDebit,
-            dueDate: _dueDate?.toIso8601String(),
-          ),
+          dueDate: _dueDate?.toIso8601String(),
+        ),
         imageUrl: null,
         date: _dateController.text,
         createdAt: DateTime.now().toIso8601String(),
@@ -256,17 +292,15 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true, // Default safe resizing active rakhein
       appBar: AppBar(title: const Text('Add Journal Entry')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
               child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  16,
-                  16,
-                  16 + MediaQuery.of(context).viewInsets.bottom,
-                ),
+                controller: _scrollController,
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -310,10 +344,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                           borderRadius: BorderRadius.circular(8),
                           color: Colors.white,
                         ),
-                        child: Text(
-                          _voucherNo,
-                          style: const TextStyle(fontSize: 16),
-                        ),
+                        child: Text(_voucherNo, style: const TextStyle(fontSize: 16)),
                       ),
                       const SizedBox(height: 16),
                       GestureDetector(
@@ -334,25 +365,36 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                         onTap: _pickDueDate,
                         child: AbsorbPointer(
                           child: TextFormField(
-                            decoration: InputDecoration(
+                            key: _dueDateFieldKey,
+                            controller: _dueDateController,
+                            decoration: const InputDecoration(
                               labelText: 'Due Date (Optional)',
-                              border: const OutlineInputBorder(),
-                              suffixIcon: const Icon(Icons.event),
-                              hintText: _dueDate?.toIso8601String().split('T').first ?? 'Select due date',
+                              border: OutlineInputBorder(),
+                              suffixIcon: Icon(Icons.event),
+                              hintText: 'Select due date',
                             ),
                           ),
                         ),
                       ),
                       const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _descriptionController,
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'Description',
-                          hintText: 'Enter description',
-                          border: OutlineInputBorder(),
+                      Focus(
+                        onFocusChange: (hasFocus) {
+                          if (hasFocus) _scrollToField(_descriptionFieldKey);
+                        },
+                        child: TextFormField(
+                          key: _descriptionFieldKey,
+                          controller: _descriptionController,
+                          maxLines: 3,
+                          textAlignVertical: TextAlignVertical.top,
+                          textInputAction: TextInputAction.newline,
+                          scrollPadding: const EdgeInsets.only(bottom: 200),
+                          decoration: const InputDecoration(
+                            labelText: 'Description',
+                            hintText: 'Enter description',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (value) => value == null || value.trim().isEmpty ? 'Description required' : null,
                         ),
-                        validator: (value) => value == null || value.trim().isEmpty ? 'Description required' : null,
                       ),
                       const SizedBox(height: 20),
                       const Text('Journal Entries', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
@@ -367,7 +409,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                           children: [
                             Expanded(flex: 5, child: Text('Account', style: TextStyle(fontWeight: FontWeight.w700))),
                             Expanded(child: Text('Debit', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w700))),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Expanded(child: Text('Credit', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w700))),
                           ],
                         ),
@@ -376,6 +418,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                       ...List.generate(_rows.length, (index) {
                         final row = _rows[index];
                         return Card(
+                          key: row.rowKey, // Har card card ka unique key assigned kiya
                           margin: const EdgeInsets.only(bottom: 10),
                           child: Padding(
                             padding: const EdgeInsets.all(12),
@@ -383,14 +426,16 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 DropdownButtonFormField<AccountModel>(
-                                  value: row.account != null && _accounts.any((a) => a.accountId == row.account!.accountId) ? row.account : null,
+                                  value: row.account != null && _accounts.any((a) => a.accountId == row.account!.accountId)
+                                      ? row.account
+                                      : null,
                                   decoration: const InputDecoration(
                                     border: OutlineInputBorder(),
                                     contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                                   ),
                                   items: _accounts
                                       .map(
-                                        (account) => DropdownMenuItem(
+                                        (account) => DropdownMenuItem<AccountModel>(
                                           value: account,
                                           child: Text(account.name),
                                         ),
@@ -407,31 +452,49 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                                 Row(
                                   children: [
                                     Expanded(
-                                      child: TextFormField(
-                                        controller: row.debitController,
-                                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                        textAlign: TextAlign.center,
-                                        onTap: () => _clearAmountIfDefault(row.debitController),
-                                        decoration: const InputDecoration(
-                                          labelText: 'Debit',
-                                          border: OutlineInputBorder(),
-                                          hintText: '0.00',
-                                          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+                                      child: Focus(
+                                        onFocusChange: (hasFocus) {
+                                          if (hasFocus) {
+                                            _scrollToField(row.rowKey); // Sahi card par focus scroll hoga
+                                          }
+                                        },
+                                        child: TextFormField(
+                                          controller: row.debitController,
+                                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                          textAlign: TextAlign.center,
+                                          textAlignVertical: TextAlignVertical.center,
+                                          onTap: () => _clearAmountIfDefault(row.debitController),
+                                          scrollPadding: const EdgeInsets.only(bottom: 240),
+                                          decoration: const InputDecoration(
+                                            labelText: 'Debit',
+                                            border: OutlineInputBorder(),
+                                            hintText: '0.00',
+                                            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+                                          ),
                                         ),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
-                                      child: TextFormField(
-                                        controller: row.creditController,
-                                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                        textAlign: TextAlign.center,
-                                        onTap: () => _clearAmountIfDefault(row.creditController),
-                                        decoration: const InputDecoration(
-                                          labelText: 'Credit',
-                                          border: OutlineInputBorder(),
-                                          hintText: '0.00',
-                                          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+                                      child: Focus(
+                                        onFocusChange: (hasFocus) {
+                                          if (hasFocus) {
+                                            _scrollToField(row.rowKey); // Sahi card par focus scroll hoga
+                                          }
+                                        },
+                                        child: TextFormField(
+                                          controller: row.creditController,
+                                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                          textAlign: TextAlign.center,
+                                          textAlignVertical: TextAlignVertical.center,
+                                          onTap: () => _clearAmountIfDefault(row.creditController),
+                                          scrollPadding: const EdgeInsets.only(bottom: 240),
+                                          decoration: const InputDecoration(
+                                            labelText: 'Credit',
+                                            border: OutlineInputBorder(),
+                                            hintText: '0.00',
+                                            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+                                          ),
                                         ),
                                       ),
                                     ),

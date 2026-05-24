@@ -45,12 +45,19 @@ class _JournalListScreenState extends State<JournalListScreen> {
     setState(() => _loading = false);
   }
 
+  String _normalizeStatus(dynamic value) {
+    final status = (value ?? '').toString().toLowerCase();
+    if (status == 'paid') return 'Paid';
+    if (status == 'overdue') return 'Overdue';
+    return 'Pending';
+  }
+
   bool _matches(Map<String, dynamic> row) {
     final query = _searchQuery.trim().toLowerCase();
     final voucherNo = (row['voucher_no'] ?? '').toString().toLowerCase();
     final accountName = (row['account_name'] ?? '').toString().toLowerCase();
     final description = (row['description'] ?? '').toString().toLowerCase();
-    final status = (row['payment_status'] ?? 'Paid').toString();
+    final status = _normalizeStatus(row['payment_status']);
     final voucherType = (row['voucher_type'] ?? '').toString().toLowerCase();
     final dueText = (row['due_date'] ?? '').toString();
     final dateText = (row['date'] ?? '').toString();
@@ -76,8 +83,6 @@ class _JournalListScreenState extends State<JournalListScreen> {
     switch (status.toLowerCase()) {
       case 'paid':
         return Colors.green;
-      case 'partial':
-        return Colors.blue;
       case 'overdue':
         return Colors.red;
       default:
@@ -113,7 +118,6 @@ class _JournalListScreenState extends State<JournalListScreen> {
                         DropdownMenuItem(value: 'All', child: Text('All')),
                         DropdownMenuItem(value: 'Paid', child: Text('Paid')),
                         DropdownMenuItem(value: 'Pending', child: Text('Pending')),
-                        DropdownMenuItem(value: 'Partial', child: Text('Partial')),
                         DropdownMenuItem(value: 'Overdue', child: Text('Overdue')),
                       ],
                       onChanged: (value) => setModalState(() => tempStatus = value ?? 'All'),
@@ -202,7 +206,7 @@ class _JournalListScreenState extends State<JournalListScreen> {
 
   Widget _buildRow(Map<String, dynamic> row) {
     final amount = ((row['remaining_amount'] ?? 0) as num).toDouble();
-    final status = (row['payment_status'] ?? 'Paid').toString();
+    final status = _normalizeStatus(row['payment_status']);
     final accountName = (row['account_name'] ?? 'Unknown').toString();
     final voucherNo = (row['voucher_no'] ?? '').toString();
     final description = (row['description'] ?? '').toString();
@@ -327,6 +331,7 @@ class _JournalListScreenState extends State<JournalListScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         onPressed: () async {
           await Navigator.push(context, MaterialPageRoute(builder: (_) => JournalCreateScreen(businessId: widget.businessId)));
           _load();

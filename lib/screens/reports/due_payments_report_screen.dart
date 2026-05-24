@@ -54,8 +54,6 @@ class _DuePaymentsReportScreenState extends State<DuePaymentsReportScreen> {
     switch (status.toLowerCase()) {
       case 'paid':
         return Colors.green;
-      case 'partial':
-        return Colors.blue;
       case 'overdue':
         return Colors.red;
       default:
@@ -141,7 +139,6 @@ class _DuePaymentsReportScreenState extends State<DuePaymentsReportScreen> {
                         DropdownMenuItem(value: 'All', child: Text('All')),
                         DropdownMenuItem(value: 'Paid', child: Text('Paid')),
                         DropdownMenuItem(value: 'Pending', child: Text('Pending')),
-                        DropdownMenuItem(value: 'Partial', child: Text('Partial')),
                         DropdownMenuItem(value: 'Overdue', child: Text('Overdue')),
                       ],
                       onChanged: (value) => setModalState(() => tempStatus = value ?? 'All'),

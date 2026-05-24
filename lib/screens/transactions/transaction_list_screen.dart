@@ -44,12 +44,19 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
     setState(() => _loading = false);
   }
 
+  String _normalizeStatus(dynamic value) {
+    final status = (value ?? '').toString().toLowerCase();
+    if (status == 'paid') return 'Paid';
+    if (status == 'overdue') return 'Overdue';
+    return 'Pending';
+  }
+
   bool _matches(Map<String, dynamic> row) {
     final query = _searchQuery.trim().toLowerCase();
     final voucherNo = (row['voucher_no'] ?? '').toString().toLowerCase();
     final accountName = (row['account_name'] ?? '').toString().toLowerCase();
     final note = (row['note'] ?? '').toString().toLowerCase();
-    final status = (row['payment_status'] ?? 'Paid').toString();
+    final status = _normalizeStatus(row['payment_status']);
     final paymentMethod = (row['payment_method'] ?? '').toString().toLowerCase();
     final voucherType = (row['type'] ?? '').toString().toLowerCase();
     final dateText = (row['date'] ?? '').toString();
@@ -77,8 +84,6 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
     switch (status.toLowerCase()) {
       case 'paid':
         return Colors.green;
-      case 'partial':
-        return Colors.blue;
       case 'overdue':
         return Colors.red;
       default:
@@ -115,7 +120,6 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                         DropdownMenuItem(value: 'All', child: Text('All')),
                         DropdownMenuItem(value: 'Paid', child: Text('Paid')),
                         DropdownMenuItem(value: 'Pending', child: Text('Pending')),
-                        DropdownMenuItem(value: 'Partial', child: Text('Partial')),
                         DropdownMenuItem(value: 'Overdue', child: Text('Overdue')),
                       ],
                       onChanged: (value) => setModalState(() => tempStatus = value ?? 'All'),
@@ -219,7 +223,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
   Widget _buildRow(Map<String, dynamic> row) {
     final amount = ((row['amount'] ?? 0) as num).toDouble();
     final remaining = ((row['remaining_amount'] ?? 0) as num).toDouble();
-    final status = (row['payment_status'] ?? 'Paid').toString();
+    final status = _normalizeStatus(row['payment_status']);
     final accountName = (row['account_name'] ?? 'Unknown').toString();
     final voucherNo = (row['voucher_no'] ?? '').toString();
     final note = (row['note'] ?? '').toString();
@@ -391,6 +395,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
             ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
         onPressed: () async {
           await Navigator.push(context, MaterialPageRoute(builder: (_) => AddTransactionScreen(businessId: widget.businessId)));
           _load();
