@@ -42,6 +42,8 @@ dependencies:
   firebase_auth: ^6.5.0
   image_picker: ^1.0.7
   flutter_local_notifications: ^17.2.2
+  pdf: ^3.10.7
+  path_provider: ^2.1.1
   
 dev_dependencies:
   flutter_test:
