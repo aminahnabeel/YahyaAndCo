@@ -59,14 +59,6 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
     );
   }
 
-  Future<void> _refreshBusinesses() async {
-    if (!mounted) return;
-    setState(() {
-      _businessesFuture = _businessService.getBusinesses();
-    });
-    await _businessesFuture;
-  }
-
   Future<void> _deleteBusiness(BusinessModel business) async {
     final businessId = business.businessId;
     if (businessId == null) return;

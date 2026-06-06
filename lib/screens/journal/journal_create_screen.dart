@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../models/account_model.dart';
 import '../../models/journal_entry_model.dart';
 import '../../models/journal_line_model.dart';
 import '../../services/account_service.dart';
 import '../../services/accounting_service.dart';
+import '../../services/image_upload_service.dart';
 
 class _JournalFormRow {
   AccountModel? account;
@@ -49,6 +51,8 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
   String _voucherType = 'JV';
   String _voucherNo = '';
   DateTime? _dueDate;
+  String? _imageUrl;
+  bool _isUploadingImage = false;
 
   @override
   void initState() {
@@ -170,6 +174,106 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
     });
   }
 
+  Future<void> _pickImage() async {
+    try {
+      final picker = ImagePicker();
+      final XFile? file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+      if (file != null) {
+        setState(() {
+          _isUploadingImage = true;
+        });
+
+        final uploadedUrl = await ImageUploadService().uploadImage(file.path);
+        
+        if (uploadedUrl != null) {
+          setState(() {
+            _imageUrl = uploadedUrl;
+            _isUploadingImage = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Image uploaded successfully!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        } else {
+          setState(() {
+            _isUploadingImage = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to upload image. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isUploadingImage = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error picking image: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _showImageViewer() {
+    if (_imageUrl == null) return;
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(0),
+        child: GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Center(
+            child: Stack(
+              children: [
+                Image.network(
+                  _imageUrl!,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: Colors.black,
+                      child: const Center(
+                        child: Text('Failed to load image', style: TextStyle(color: Colors.white)),
+                      ),
+                    );
+                  },
+                ),
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        shape: BoxShape.circle,
+                      ),
+                      padding: const EdgeInsets.all(8),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _addRow() {
     setState(() {
       _rows.add(_createRow());
@@ -260,7 +364,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
           remainingAmount: _dueDate == null ? 0 : totalDebit,
           dueDate: _dueDate?.toIso8601String(),
         ),
-        imageUrl: null,
+        imageUrl: _imageUrl,
         date: _dateController.text,
         createdAt: DateTime.now().toIso8601String(),
       );
@@ -395,6 +499,84 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                           ),
                           validator: (value) => value == null || value.trim().isEmpty ? 'Description required' : null,
                         ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Image picker
+                      Row(
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: _isUploadingImage ? null : _pickImage,
+                            icon: const Icon(Icons.attach_file),
+                            label: _isUploadingImage ? const Text('Uploading...') : const Text('Attach Image'),
+                          ),
+                          const SizedBox(width: 12),
+                          if (_isUploadingImage)
+                            const Expanded(
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text('Uploading image...'),
+                                ],
+                              ),
+                            )
+                          else if (_imageUrl != null)
+                            Expanded(
+                              child: Stack(
+                                children: [
+                                  GestureDetector(
+                                    onTap: _showImageViewer,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(4),
+                                      child: Image.network(
+                                        _imageUrl!,
+                                        height: 60,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            height: 60,
+                                            color: Colors.grey.shade300,
+                                            child: const Center(child: Text('Failed to load')),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 0,
+                                    right: 0,
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          _imageUrl = null;
+                                        });
+                                      },
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.red.shade600,
+                                          borderRadius: const BorderRadius.only(
+                                            topLeft: Radius.circular(0),
+                                            topRight: Radius.circular(4),
+                                            bottomLeft: Radius.circular(4),
+                                          ),
+                                        ),
+                                        padding: const EdgeInsets.all(4),
+                                        child: const Icon(
+                                          Icons.close,
+                                          color: Colors.white,
+                                          size: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 20),
                       const Text('Journal Entries', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),

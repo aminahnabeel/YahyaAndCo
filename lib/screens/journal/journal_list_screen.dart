@@ -214,10 +214,33 @@ class _JournalListScreenState extends State<JournalListScreen> {
     final dueDate = (row['due_date'] ?? '').toString();
     final journalId = row['journal_id'] as int?;
 
+    final hasImage = row['image_url'] != null && (row['image_url'] as String).isNotEmpty;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
         contentPadding: const EdgeInsets.all(14),
+        leading: hasImage
+            ? GestureDetector(
+                onTap: () => _showImageViewer(row['image_url'] as String),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Image.network(
+                    row['image_url'] as String,
+                    width: 50,
+                    height: 50,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        width: 50,
+                        height: 50,
+                        color: Colors.grey.shade300,
+                        child: const Icon(Icons.image_not_supported, size: 24),
+                      );
+                    },
+                  ),
+                ),
+              )
+            : null,
         title: Row(
           children: [
             Expanded(child: Text(voucherNo, style: const TextStyle(fontWeight: FontWeight.w700))),
@@ -297,6 +320,56 @@ class _JournalListScreenState extends State<JournalListScreen> {
     );
   }
 
+  void _showImageViewer(String imageUrl) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(0),
+        child: GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Center(
+            child: Stack(
+              children: [
+                Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: Colors.black,
+                      child: const Center(
+                        child: Text('Failed to load image', style: TextStyle(color: Colors.white)),
+                      ),
+                    );
+                  },
+                ),
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        shape: BoxShape.circle,
+                      ),
+                      padding: const EdgeInsets.all(8),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
   Widget _summaryBox(String label, String value, Color color) {
     return Container(
       padding: const EdgeInsets.all(12),

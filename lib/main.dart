@@ -7,7 +7,7 @@ import 'db/database_helper.dart';
 import 'firebase_options.dart';
 import 'theme.dart';
 
-import 'screens/startup_gate.dart';
+import 'splash_screen/logo_screen.dart';
 
 void main() async {
 
@@ -44,7 +44,7 @@ class MyApp extends StatelessWidget {
 
       theme: AppTheme.theme,
 
-      home: const StartupGate(),
+      home: const LogoScreen(),
     );
   }
 }
