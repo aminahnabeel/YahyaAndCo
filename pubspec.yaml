@@ -42,6 +42,7 @@ dependencies:
   firebase_auth: ^6.5.0
   image_picker: ^1.0.7
   flutter_local_notifications: ^17.2.2
+  http: ^1.1.0
   
 dev_dependencies:
   flutter_test:
@@ -69,5 +70,6 @@ flutter:
   assets:
    - assets/logo.png
    - assets/1.jpg
+   - assets/1.jpeg
    
 
