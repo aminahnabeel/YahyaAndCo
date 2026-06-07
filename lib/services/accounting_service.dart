@@ -199,9 +199,9 @@ class AccountingService {
   Future<double> getAccountBalance(int accountId) async {
     final account = await DatabaseHelper.instance.getAccountById(accountId);
     if (account == null) return 0;
-    
+
     double balance = account.openingBalance;
-    
+
     final db = await DatabaseHelper.instance.database;
 
     final debitResult = await db.rawQuery(
@@ -1209,5 +1209,79 @@ class AccountingService {
     } catch (e) {
       print('Error adding test data: $e');
     }
+  }
+
+  // =====================================================
+  // GET BALANCE SHEET
+  // =====================================================
+  Future<Map<String, dynamic>> getBalanceSheet(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+
+    // Get all assets, liabilities, and equity
+    final rows = await db.rawQuery(
+      '''
+      SELECT
+        accounts.account_id,
+        accounts.name,
+        accounts.type,
+        SUM(journal_lines.debit) as total_debit,
+        SUM(journal_lines.credit) as total_credit
+      FROM journal_lines
+      INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
+      INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
+      WHERE journal_entry.business_id = ?
+        AND LOWER(accounts.type) IN ('asset', 'liability', 'equity', 'payable', 'drawing')
+      GROUP BY accounts.account_id
+      ORDER BY accounts.type, accounts.name
+      ''',
+      [businessId],
+    );
+
+    double totalAssets = 0;
+    double totalLiabilities = 0;
+    double totalEquity = 0;
+
+    final assets = <Map<String, dynamic>>[];
+    final liabilities = <Map<String, dynamic>>[];
+    final equity = <Map<String, dynamic>>[];
+
+    for (final row in rows) {
+      final type = (row['type'] ?? '').toString().toLowerCase();
+      final totalDebit = _asDouble(row['total_debit']);
+      final totalCredit = _asDouble(row['total_credit']);
+      final balance = totalDebit - totalCredit;
+
+      if (type == 'asset') {
+        totalAssets += totalDebit;
+        assets.add({...row, 'balance': totalDebit});
+      } else if (type == 'liability' || type == 'payable') {
+        totalLiabilities += totalCredit;
+        liabilities.add({...row, 'balance': totalCredit});
+      } else if (type == 'equity' || type == 'drawing') {
+        // Equity includes capital accounts, drawing is deducted
+        if (type == 'drawing') {
+          totalEquity -= totalDebit;
+        } else {
+          totalEquity += totalCredit;
+        }
+        equity.add({
+          ...row,
+          'balance': type == 'drawing' ? -totalDebit : totalCredit,
+        });
+      }
+    }
+
+    final isBalanced =
+        (totalAssets - (totalLiabilities + totalEquity)).abs() < 0.01;
+
+    return {
+      'assets': assets,
+      'liabilities': liabilities,
+      'equity': equity,
+      'totalAssets': totalAssets,
+      'totalLiabilities': totalLiabilities,
+      'totalEquity': totalEquity,
+      'isBalanced': isBalanced,
+    };
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/accounting_service.dart';
+import '../../theme.dart';
 
 class ProfitLossScreen extends StatefulWidget {
   final int businessId;
@@ -26,63 +27,244 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
     setState(() => _loading = false);
   }
 
+  String _formatCurrency(double value) {
+    if (value == 0) return '₹0.00';
+
+    // Format with comma separators in Indian style
+    String formatted = value.toStringAsFixed(2);
+    List<String> parts = formatted.split('.');
+    String integerPart = parts[0];
+    String decimalPart = parts[1];
+
+    // Add comma separators
+    StringBuffer result = StringBuffer();
+    int count = 0;
+    for (int i = integerPart.length - 1; i >= 0; i--) {
+      if (count == 2 || (count > 2 && (count - 2) % 2 == 0)) {
+        result.write(',');
+      }
+      result.write(integerPart[i]);
+      count++;
+    }
+
+    String reversedInteger = result.toString().split('').reversed.join('');
+    return '₹$reversedInteger.$decimalPart';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Profit & Loss')),
+      appBar: AppBar(
+        title: const Text('Profit & Loss'),
+        elevation: 0,
+        backgroundColor: AppColors.primary,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: SingleChildScrollView(
+          : SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text('Income Accounts', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
+                    // REVENUE SECTION
+                    _buildSectionHeader('REVENUE'),
                     ...((_data?['incomeAccounts'] as List?) ?? []).map((item) {
-                      return Card(
-                        child: ListTile(
-                          title: Text(item['name'].toString()),
-                          subtitle: Text('Credit: ${(item['total_credit'] ?? 0).toString()}'),
-                          trailing: Text(
-                            'Net: ${(item['net_balance'] ?? 0).toString()}',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        ),
+                      return _buildLineItem(
+                        code: item['account_id']?.toString() ?? '',
+                        description: item['name']?.toString() ?? '',
+                        amount: _asDouble(item['total_credit']),
+                        color: const Color(0xFF06B6D4), // Cyan
                       );
                     }),
-                    const SizedBox(height: 16),
-                    const Text('Expense Accounts', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
+                    _buildTotalRow(
+                      label: 'Total Revenue',
+                      amount: _data?['income'] ?? 0,
+                      backgroundColor: const Color(0xFFDEF7F4),
+                      textColor: Colors.black87,
+                    ),
+                    const SizedBox(height: 24),
+
+                    // EXPENSES SECTION
+                    _buildSectionHeader('EXPENSES'),
                     ...((_data?['expenseAccounts'] as List?) ?? []).map((item) {
-                      return Card(
-                        child: ListTile(
-                          title: Text(item['name'].toString()),
-                          subtitle: Text('Debit: ${(item['total_debit'] ?? 0).toString()}'),
-                          trailing: Text(
-                            'Net: ${(item['net_balance'] ?? 0).toString()}',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        ),
+                      return _buildLineItem(
+                        code: item['account_id']?.toString() ?? '',
+                        description: item['name']?.toString() ?? '',
+                        amount: _asDouble(item['total_debit']),
+                        color: const Color(0xFFF87171), // Red
                       );
                     }),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      color: Colors.grey.shade200,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Net Profit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          Text('${(_data?['profit'] ?? 0).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        ],
-                      ),
+                    _buildTotalRow(
+                      label: 'Total Expenses',
+                      amount: _data?['expense'] ?? 0,
+                      backgroundColor: const Color(0xFFFFEDED),
+                      textColor: Colors.black87,
+                    ),
+                    const SizedBox(height: 24),
+
+                    // NET PROFIT / LOSS
+                    _buildNetProfitRow(
+                      profit: (_data?['profit'] ?? 0).toDouble(),
                     ),
                   ],
                 ),
               ),
             ),
     );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      color: Colors.grey[800],
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLineItem({
+    required String code,
+    required String description,
+    required double amount,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.grey[200]!, width: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 1,
+            child: Text(
+              code,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              description,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.black87,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              _formatCurrency(amount),
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 13,
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTotalRow({
+    required String label,
+    required double amount,
+    required Color backgroundColor,
+    required Color textColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      color: backgroundColor,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: textColor,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            _formatCurrency(amount),
+            style: TextStyle(
+              fontSize: 13,
+              color: textColor,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNetProfitRow({required double profit}) {
+    final isProfit = profit >= 0;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+      decoration: BoxDecoration(
+        color: isProfit ? const Color(0xFFDEFCE0) : const Color(0xFFFFEDED),
+        border: Border.all(
+          color: isProfit ? const Color(0xFF10B981) : const Color(0xFFF87171),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            isProfit ? 'NET PROFIT / (LOSS)' : 'NET PROFIT / (LOSS)',
+            style: TextStyle(
+              fontSize: 13,
+              color: isProfit
+                  ? const Color(0xFF059669)
+                  : const Color(0xFFDC2626),
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+            ),
+          ),
+          Text(
+            _formatCurrency(profit.abs()),
+            style: TextStyle(
+              fontSize: 14,
+              color: isProfit
+                  ? const Color(0xFF10B981)
+                  : const Color(0xFFF87171),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  double _asDouble(dynamic value) {
+    if (value == null) return 0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    return double.tryParse(value.toString()) ?? 0;
   }
 }
