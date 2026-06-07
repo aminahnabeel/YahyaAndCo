@@ -49,20 +49,14 @@ class _LedgerScreenState extends State<LedgerScreen> {
         filteredAccounts = accounts;
       } else {
         filteredAccounts = accounts
-            .where((acc) =>
-                acc.name.toLowerCase().contains(query) ||
-                acc.type.toLowerCase().contains(query))
+            .where(
+              (acc) =>
+                  acc.name.toLowerCase().contains(query) ||
+                  acc.type.toLowerCase().contains(query),
+            )
             .toList();
       }
     });
-  }
-
-  String _formatBalance(double balance) {
-    if (balance >= 0) {
-      return '₹${balance.toStringAsFixed(2)}';
-    } else {
-      return '-₹${balance.abs().toStringAsFixed(2)}';
-    }
   }
 
   @override
@@ -90,17 +84,29 @@ class _LedgerScreenState extends State<LedgerScreen> {
                       fillColor: Colors.white,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Colors.grey, width: 1),
+                        borderSide: const BorderSide(
+                          color: Colors.grey,
+                          width: 1,
+                        ),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Colors.grey, width: 1),
+                        borderSide: const BorderSide(
+                          color: Colors.grey,
+                          width: 1,
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: AppColors.primary, width: 2),
+                        borderSide: BorderSide(
+                          color: AppColors.primary,
+                          width: 2,
+                        ),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                 ),
@@ -111,8 +117,11 @@ class _LedgerScreenState extends State<LedgerScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.account_balance_wallet_outlined,
-                                  size: 64, color: Colors.grey.shade300),
+                              Icon(
+                                Icons.account_balance_wallet_outlined,
+                                size: 64,
+                                color: Colors.grey.shade300,
+                              ),
                               const SizedBox(height: 16),
                               Text(
                                 _searchController.text.isEmpty
@@ -147,7 +156,8 @@ class _LedgerScreenState extends State<LedgerScreen> {
                                 ),
                                 leading: CircleAvatar(
                                   radius: 28,
-                                  backgroundColor: AppColors.primary.withOpacity(0.2),
+                                  backgroundColor: AppColors.primary
+                                      .withOpacity(0.2),
                                   child: Icon(
                                     _getAccountIcon(account.type),
                                     color: AppColors.primary,

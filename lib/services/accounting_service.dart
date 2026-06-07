@@ -27,7 +27,8 @@ class AccountingService {
   }) {
     final parsedDueDate = _asDate(dueDate);
     final today = DateTime.now();
-    final isOverdue = parsedDueDate != null &&
+    final isOverdue =
+        parsedDueDate != null &&
         parsedDueDate.isBefore(DateTime(today.year, today.month, today.day)) &&
         remainingAmount > 0;
 
@@ -170,8 +171,15 @@ class AccountingService {
       'due_date': dueDate,
     };
 
-    final idColumn = tableName == 'transactions' ? 'transaction_id' : 'journal_id';
-    await db.update(tableName, payload, where: '$idColumn = ?', whereArgs: [id]);
+    final idColumn = tableName == 'transactions'
+        ? 'transaction_id'
+        : 'journal_id';
+    await db.update(
+      tableName,
+      payload,
+      where: '$idColumn = ?',
+      whereArgs: [id],
+    );
   }
 
   // =====================================================
@@ -179,7 +187,7 @@ class AccountingService {
   // =====================================================
   // Calculates balance for a specific account using double-entry bookkeeping
   // Formula: SUM(debit) - SUM(credit)
-  // 
+  //
   // This works for all account types:
   // - Assets: Debit positive = increase
   // - Liabilities/Equity: Credit positive = increase
@@ -225,14 +233,17 @@ class AccountingService {
 
   Future<double> getOutstandingAmount(int businessId) async {
     final db = await DatabaseHelper.instance.database;
-    final result = await db.rawQuery('''
+    final result = await db.rawQuery(
+      '''
       SELECT SUM(remaining_amount) AS total
       FROM (
         SELECT remaining_amount FROM transactions WHERE business_id = ?
         UNION ALL
         SELECT remaining_amount FROM journal_entry WHERE business_id = ?
       )
-      ''', [businessId, businessId]);
+      ''',
+      [businessId, businessId],
+    );
     return _asDouble(result.first['total']);
   }
 
@@ -243,7 +254,9 @@ class AccountingService {
   // The Cash account is a required system account created automatically
 
   Future<int?> getCashAccountId(int businessId) async {
-    final accounts = await DatabaseHelper.instance.getAccountsByBusiness(businessId);
+    final accounts = await DatabaseHelper.instance.getAccountsByBusiness(
+      businessId,
+    );
 
     for (final account in accounts) {
       final name = account.name.toLowerCase();
@@ -258,7 +271,7 @@ class AccountingService {
 
   Future<double> getCashBalanceForBusiness(int businessId) async {
     final cashAccountId = await getCashAccountId(businessId);
-    
+
     if (cashAccountId == null) {
       return 0;
     }
@@ -266,16 +279,19 @@ class AccountingService {
     // Get account opening balance
     final account = await DatabaseHelper.instance.getAccountById(cashAccountId);
     double balance = account?.openingBalance ?? 0;
-    
+
     // Add journal entries balance (debit - credit)
     balance += await getAccountBalance(cashAccountId);
-    
+
     return balance;
   }
 
-  Future<List<Map<String, dynamic>>> getPendingTransactions(int businessId) async {
+  Future<List<Map<String, dynamic>>> getPendingTransactions(
+    int businessId,
+  ) async {
     final db = await DatabaseHelper.instance.database;
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT t.*, a.name AS account_name
       FROM transactions t
       INNER JOIN accounts a ON a.account_id = t.account_id
@@ -284,12 +300,17 @@ class AccountingService {
         AND t.remaining_amount > 0
         AND LOWER(COALESCE(t.payment_status, '')) = 'pending'
       ORDER BY COALESCE(t.due_date, t.date) ASC
-      ''', [businessId]);
+      ''',
+      [businessId],
+    );
   }
 
-  Future<List<Map<String, dynamic>>> getOverdueTransactions(int businessId) async {
+  Future<List<Map<String, dynamic>>> getOverdueTransactions(
+    int businessId,
+  ) async {
     final db = await DatabaseHelper.instance.database;
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT t.*, a.name AS account_name
       FROM transactions t
       INNER JOIN accounts a ON a.account_id = t.account_id
@@ -301,12 +322,15 @@ class AccountingService {
           OR DATE(t.due_date) < DATE('now')
         )
       ORDER BY t.due_date ASC
-      ''', [businessId]);
+      ''',
+      [businessId],
+    );
   }
 
   Future<List<Map<String, dynamic>>> getPendingJournals(int businessId) async {
     final db = await DatabaseHelper.instance.database;
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT je.*, a.name AS account_name
       FROM journal_entry je
       LEFT JOIN journal_lines jl ON jl.journal_id = je.journal_id
@@ -316,12 +340,15 @@ class AccountingService {
         AND LOWER(COALESCE(je.payment_status, '')) = 'pending'
       GROUP BY je.journal_id
       ORDER BY COALESCE(je.due_date, je.date) ASC
-      ''', [businessId]);
+      ''',
+      [businessId],
+    );
   }
 
   Future<List<Map<String, dynamic>>> getOverdueJournals(int businessId) async {
     final db = await DatabaseHelper.instance.database;
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT je.*, a.name AS account_name
       FROM journal_entry je
       LEFT JOIN journal_lines jl ON jl.journal_id = je.journal_id
@@ -334,12 +361,15 @@ class AccountingService {
         )
       GROUP BY je.journal_id
       ORDER BY je.due_date ASC
-      ''', [businessId]);
+      ''',
+      [businessId],
+    );
   }
 
   Future<List<Map<String, dynamic>>> getDueToday(int businessId) async {
     final db = await DatabaseHelper.instance.database;
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT * FROM (
         SELECT 'Transaction' AS record_type, t.transaction_id AS record_id, COALESCE(je.voucher_no, 'TX-' || t.transaction_id) AS voucher_no,
                t.amount AS amount, t.remaining_amount AS remaining_amount, t.due_date AS due_date,
@@ -362,12 +392,17 @@ class AccountingService {
       WHERE DATE(due_date) = DATE('now')
         AND remaining_amount > 0
       ORDER BY due_date ASC
-      ''', [businessId, businessId]);
+      ''',
+      [businessId, businessId],
+    );
   }
 
-  Future<List<Map<String, dynamic>>> getUpcomingDuePayments(int businessId) async {
+  Future<List<Map<String, dynamic>>> getUpcomingDuePayments(
+    int businessId,
+  ) async {
     final db = await DatabaseHelper.instance.database;
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT * FROM (
         SELECT 'Transaction' AS record_type, t.transaction_id AS record_id, COALESCE(je.voucher_no, 'TX-' || t.transaction_id) AS voucher_no,
                t.amount AS amount, t.remaining_amount AS remaining_amount, t.due_date AS due_date,
@@ -391,12 +426,17 @@ class AccountingService {
         AND DATE(due_date) <= DATE('now', '+7 day')
         AND remaining_amount > 0
       ORDER BY due_date ASC
-      ''', [businessId, businessId]);
+      ''',
+      [businessId, businessId],
+    );
   }
 
-  Future<List<Map<String, dynamic>>> getAllOutstandingRecords(int businessId) async {
+  Future<List<Map<String, dynamic>>> getAllOutstandingRecords(
+    int businessId,
+  ) async {
     final db = await DatabaseHelper.instance.database;
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT * FROM (
         SELECT 'Transaction' AS record_type, t.transaction_id AS record_id, COALESCE(je.voucher_no, 'TX-' || t.transaction_id) AS voucher_no,
                t.amount AS amount, t.remaining_amount AS remaining_amount, t.due_date AS due_date,
@@ -418,12 +458,15 @@ class AccountingService {
       )
       WHERE remaining_amount > 0
       ORDER BY COALESCE(due_date, '') ASC
-      ''', [businessId, businessId]);
+      ''',
+      [businessId, businessId],
+    );
   }
 
   Future<List<Map<String, dynamic>>> getReminderEntries(int businessId) async {
     final db = await DatabaseHelper.instance.database;
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT * FROM (
         SELECT
           'Transaction' AS record_type,
@@ -471,7 +514,9 @@ class AccountingService {
         GROUP BY je.journal_id
       )
       ORDER BY COALESCE(due_date, date) DESC, record_type ASC, record_id DESC
-      ''', [businessId, businessId]);
+      ''',
+      [businessId, businessId],
+    );
   }
 
   // =====================================================
@@ -482,49 +527,61 @@ class AccountingService {
 
   Future<double> getBusinessTotalDebit(int businessId) async {
     final db = await DatabaseHelper.instance.database;
-    final result = await db.rawQuery('''
+    final result = await db.rawQuery(
+      '''
       SELECT SUM(journal_lines.debit) AS total
       FROM journal_lines
       INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
       WHERE journal_entry.business_id = ?
-      ''', [businessId]);
+      ''',
+      [businessId],
+    );
     return _asDouble(result.first['total']);
   }
 
   Future<double> getBusinessTotalCredit(int businessId) async {
     final db = await DatabaseHelper.instance.database;
-    final result = await db.rawQuery('''
+    final result = await db.rawQuery(
+      '''
       SELECT SUM(journal_lines.credit) AS total
       FROM journal_lines
       INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
       WHERE journal_entry.business_id = ?
-      ''', [businessId]);
+      ''',
+      [businessId],
+    );
     return _asDouble(result.first['total']);
   }
 
   Future<double> getBusinessIncome(int businessId) async {
     final db = await DatabaseHelper.instance.database;
-    final result = await db.rawQuery('''
+    final result = await db.rawQuery(
+      '''
       SELECT SUM(journal_lines.credit) AS total
       FROM journal_lines
       INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
       INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
       WHERE journal_entry.business_id = ?
         AND LOWER(accounts.type) IN ('revenue', 'income')
-      ''', [businessId]);
+      ''',
+      [businessId],
+    );
     return _asDouble(result.first['total']);
   }
 
   Future<double> getBusinessExpense(int businessId) async {
     final db = await DatabaseHelper.instance.database;
-    final result = await db.rawQuery('''
+    final result = await db.rawQuery(
+      '''
       SELECT SUM(journal_lines.debit) AS total
       FROM journal_lines
       INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
       INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
       WHERE journal_entry.business_id = ?
         AND LOWER(accounts.type) = 'expense'
-      ''', [businessId]);
+      ''',
+      [businessId],
+    );
     return _asDouble(result.first['total']);
   }
 
@@ -551,10 +608,13 @@ class AccountingService {
   // Returns account-wise total debit and credit for the specified business
   // =====================================================
 
-  Future<List<Map<String, dynamic>>> getTrialBalanceForBusiness(int businessId) async {
+  Future<List<Map<String, dynamic>>> getTrialBalanceForBusiness(
+    int businessId,
+  ) async {
     final db = await DatabaseHelper.instance.database;
 
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT
         accounts.account_id,
         accounts.name,
@@ -565,7 +625,9 @@ class AccountingService {
       INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
       WHERE journal_entry.business_id = ?
       GROUP BY accounts.account_id
-      ''', [businessId]);
+      ''',
+      [businessId],
+    );
   }
 
   // =====================================================
@@ -577,7 +639,8 @@ class AccountingService {
     if (cashId == null) return [];
 
     final db = await DatabaseHelper.instance.database;
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT journal_entry.date as date,
              journal_entry.voucher_no as voucher_no,
              journal_entry.due_date as due_date,
@@ -594,17 +657,23 @@ class AccountingService {
         AND journal_lines.account_id = ?
         AND LOWER(COALESCE(journal_entry.payment_status, 'paid')) = 'paid'
       ORDER BY journal_entry.date ASC, journal_entry.journal_id ASC
-      ''', [businessId, cashId]);
+      ''',
+      [businessId, cashId],
+    );
   }
 
   // =====================================================
   // GET LEDGER FOR ACCOUNT
   // =====================================================
 
-  Future<List<Map<String, dynamic>>> getLedgerForAccount(int businessId, int accountId) async {
+  Future<List<Map<String, dynamic>>> getLedgerForAccount(
+    int businessId,
+    int accountId,
+  ) async {
     final db = await DatabaseHelper.instance.database;
 
-    final rows = await db.rawQuery('''
+    final rows = await db.rawQuery(
+      '''
         SELECT journal_entry.date as date,
           journal_entry.voucher_no as voucher_no,
           journal_entry.due_date as due_date,
@@ -619,7 +688,9 @@ class AccountingService {
         INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
       WHERE journal_entry.business_id = ? AND journal_lines.account_id = ?
       ORDER BY journal_entry.date ASC, journal_entry.journal_id ASC
-    ''', [businessId, accountId]);
+    ''',
+      [businessId, accountId],
+    );
 
     return rows;
   }
@@ -671,7 +742,8 @@ class AccountingService {
   Future<Map<String, dynamic>> getProfitLoss(int businessId) async {
     final db = await DatabaseHelper.instance.database;
 
-    final rows = await db.rawQuery('''
+    final rows = await db.rawQuery(
+      '''
       SELECT
         accounts.account_id,
         accounts.name,
@@ -685,7 +757,9 @@ class AccountingService {
         AND LOWER(accounts.type) IN ('income', 'revenue', 'expense')
       GROUP BY accounts.account_id
       ORDER BY accounts.type, accounts.name
-      ''', [businessId]);
+      ''',
+      [businessId],
+    );
 
     double income = 0;
     double expense = 0;
@@ -776,6 +850,81 @@ class AccountingService {
     return await getBusinessExpense(businessId);
   }
 
+  // =====================================================
+  // GET REPORTS CARD DATA
+  // =====================================================
+  // Fetches all necessary data for the Reports screen cards
+
+  Future<Map<String, dynamic>> getReportsCardData(int businessId) async {
+    final results = await Future.wait<dynamic>([
+      getTrialBalanceForBusiness(businessId), // For Trial Balance
+      getCashBalanceForBusiness(businessId), // For Cash Book
+      _calculateProfitMargin(businessId), // For Profit & Loss
+      _getBalanceSheetStatus(businessId), // For Balance Sheet
+    ]);
+
+    return {
+      'trialBalance': results[0] as List<Map<String, dynamic>>,
+      'cashBalance': results[1] as double,
+      'profitMargin': results[2] as String,
+      'balanceSheetStatus': results[3] as String,
+    };
+  }
+
+  Future<String> _calculateProfitMargin(int businessId) async {
+    try {
+      final income = await getBusinessIncome(businessId);
+      final expense = await getBusinessExpense(businessId);
+
+      if (income == 0) return '0%';
+
+      final margin = ((income - expense) / income) * 100;
+      return '${margin.toStringAsFixed(0)}%';
+    } catch (e) {
+      return '0%';
+    }
+  }
+
+  Future<String> _getBalanceSheetStatus(int businessId) async {
+    try {
+      final db = await DatabaseHelper.instance.database;
+
+      final result = await db.rawQuery(
+        '''
+        SELECT
+          SUM(CASE WHEN LOWER(accounts.type) = 'asset' THEN 
+            (COALESCE(journal_lines.debit, 0) - COALESCE(journal_lines.credit, 0)) 
+            ELSE 0 END) as total_assets,
+          SUM(CASE WHEN LOWER(accounts.type) IN ('liability', 'payable') THEN 
+            (COALESCE(journal_lines.credit, 0) - COALESCE(journal_lines.debit, 0)) 
+            ELSE 0 END) as total_liabilities,
+          SUM(CASE WHEN LOWER(accounts.type) = 'equity' THEN 
+            (COALESCE(journal_lines.credit, 0) - COALESCE(journal_lines.debit, 0)) 
+            ELSE 0 END) as total_equity
+        FROM journal_lines
+        INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
+        INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
+        WHERE journal_entry.business_id = ?
+      ''',
+        [businessId],
+      );
+
+      if (result.isEmpty) return 'Healthy';
+
+      final assets = _asDouble(result.first['total_assets']);
+      final liabilities = _asDouble(result.first['total_liabilities']);
+      final equity = _asDouble(result.first['total_equity']);
+
+      // Check if the balance sheet equation holds: Assets = Liabilities + Equity
+      final difference = (assets - (liabilities + equity)).abs();
+      if (difference < 0.01) return 'Healthy';
+
+      return 'Review';
+    } catch (e) {
+      return 'Healthy';
+    }
+  }
+
   // Create default system accounts for a newly created business
   Future<void> createDefaultAccounts(int businessId) async {
     final now = DateTime.now().toIso8601String();
@@ -806,6 +955,254 @@ class AccountingService {
 
     for (final acc in defaultAccounts) {
       await DatabaseHelper.instance.insertAccount(acc);
+    }
+  }
+
+  // =====================================================
+  // ADD TEST DATA FOR PREVIEW
+  // =====================================================
+  Future<void> addTestData(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+    final now = DateTime.now().toIso8601String();
+
+    try {
+      await db.transaction((txn) async {
+        // Create test accounts
+        final testAccounts = [
+          // Bank Accounts
+          {'name': 'Faysal Bank', 'type': 'Asset'},
+          {'name': 'Askari Bank', 'type': 'Asset'},
+          {'name': 'Mian Trust Bank', 'type': 'Asset'},
+          // Capital
+          {'name': 'Mian Ehtesham Ahmad', 'type': 'Equity'},
+          {'name': 'Mian Abdul Majid', 'type': 'Equity'},
+          // Employee/Payable
+          {'name': 'Muhammad Asif Khana Abbasi', 'type': 'Payable'},
+          {'name': 'Abdul Kareem Shah', 'type': 'Payable'},
+          // Owner Drawing
+          {'name': 'Mian Gul Tahir', 'type': 'Drawing'},
+          // Income
+          {'name': 'Flour Mill Commission', 'type': 'Revenue'},
+          {'name': 'Sales Income', 'type': 'Revenue'},
+          {'name': 'Brokerage', 'type': 'Revenue'},
+          // Expenses
+          {'name': 'Taj Flour Mills', 'type': 'Expense'},
+          {'name': 'United Flour Mills', 'type': 'Expense'},
+          {'name': 'Ameen Cotton Factory', 'type': 'Expense'},
+          {'name': 'AHMAD Cotton Factory', 'type': 'Expense'},
+          // Cash
+          {'name': 'Cash in Hand', 'type': 'Asset'},
+        ];
+
+        Map<String, int> accountIds = {};
+
+        for (final acc in testAccounts) {
+          final result = await txn.insert('accounts', {
+            'business_id': businessId,
+            'name': acc['name'],
+            'type': acc['type'],
+            'opening_balance': 0,
+            'created_at': now,
+          });
+          accountIds[acc['name'] ?? ''] = result;
+        }
+
+        // Create balanced journal entries
+        // Entry 1: Opening balances (Total = 5,000,000)
+        final entry1 = await txn.insert('journal_entry', {
+          'business_id': businessId,
+          'date': now,
+          'description': 'Opening balances - Banks',
+          'voucher_no': 'JV-1',
+          'voucher_type': 'JV',
+          'created_at': now,
+        });
+
+        // Bank accounts: Debit 3,000,000
+        await txn.insert('journal_lines', {
+          'journal_id': entry1,
+          'account_id': accountIds['Faysal Bank'],
+          'debit': 1500000,
+          'credit': 0,
+        });
+
+        await txn.insert('journal_lines', {
+          'journal_id': entry1,
+          'account_id': accountIds['Askari Bank'],
+          'debit': 800000,
+          'credit': 0,
+        });
+
+        await txn.insert('journal_lines', {
+          'journal_id': entry1,
+          'account_id': accountIds['Mian Trust Bank'],
+          'debit': 700000,
+          'credit': 0,
+        });
+
+        // Capital: Credit 3,000,000
+        await txn.insert('journal_lines', {
+          'journal_id': entry1,
+          'account_id': accountIds['Mian Ehtesham Ahmad'],
+          'debit': 0,
+          'credit': 2000000,
+        });
+
+        await txn.insert('journal_lines', {
+          'journal_id': entry1,
+          'account_id': accountIds['Mian Abdul Majid'],
+          'debit': 0,
+          'credit': 1000000,
+        });
+
+        // Entry 2: Expenses and Sales (Total = 2,500,000)
+        final entry2 = await txn.insert('journal_entry', {
+          'business_id': businessId,
+          'date': now,
+          'description': 'Purchase from suppliers',
+          'voucher_no': 'JV-2',
+          'voucher_type': 'JV',
+          'created_at': now,
+        });
+
+        // Expenses: Debit 1,500,000
+        await txn.insert('journal_lines', {
+          'journal_id': entry2,
+          'account_id': accountIds['Taj Flour Mills'],
+          'debit': 500000,
+          'credit': 0,
+        });
+
+        await txn.insert('journal_lines', {
+          'journal_id': entry2,
+          'account_id': accountIds['United Flour Mills'],
+          'debit': 600000,
+          'credit': 0,
+        });
+
+        await txn.insert('journal_lines', {
+          'journal_id': entry2,
+          'account_id': accountIds['Ameen Cotton Factory'],
+          'debit': 300000,
+          'credit': 0,
+        });
+
+        await txn.insert('journal_lines', {
+          'journal_id': entry2,
+          'account_id': accountIds['AHMAD Cotton Factory'],
+          'debit': 100000,
+          'credit': 0,
+        });
+
+        // Income: Credit 1,500,000
+        await txn.insert('journal_lines', {
+          'journal_id': entry2,
+          'account_id': accountIds['Flour Mill Commission'],
+          'debit': 0,
+          'credit': 600000,
+        });
+
+        await txn.insert('journal_lines', {
+          'journal_id': entry2,
+          'account_id': accountIds['Sales Income'],
+          'debit': 0,
+          'credit': 700000,
+        });
+
+        await txn.insert('journal_lines', {
+          'journal_id': entry2,
+          'account_id': accountIds['Brokerage'],
+          'debit': 0,
+          'credit': 200000,
+        });
+
+        // Entry 3: Employee payments (Total = 500,000)
+        final entry3 = await txn.insert('journal_entry', {
+          'business_id': businessId,
+          'date': now,
+          'description': 'Employee salary payments',
+          'voucher_no': 'JV-3',
+          'voucher_type': 'JV',
+          'created_at': now,
+        });
+
+        // Expenses to Employee accounts: Debit 300,000
+        await txn.insert('journal_lines', {
+          'journal_id': entry3,
+          'account_id': accountIds['Muhammad Asif Khana Abbasi'],
+          'debit': 200000,
+          'credit': 0,
+        });
+
+        await txn.insert('journal_lines', {
+          'journal_id': entry3,
+          'account_id': accountIds['Abdul Kareem Shah'],
+          'debit': 100000,
+          'credit': 0,
+        });
+
+        // Bank payment: Credit 300,000
+        await txn.insert('journal_lines', {
+          'journal_id': entry3,
+          'account_id': accountIds['Faysal Bank'],
+          'debit': 0,
+          'credit': 300000,
+        });
+
+        // Entry 4: Owner withdrawals (Total = 200,000)
+        final entry4 = await txn.insert('journal_entry', {
+          'business_id': businessId,
+          'date': now,
+          'description': 'Owner withdrawals',
+          'voucher_no': 'JV-4',
+          'voucher_type': 'JV',
+          'created_at': now,
+        });
+
+        // Owner Drawing: Debit 200,000
+        await txn.insert('journal_lines', {
+          'journal_id': entry4,
+          'account_id': accountIds['Mian Gul Tahir'],
+          'debit': 200000,
+          'credit': 0,
+        });
+
+        // Bank payment: Credit 200,000
+        await txn.insert('journal_lines', {
+          'journal_id': entry4,
+          'account_id': accountIds['Askari Bank'],
+          'debit': 0,
+          'credit': 200000,
+        });
+
+        // Entry 5: Cash account (Total = 100,000)
+        final entry5 = await txn.insert('journal_entry', {
+          'business_id': businessId,
+          'date': now,
+          'description': 'Cash handling',
+          'voucher_no': 'JV-5',
+          'voucher_type': 'JV',
+          'created_at': now,
+        });
+
+        // Cash: Debit 100,000
+        await txn.insert('journal_lines', {
+          'journal_id': entry5,
+          'account_id': accountIds['Cash in Hand'],
+          'debit': 100000,
+          'credit': 0,
+        });
+
+        // Bank payment: Credit 100,000
+        await txn.insert('journal_lines', {
+          'journal_id': entry5,
+          'account_id': accountIds['Mian Trust Bank'],
+          'debit': 0,
+          'credit': 100000,
+        });
+      });
+    } catch (e) {
+      print('Error adding test data: $e');
     }
   }
 }
