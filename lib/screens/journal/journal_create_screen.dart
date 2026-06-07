@@ -6,6 +6,7 @@ import '../../models/journal_entry_model.dart';
 import '../../models/journal_line_model.dart';
 import '../../services/account_service.dart';
 import '../../services/accounting_service.dart';
+import '../../services/journal_service.dart';
 import '../../services/image_upload_service.dart';
 
 class _JournalFormRow {
@@ -22,8 +23,13 @@ class _JournalFormRow {
 
 class JournalCreateScreen extends StatefulWidget {
   final int businessId;
+  final int? journalId; // For edit mode
 
-  const JournalCreateScreen({super.key, required this.businessId});
+  const JournalCreateScreen({
+    super.key,
+    required this.businessId,
+    this.journalId,
+  });
 
   @override
   State<JournalCreateScreen> createState() => _JournalCreateScreenState();
@@ -32,6 +38,7 @@ class JournalCreateScreen extends StatefulWidget {
 class _JournalCreateScreenState extends State<JournalCreateScreen> {
   final AccountingService _accountingService = AccountingService();
   final AccountService _accountService = AccountService();
+  final JournalService _journalService = JournalService();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _dueDateController = TextEditingController();
@@ -53,10 +60,12 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
   DateTime? _dueDate;
   String? _imageUrl;
   bool _isUploadingImage = false;
+  bool _isEditMode = false; // True if editing an existing journal entry
 
   @override
   void initState() {
     super.initState();
+    _isEditMode = widget.journalId != null;
     _loadInitialData();
   }
 
@@ -105,15 +114,81 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
     await _accountService.ensureDefaultAccounts(widget.businessId);
     _accounts = await _accountService.getAccountsByBusiness(widget.businessId);
 
-    if (_rows.isEmpty) {
-      _rows.add(_createRow());
-      _rows.add(_createRow());
+    if (_isEditMode && widget.journalId != null) {
+      // Load existing journal data
+      await _loadJournalData();
+    } else {
+      // Create empty rows for new entry
+      if (_rows.isEmpty) {
+        _rows.add(_createRow());
+        _rows.add(_createRow());
+      }
+      _voucherNo = await _generateVoucherNo();
     }
-
-    _voucherNo = await _generateVoucherNo();
 
     if (mounted) {
       setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadJournalData() async {
+    if (widget.journalId == null) return;
+    
+    try {
+      final journalEntry = await _journalService.getJournalEntryById(widget.journalId!);
+      if (journalEntry == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Journal entry not found'), backgroundColor: Colors.red),
+          );
+        }
+        return;
+      }
+
+      // Pre-fill journal entry details
+      _voucherType = journalEntry.voucherType ?? 'JV';
+      _voucherNo = journalEntry.voucherNo;
+      _descriptionController.text = journalEntry.description ?? '';
+      _dateController.text = journalEntry.date;
+      
+      if (journalEntry.dueDate != null) {
+        _dueDate = DateTime.parse(journalEntry.dueDate!);
+        _dueDateController.text = journalEntry.dueDate!;
+      }
+
+      _imageUrl = journalEntry.imageUrl;
+
+      // Load journal lines
+      final journalLines = await _journalService.getJournalLines(widget.journalId!);
+      
+      _rows.clear();
+      
+      if (journalLines.isNotEmpty) {
+        for (final lineMap in journalLines) {
+          final line = JournalLineModel.fromMap(lineMap);
+          final account = _accounts.firstWhere(
+            (acc) => acc.accountId == line.accountId,
+            orElse: () => _accounts.first,
+          );
+
+          final row = _createRow();
+          row.account = account;
+          row.debitController.text = line.debit > 0 ? line.debit.toStringAsFixed(2) : '0.00';
+          row.creditController.text = line.credit > 0 ? line.credit.toStringAsFixed(2) : '0.00';
+          
+          _rows.add(row);
+        }
+      } else {
+        // If no lines, create empty rows
+        _rows.add(_createRow());
+        _rows.add(_createRow());
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading journal: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -128,6 +203,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
 
   Future<void> _switchVoucherType(String type) async {
     if (_voucherType == type) return;
+    if (_isEditMode) return; // Don't allow changing voucher type when editing
 
     setState(() {
       _voucherType = type;
@@ -377,7 +453,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Journal saved successfully')),
+        SnackBar(content: Text(_isEditMode ? 'Journal updated successfully' : 'Journal saved successfully')),
       );
       Navigator.pop(context);
     } catch (e) {
@@ -397,7 +473,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: true, // Default safe resizing active rakhein
-      appBar: AppBar(title: const Text('Add Journal Entry')),
+      appBar: AppBar(title: Text(_isEditMode ? 'Edit Journal Entry' : 'Add Journal Entry')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
@@ -416,7 +492,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                         children: [
                           Expanded(
                             child: OutlinedButton(
-                              onPressed: () => _switchVoucherType('JV'),
+                              onPressed: _isEditMode ? null : () => _switchVoucherType('JV'),
                               style: OutlinedButton.styleFrom(
                                 backgroundColor: _voucherType == 'JV' ? Colors.blue.shade50 : Colors.white,
                                 side: BorderSide(color: _voucherType == 'JV' ? Colors.blue : Colors.black54),
@@ -428,7 +504,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: OutlinedButton(
-                              onPressed: () => _switchVoucherType('CP'),
+                              onPressed: _isEditMode ? null : () => _switchVoucherType('CP'),
                               style: OutlinedButton.styleFrom(
                                 backgroundColor: _voucherType == 'CP' ? Colors.blue.shade50 : Colors.white,
                                 side: BorderSide(color: _voucherType == 'CP' ? Colors.blue : Colors.black54),
@@ -682,8 +758,8 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                                     ),
                                     const SizedBox(width: 8),
                                     IconButton(
-                                      onPressed: () => _removeRow(index),
-                                      icon: const Icon(Icons.close, color: Colors.red),
+                                      onPressed: _isEditMode ? null : () => _removeRow(index),
+                                      icon: Icon(Icons.close, color: _isEditMode ? Colors.grey : Colors.red),
                                     ),
                                   ],
                                 ),
@@ -695,7 +771,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
-                          onPressed: _addRow,
+                          onPressed: _isEditMode ? null : _addRow,
                           icon: const Icon(Icons.add),
                           label: const Text('Line add karein'),
                         ),
@@ -706,7 +782,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                         height: 52,
                         child: ElevatedButton(
                           onPressed: _saving ? null : _save,
-                          child: _saving ? const CircularProgressIndicator() : const Text('Save Journal Entry'),
+                          child: _saving ? const CircularProgressIndicator() : Text(_isEditMode ? 'Update Journal Entry' : 'Save Journal Entry'),
                         ),
                       ),
                     ],

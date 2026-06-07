@@ -197,6 +197,11 @@ class AccountingService {
   // Includes opening balance through account's opening_balance field
 
   Future<double> getAccountBalance(int accountId) async {
+    final account = await DatabaseHelper.instance.getAccountById(accountId);
+    if (account == null) return 0;
+    
+    double balance = account.openingBalance;
+    
     final db = await DatabaseHelper.instance.database;
 
     final debitResult = await db.rawQuery(
@@ -228,7 +233,7 @@ class AccountingService {
     final double totalDebit = _asDouble(debitResult.first['totalDebit']);
     final double totalCredit = _asDouble(creditResult.first['totalCredit']);
 
-    return totalDebit - totalCredit;
+    return balance - totalDebit + totalCredit;
   }
 
   Future<double> getOutstandingAmount(int businessId) async {

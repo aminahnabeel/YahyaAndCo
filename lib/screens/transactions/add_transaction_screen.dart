@@ -13,10 +13,12 @@ import '../../services/image_upload_service.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final int businessId;
+  final int? transactionId; // For edit mode
 
   const AddTransactionScreen({
     super.key,
     required this.businessId,
+    this.transactionId,
   });
 
   @override
@@ -39,12 +41,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   bool _isScrolling = false;
 
   List<AccountModel> accounts = [];
-  AccountModel? selectedAccount;
+  AccountModel? selectedFromAccount;
+  AccountModel? selectedToAccount;
   int? cashAccountId;
   String transactionType = 'Payment';
   String paymentMethod = 'Cash';
   bool isLoading = false;
   String side = 'Debit'; // 'Debit' or 'Credit'
+  bool isEditMode = false; // True if editing an existing transaction
 
   DateTime _selectedDate = DateTime.now();
   DateTime? _dueDate;
@@ -89,7 +93,52 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   @override
   void initState() {
     super.initState();
+    isEditMode = widget.transactionId != null;
     loadAccounts();
+    if (isEditMode) {
+      _loadTransactionData();
+    }
+  }
+
+  Future<void> _loadTransactionData() async {
+    if (widget.transactionId == null) return;
+    
+    try {
+      setState(() => isLoading = true);
+      final transaction = await _transactionService.getTransactionById(widget.transactionId!);
+      
+      if (transaction != null && mounted) {
+        amountController.text = transaction.amount.toStringAsFixed(2);
+        noteController.text = transaction.note;
+        side = transaction.type;
+        paymentMethod = transaction.paymentMethod;
+        
+        // Find matching from account
+        try {
+          selectedFromAccount = accounts.firstWhere(
+            (acc) => acc.accountId == transaction.accountId,
+          );
+        } catch (_) {
+          selectedFromAccount = accounts.isNotEmpty ? accounts.first : null;
+        }
+        
+        if (transaction.dueDate != null) {
+          _dueDate = DateTime.parse(transaction.dueDate!);
+        }
+        
+        _selectedDate = DateTime.parse(transaction.date);
+        _imageUrl = transaction.imageUrl;
+        
+        setState(() => isLoading = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading transaction: $e'), backgroundColor: Colors.red),
+        );
+        setState(() => isLoading = false);
+      }
+    }
   }
 
   Future<void> _pickDate() async {
@@ -237,12 +286,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       widget.businessId,
     );
 
-    accounts = allAccounts.where((account) => account.accountId != cashAccountId).toList();
+    // Include all accounts (including cash) for transaction form
+    accounts = allAccounts;
 
-    if (accounts.isNotEmpty) {
-      selectedAccount = accounts.first;
+    if (accounts.isNotEmpty && !isEditMode) {
+      selectedFromAccount = accounts.first;
+      selectedToAccount = accounts.length > 1 ? accounts[1] : accounts.first;
+    } else if (isEditMode) {
+      selectedFromAccount = null; // Will be set by _loadTransactionData
+      selectedToAccount = null;
     } else {
-      selectedAccount = null;
+      selectedFromAccount = null;
+      selectedToAccount = null;
     }
 
     setState(() {});
@@ -253,9 +308,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
-    if (selectedAccount == null) {
+    if (selectedFromAccount == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select account')),
+        const SnackBar(content: Text('Please select source account')),
+      );
+      return;
+    }
+
+    if (selectedToAccount == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select destination account')),
       );
       return;
     }
@@ -269,15 +331,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
-    if (selectedAccount!.accountId == cashAccountId) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cannot select Cash account. Use journal entry for cash transfers.'),
-        ),
-      );
-      return;
-    }
-
     setState(() => isLoading = true);
 
     try {
@@ -286,7 +339,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
       TransactionModel transaction = TransactionModel(
         businessId: widget.businessId,
-        accountId: selectedAccount!.accountId!,
+        accountId: selectedFromAccount!.accountId!,
         amount: amount,
         type: side,
         note: noteController.text,
@@ -325,11 +378,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
       List<JournalLineModel> journalLines = [];
 
+      int fromAccountId = selectedFromAccount!.accountId!;
+      int toAccountId = selectedToAccount!.accountId!;
+
+      // Debit (Money Out) = FromAccount gets DEBIT (decreases)
+      // Credit (Money In) = FromAccount gets CREDIT (increases)
       if (side == 'Debit') {
+        // Money OUT: debit from account (decrease), credit to account
         journalLines.add(
           JournalLineModel(
             journalId: 0,
-            accountId: selectedAccount!.accountId!,
+            accountId: fromAccountId,
             debit: amount,
             credit: 0,
           ),
@@ -337,40 +396,54 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         journalLines.add(
           JournalLineModel(
             journalId: 0,
-            accountId: cashAccountId!,
+            accountId: toAccountId,
             debit: 0,
             credit: amount,
           ),
         );
       } else {
+        // Money IN: credit from account (increase), debit to account
         journalLines.add(
           JournalLineModel(
             journalId: 0,
-            accountId: cashAccountId!,
-            debit: amount,
-            credit: 0,
-          ),
-        );
-        journalLines.add(
-          JournalLineModel(
-            journalId: 0,
-            accountId: selectedAccount!.accountId!,
+            accountId: fromAccountId,
             debit: 0,
             credit: amount,
           ),
         );
+        journalLines.add(
+          JournalLineModel(
+            journalId: 0,
+            accountId: toAccountId,
+            debit: amount,
+            credit: 0,
+          ),
+        );
       }
 
-      await _accountingService.createCompleteJournal(
-        journalEntry: journalEntry,
-        journalLines: journalLines,
-      );
+      if (isEditMode && widget.transactionId != null) {
+        // Update existing transaction
+        transaction.amount = amount;
+        transaction.type = side;
+        transaction.note = noteController.text;
+        transaction.paymentMethod = paymentMethod;
+        transaction.dueDate = _dueDate?.toIso8601String().split('T').first;
+        transaction.date = _selectedDate.toIso8601String();
+        transaction.imageUrl = _imageUrl;
+        
+        await _transactionService.updateTransaction(transaction);
+      } else {
+        await _accountingService.createCompleteJournal(
+          journalEntry: journalEntry,
+          journalLines: journalLines,
+        );
+      }
 
       setState(() => isLoading = false);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Transaction saved successfully!'),
+        SnackBar(
+          content: Text(isEditMode ? 'Transaction updated successfully!' : 'Transaction saved successfully!'),
           backgroundColor: Colors.green,
         ),
       );
@@ -404,16 +477,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
             children: [
               // =====================
-              // ACCOUNT
+              // FROM ACCOUNT (Source of transaction)
               // =====================
               DropdownButtonFormField<AccountModel>(
-                value: (selectedAccount != null &&
-                        accounts.any((account) => account.accountId == selectedAccount!.accountId))
-                    ? selectedAccount
+                value: (selectedFromAccount != null &&
+                        accounts.any((account) => account.accountId == selectedFromAccount!.accountId))
+                    ? selectedFromAccount
                     : null,
                 decoration: const InputDecoration(
-                  labelText: 'Select Account',
+                  labelText: 'From Account (Source)',
                   border: OutlineInputBorder(),
+                  hintText: 'Select source account',
                 ),
                 items: accounts.map((account) {
                   return DropdownMenuItem(
@@ -423,46 +497,47 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 }).toList(),
                 onChanged: (value) {
                   setState(() {
-                    selectedAccount = value;
+                    selectedFromAccount = value;
                   });
                 },
+                validator: (value) => value == null ? 'Please select a source account' : null,
               ),
               const SizedBox(height: 15),
 
               // =====================
-              // AMOUNT
+              // TO ACCOUNT (Destination of transaction)
               // =====================
-              Focus(
-                onFocusChange: (hasFocus) {
-                  if (hasFocus) _scrollToField(_amountFieldKey);
-                },
-                child: TextFormField(
-                  key: _amountFieldKey,
-                  controller: amountController,
-                  keyboardType: TextInputType.number,
-                  textAlignVertical: TextAlignVertical.center,
-                  textInputAction: TextInputAction.next,
-                  scrollPadding: const EdgeInsets.only(bottom: 240), // Increased to give comfortable separation from keyboard
-                  decoration: const InputDecoration(
-                    labelText: 'Amount',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Enter amount';
-                    }
-                    return null;
-                  },
+              DropdownButtonFormField<AccountModel>(
+                value: (selectedToAccount != null &&
+                        accounts.any((account) => account.accountId == selectedToAccount!.accountId))
+                    ? selectedToAccount
+                    : null,
+                decoration: const InputDecoration(
+                  labelText: 'To Account (Destination)',
+                  border: OutlineInputBorder(),
+                  hintText: 'Select destination account',
                 ),
+                items: accounts.map((account) {
+                  return DropdownMenuItem(
+                    value: account,
+                    child: Text(account.name),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedToAccount = value;
+                  });
+                },
+                validator: (value) => value == null ? 'Please select a destination account' : null,
               ),
               const SizedBox(height: 15),
 
               // =====================
-              // TRANSACTION TYPE
+              // DEBIT/CREDIT SELECTOR (MOVED BEFORE AMOUNT)
               // =====================
-              Text(
-                'Transaction Type',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              const Text(
+                'Money Direction',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
               Container(
@@ -492,7 +567,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                   style: TextStyle(fontWeight: FontWeight.w600, color: Colors.red),
                                 ),
                                 Text(
-                                  'Expense, Cost, Asset Purchase',
+                                  'Debit کرو - پیسے نکالیں',
                                   style: TextStyle(fontSize: 12, color: Colors.grey),
                                 ),
                               ],
@@ -520,7 +595,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                   style: TextStyle(fontWeight: FontWeight.w600, color: Colors.green),
                                 ),
                                 Text(
-                                  'Income, Revenue, Liability',
+                                  'Credit کرو - پیسے جمع کریں',
                                   style: TextStyle(fontSize: 12, color: Colors.grey),
                                 ),
                               ],
@@ -533,28 +608,27 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ),
               ),
               const SizedBox(height: 15),
-
-              // =====================
-              // HELP TEXT
-              // =====================
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.blue.shade200),
-                  borderRadius: BorderRadius.circular(6),
-                  color: Colors.blue.shade50,
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline, color: Colors.blue, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Cash account is automatically added as counter-entry',
-                        style: TextStyle(fontSize: 12, color: Colors.blue.shade700),
-                      ),
-                    ),
-                  ],
+              Focus(
+                onFocusChange: (hasFocus) {
+                  if (hasFocus) _scrollToField(_amountFieldKey);
+                },
+                child: TextFormField(
+                  key: _amountFieldKey,
+                  controller: amountController,
+                  keyboardType: TextInputType.number,
+                  textAlignVertical: TextAlignVertical.center,
+                  textInputAction: TextInputAction.next,
+                  scrollPadding: const EdgeInsets.only(bottom: 240), // Increased to give comfortable separation from keyboard
+                  decoration: const InputDecoration(
+                    labelText: 'Amount',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Enter amount';
+                    }
+                    return null;
+                  },
                 ),
               ),
               const SizedBox(height: 15),
@@ -730,7 +804,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   onPressed: isLoading ? null : saveTransaction,
                   child: isLoading
                       ? const CircularProgressIndicator()
-                      : const Text('Save Transaction'),
+                      : Text(isEditMode ? 'Update Transaction' : 'Save Transaction'),
                 ),
               ),
             ],

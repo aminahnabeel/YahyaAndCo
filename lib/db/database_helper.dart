@@ -570,6 +570,20 @@ class DatabaseHelper {
     });
   }
 
+  Future<TransactionModel?> getTransactionById(int transactionId) async {
+    final db = await database;
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      'transactions',
+      where: 'transaction_id = ?',
+      whereArgs: [transactionId],
+      limit: 1,
+    );
+
+    if (maps.isEmpty) return null;
+    return TransactionModel.fromMap(maps.first);
+  }
+
   Future<List<Map<String, dynamic>>> getTransactionLedgerRows(int businessId) async {
     final db = await database;
 
@@ -646,6 +660,20 @@ class DatabaseHelper {
     return List.generate(maps.length, (index) {
       return JournalEntryModel.fromMap(maps[index]);
     });
+  }
+
+  Future<JournalEntryModel?> getJournalEntryById(int journalId) async {
+    final db = await database;
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      'journal_entry',
+      where: 'journal_id = ?',
+      whereArgs: [journalId],
+      limit: 1,
+    );
+
+    if (maps.isEmpty) return null;
+    return JournalEntryModel.fromMap(maps.first);
   }
 
   Future<List<Map<String, dynamic>>> getJournalLedgerRows(int businessId) async {
@@ -894,21 +922,11 @@ class DatabaseHelper {
 
     double balance = account.openingBalance;
 
-    // Get all journal lines for this account
+    // Get all journal lines for this account (source of truth)
     final journalLines = await getJournalLinesByAccountId(accountId);
     for (var line in journalLines) {
-      balance += line.debit;
-      balance -= line.credit;
-    }
-
-    // Get all transactions for this account
-    final transactions = await getTransactionsByAccountId(accountId);
-    for (var transaction in transactions) {
-      if (transaction.type.toLowerCase() == 'debit' || transaction.type.toLowerCase() == 'deposit') {
-        balance += transaction.amount;
-      } else if (transaction.type.toLowerCase() == 'credit' || transaction.type.toLowerCase() == 'withdrawal') {
-        balance -= transaction.amount;
-      }
+      balance -= line.debit;    // Debit = Money OUT (decreases balance)
+      balance += line.credit;   // Credit = Money IN (increases balance)
     }
 
     return balance;

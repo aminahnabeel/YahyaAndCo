@@ -27,6 +27,9 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
   List<Map<String, dynamic>> _rows = [];
   bool _loading = true;
   DateTime? _selectedMonth;
+  
+  // Date range filter
+  String _dateRangeFilter = '1month'; // Default: 1 month
 
   @override
   void initState() {
@@ -49,16 +52,80 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
     return DateTime(date.year, date.month + 1, 0);
   }
 
+  // Get date range based on filter
+  Map<String, DateTime> _getDateRange() {
+    final now = DateTime.now();
+    late DateTime startDate;
+    late DateTime endDate;
+
+    switch (_dateRangeFilter) {
+      case '3months':
+        startDate = DateTime(now.year, now.month - 2, 1);
+        endDate = DateTime(now.year, now.month + 1, 0);
+        break;
+      case '6months':
+        startDate = DateTime(now.year, now.month - 5, 1);
+        endDate = DateTime(now.year, now.month + 1, 0);
+        break;
+      case '1year':
+        startDate = DateTime(now.year - 1, now.month, 1);
+        endDate = DateTime(now.year, now.month + 1, 0);
+        break;
+      case '1month':
+      default:
+        startDate = _getMonthStart(now);
+        endDate = _getMonthEnd(now);
+    }
+
+    return {'start': startDate, 'end': endDate};
+  }
+
+  // Get all months from account creation to now
+  List<Map<String, dynamic>> _getAllMonths() {
+    final now = DateTime.now();
+    final startMonth = DateTime(now.year, now.month, 1);
+    final months = <Map<String, dynamic>>[];
+
+    // Go back 12 months from now (can adjust if needed)
+    for (int i = 11; i >= 0; i--) {
+      final date = DateTime(now.year, now.month - i, 1);
+      months.add({
+        'date': date,
+        'label': '${_getMonthName(date.month)} ${date.year}',
+      });
+    }
+
+    return months;
+  }
+
+  String _getDateRangeLabel() {
+    final range = _getDateRange();
+    final start = range['start']!;
+    final end = range['end']!;
+    
+    switch (_dateRangeFilter) {
+      case '3months':
+        return '${_getMonthName(start.month)} ${start.year} - ${_getMonthName(end.month)} ${end.year}';
+      case '6months':
+        return '${_getMonthName(start.month)} ${start.year} - ${_getMonthName(end.month)} ${end.year}';
+      case '1year':
+        return '${_getMonthName(start.month)} ${start.year} - ${_getMonthName(end.month)} ${end.year}';
+      case '1month':
+      default:
+        return '${_formatDate(start)} to ${_formatDate(end)}';
+    }
+  }
+
   List<Map<String, dynamic>> _getMonthlyLedger() {
-    if (_selectedMonth == null) return [];
-    final monthStart = _getMonthStart(_selectedMonth!);
-    final monthEnd = _getMonthEnd(_selectedMonth!);
+    final range = _getDateRange();
+    final startDate = range['start']!;
+    final endDate = range['end']!;
 
     return _rows.where((row) {
       try {
         final date = DateTime.parse(row['date']?.toString() ?? '');
-        return date.isAfter(monthStart.subtract(const Duration(days: 1))) &&
-            date.isBefore(monthEnd.add(const Duration(days: 1)));
+        return date.isAfter(startDate.subtract(const Duration(days: 1))) &&
+            date.isBefore(endDate.add(const Duration(days: 1)));
       } catch (_) {
         return false;
       }
@@ -68,8 +135,9 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
   Future<void> _downloadPDF() async {
     try {
       final monthlyData = _getMonthlyLedger();
-      final monthStart = _getMonthStart(_selectedMonth!);
-      final monthEnd = _getMonthEnd(_selectedMonth!);
+      final range = _getDateRange();
+      final monthStart = range['start']!;
+      final monthEnd = range['end']!;
 
       // Create PDF document
       final pdf = pw.Document();
@@ -333,6 +401,36 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
     );
   }
 
+  Widget _buildFilterButton(String label, String value) {
+    final isSelected = _dateRangeFilter == value;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _dateRangeFilter = value;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : Colors.white,
+          border: Border.all(
+            color: isSelected ? AppColors.primary : Colors.grey.shade300,
+            width: 1,
+          ),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: isSelected ? Colors.white : Colors.grey.shade700,
+          ),
+        ),
+      ),
+    );
+  }
+
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }
@@ -358,10 +456,6 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
   @override
   Widget build(BuildContext context) {
     final monthlyData = _getMonthlyLedger();
-    final monthStart = _getMonthStart(_selectedMonth!);
-    final monthEnd = _getMonthEnd(_selectedMonth!);
-    final monthName = _getMonthName(monthStart.month);
-    final year = monthStart.year;
 
     return Scaffold(
       appBar: AppBar(
@@ -380,17 +474,17 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
                   Card(
                     elevation: 2,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Container(
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [AppColors.primary, AppColors.primary.withOpacity(0.7)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -398,16 +492,16 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
                           Text(
                             widget.accountName,
                             style: const TextStyle(
-                              fontSize: 24,
+                              fontSize: 20,
                               fontWeight: FontWeight.w700,
                               color: Colors.white,
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 6),
                           Text(
-                            'Account Ledger Report',
+                            'Ledger Report',
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: 12,
                               color: Colors.white.withOpacity(0.9),
                             ),
                           ),
@@ -415,116 +509,160 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 20),
 
-                  // Month Selector
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppColors.primary.withOpacity(0.2),
-                        width: 1.5,
-                      ),
+                  // Date Range Filter Buttons
+                  Text(
+                    'Filter by Range',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade700,
                     ),
-                    child: Column(
+                  ),
+                  const SizedBox(height: 10),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
                       children: [
-                        // Month Navigation
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            IconButton(
-                              onPressed: _previousMonth,
-                              icon: const Icon(Icons.chevron_left),
-                              color: AppColors.primary,
-                              tooltip: 'Previous Month',
-                            ),
-                            Column(
-                              children: [
-                                Text(
-                                  monthName,
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                Text(
-                                  year.toString(),
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            IconButton(
-                              onPressed: _nextMonth,
-                              icon: const Icon(Icons.chevron_right),
-                              color: AppColors.primary,
-                              tooltip: 'Next Month',
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 32),
+                        _buildFilterButton('1M', '1month'),
+                        const SizedBox(width: 8),
+                        _buildFilterButton('3M', '3months'),
+                        const SizedBox(width: 8),
+                        _buildFilterButton('6M', '6months'),
+                        const SizedBox(width: 8),
+                        _buildFilterButton('1Y', '1year'),
                       ],
                     ),
                   ),
+                  const SizedBox(height: 16),
 
-                  // Simple Date and Download Row
+                  // Months Selection Card
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.primary.withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Select Month',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: _getAllMonths()
+                                .map((month) {
+                              final isSelected = _dateRangeFilter == '1month' &&
+                                  _selectedMonth?.year == (month['date'] as DateTime).year &&
+                                  _selectedMonth?.month == (month['date'] as DateTime).month;
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedMonth = month['date'];
+                                      _dateRangeFilter = '1month';
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? AppColors.primary
+                                          : Colors.white,
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? AppColors.primary
+                                            : Colors.grey.shade300,
+                                        width: 1,
+                                      ),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      month['label'],
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : Colors.grey.shade700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Date and Download Row
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${_formatDate(monthStart)} to ${_formatDate(monthEnd)}',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _getDateRangeLabel(),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${monthlyData.length} Entries',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
+                            const SizedBox(height: 3),
+                            Text(
+                              '${monthlyData.length} entries',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade600,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                      ElevatedButton.icon(
+                      IconButton(
                         onPressed: monthlyData.isEmpty ? null : _downloadPDF,
-                        icon: const Icon(Icons.download, size: 20),
-                        label: const Text('Download PDF'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
+                        icon: const Icon(Icons.download, size: 22),
+                        tooltip: 'Download PDF',
+                        style: IconButton.styleFrom(
+                          backgroundColor:
+                              monthlyData.isEmpty ? Colors.grey.shade300 : AppColors.primary,
                           foregroundColor: Colors.white,
-                          disabledBackgroundColor: Colors.grey.shade300,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
 
                   // Info Message
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: Colors.blue.shade200,
                         width: 1,
@@ -535,14 +673,14 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
                         Icon(
                           Icons.info_outline,
                           color: Colors.blue.shade700,
-                          size: 18,
+                          size: 16,
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Navigate months using arrows above, then download the PDF.',
+                            'Select month or filter range, then download.',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 11,
                               color: Colors.blue.shade700,
                             ),
                           ),

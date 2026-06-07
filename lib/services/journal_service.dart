@@ -90,6 +90,10 @@ class JournalService {
     );
   }
 
+  Future<JournalEntryModel?> getJournalEntryById(int journalId) async {
+    return await DatabaseHelper.instance.getJournalEntryById(journalId);
+  }
+
   Future<List<Map<String, dynamic>>> getJournalRowsByBusiness(int businessId) async {
     return await DatabaseHelper.instance.getJournalLedgerRows(businessId);
   }

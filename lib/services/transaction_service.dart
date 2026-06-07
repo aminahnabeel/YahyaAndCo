@@ -38,6 +38,10 @@ class TransactionService {
     return await DatabaseHelper.instance.getTransactionLedgerRows(businessId);
   }
 
+  Future<TransactionModel?> getTransactionById(int transactionId) async {
+    return await DatabaseHelper.instance.getTransactionById(transactionId);
+  }
+
   // =========================
   // UPDATE TRANSACTION
   // =========================
