@@ -99,8 +99,8 @@ class _CashBookScreenState extends State<CashBookScreen> {
                     }
 
                     runningBalance +=
-                        debit -
-                            credit;
+                        credit -
+                            debit;
 
                     return Card(
 

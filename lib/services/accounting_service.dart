@@ -291,6 +291,34 @@ class AccountingService {
     return balance;
   }
 
+  // =====================================================
+  // GET TOTAL BALANCE (Cash + Bank Accounts Only)
+  // =====================================================
+  // Calculates total balance by summing closing balances
+  // of only Cash and Bank accounts.
+  // Used for Dashboard "Total Balance" card.
+
+  Future<double> getTotalCashAndBankBalance(int businessId) async {
+    try {
+      final accounts = await DatabaseHelper.instance.getAccountsByBusiness(businessId);
+      
+      double totalBalance = 0;
+      
+      for (final account in accounts) {
+        final name = account.name.toLowerCase();
+        // Only include accounts with "cash" or "bank" in their name
+        if (name.contains('cash') || name.contains('bank')) {
+          final closingBalance = await DatabaseHelper.instance.getAccountClosingBalance(account.accountId!);
+          totalBalance += closingBalance;
+        }
+      }
+      
+      return totalBalance;
+    } catch (e) {
+      return 0;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getPendingTransactions(
     int businessId,
   ) async {
@@ -592,6 +620,7 @@ class AccountingService {
 
   Future<Map<String, double>> getDashboardSummary(int businessId) async {
     final results = await Future.wait<double>([
+      getTotalCashAndBankBalance(businessId),
       getCashBalanceForBusiness(businessId),
       getBusinessTotalCredit(businessId),
       getBusinessTotalDebit(businessId),
@@ -600,11 +629,12 @@ class AccountingService {
     ]);
 
     return {
-      'totalCash': results[0],
-      'totalCredit': results[1],
-      'totalDebit': results[2],
-      'totalIncome': results[3],
-      'totalExpense': results[4],
+      'totalBalance': results[0],
+      'totalCash': results[1],
+      'totalCredit': results[2],
+      'totalDebit': results[3],
+      'totalIncome': results[4],
+      'totalExpense': results[5],
     };
   }
 
@@ -618,21 +648,63 @@ class AccountingService {
   ) async {
     final db = await DatabaseHelper.instance.database;
 
-    return await db.rawQuery(
+    // Get account totals and their latest journal line side
+    final rows = await db.rawQuery(
       '''
       SELECT
         accounts.account_id,
         accounts.name,
         SUM(journal_lines.debit) as total_debit,
-        SUM(journal_lines.credit) as total_credit
+        SUM(journal_lines.credit) as total_credit,
+        (
+          SELECT CASE
+            WHEN (
+              SELECT debit FROM journal_lines
+              INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
+              WHERE journal_lines.account_id = accounts.account_id
+                AND journal_entry.business_id = ?
+              ORDER BY journal_entry.date DESC, journal_lines.line_id DESC
+              LIMIT 1
+            ) > 0 THEN 'debit'
+            ELSE 'credit'
+          END
+        ) as last_entry_side
       FROM journal_lines
       INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
       INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
       WHERE journal_entry.business_id = ?
       GROUP BY accounts.account_id
       ''',
-      [businessId],
+      [businessId, businessId],
     );
+
+    // Process rows to show balance on the side of the last entry
+    final processedRows = <Map<String, dynamic>>[];
+    
+    for (final row in rows) {
+      final totalDebit = _asDouble(row['total_debit']);
+      final totalCredit = _asDouble(row['total_credit']);
+      // Calculate closing balance: balance = totalCredit - totalDebit
+      final closingBalance = totalCredit - totalDebit;
+      
+      final displayRow = {...row};
+      final lastEntrySide = (row['last_entry_side'] ?? 'credit').toString().toLowerCase();
+      
+      // Display balance on the side of the last entry
+      if (lastEntrySide == 'debit') {
+        // Last entry was debit, show full closing balance on debit side
+        displayRow['total_debit'] = closingBalance.abs();
+        displayRow['total_credit'] = 0.0;
+      } else {
+        // Last entry was credit, show full closing balance on credit side
+        displayRow['total_debit'] = 0.0;
+        displayRow['total_credit'] = closingBalance.abs();
+      }
+      
+      processedRows.add(displayRow);
+    }
+    
+    return processedRows;
   }
 
   // =====================================================
@@ -1249,24 +1321,27 @@ class AccountingService {
       final type = (row['type'] ?? '').toString().toLowerCase();
       final totalDebit = _asDouble(row['total_debit']);
       final totalCredit = _asDouble(row['total_credit']);
-      final balance = totalDebit - totalCredit;
+      // Use consistent formula: balance = totalCredit - totalDebit
+      // Debit = Money OUT (decreases balance)
+      // Credit = Money IN (increases balance)
+      final balance = totalCredit - totalDebit;
 
       if (type == 'asset') {
-        totalAssets += totalDebit;
-        assets.add({...row, 'balance': totalDebit});
+        totalAssets += balance;
+        assets.add({...row, 'balance': balance});
       } else if (type == 'liability' || type == 'payable') {
-        totalLiabilities += totalCredit;
-        liabilities.add({...row, 'balance': totalCredit});
+        totalLiabilities += balance;
+        liabilities.add({...row, 'balance': balance});
       } else if (type == 'equity' || type == 'drawing') {
         // Equity includes capital accounts, drawing is deducted
         if (type == 'drawing') {
-          totalEquity -= totalDebit;
+          totalEquity -= balance;
         } else {
-          totalEquity += totalCredit;
+          totalEquity += balance;
         }
         equity.add({
           ...row,
-          'balance': type == 'drawing' ? -totalDebit : totalCredit,
+          'balance': type == 'drawing' ? -balance : balance,
         });
       }
     }

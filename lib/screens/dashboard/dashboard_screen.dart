@@ -319,7 +319,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   physics: const NeverScrollableScrollPhysics(),
                   childAspectRatio: 1.4,
                   children: [
-                    _financialCard('Total Balance', summary['totalCash'] ?? 0, Colors.blue, Icons.account_balance_wallet),
+                    _financialCard('Total Balance', summary['totalBalance'] ?? 0, Colors.blue, Icons.account_balance_wallet),
                     _financialCard('Cash in Hand', summary['totalCash'] ?? 0, Colors.green, Icons.money),
                     _financialCard('Debit', summary['totalDebit'] ?? 0, Colors.orange, Icons.trending_up),
                     _financialCard('Credit', summary['totalCredit'] ?? 0, Colors.red, Icons.trending_down),
