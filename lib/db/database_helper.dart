@@ -767,6 +767,16 @@ class DatabaseHelper {
     });
   }
 
+  Future<void> deleteJournalLines(int journalId) async {
+    final db = await database;
+
+    await db.delete(
+      'journal_lines',
+      where: 'journal_id = ?',
+      whereArgs: [journalId],
+    );
+  }
+
   // ======================================================
   // EXPENSE CATEGORY METHODS
   // ======================================================
