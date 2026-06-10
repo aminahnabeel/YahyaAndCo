@@ -62,7 +62,7 @@ class DatabaseHelper {
     }
 
     if (oldVersion < 5) {
-      await _addColumnIfMissing(db, 'transactions', 'to_account_id', 'INTEGER REFERENCES accounts(account_id) ON DELETE SET NULL');
+      await _addColumnIfMissing(db, 'transactions', 'to_account_id', 'INTEGER');
     }
   }
 
@@ -550,6 +550,9 @@ class DatabaseHelper {
 
   Future<int> insertTransaction(TransactionModel transaction) async {
     final db = await database;
+    
+    // Ensure to_account_id column exists
+    await _addColumnIfMissing(db, 'transactions', 'to_account_id', 'INTEGER');
 
     return await db.insert('transactions', transaction.toMap());
   }
@@ -616,6 +619,9 @@ class DatabaseHelper {
 
   Future updateTransaction(TransactionModel transaction) async {
     final db = await database;
+    
+    // Ensure to_account_id column exists
+    await _addColumnIfMissing(db, 'transactions', 'to_account_id', 'INTEGER');
 
     await db.update(
       'transactions',
