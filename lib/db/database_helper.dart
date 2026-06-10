@@ -33,7 +33,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -59,6 +59,10 @@ class DatabaseHelper {
       await _addColumnIfMissing(db, 'journal_entry', 'due_date', 'TEXT');
       await _addColumnIfMissing(db, 'journal_entry', 'payment_status', 'TEXT');
       await _addColumnIfMissing(db, 'journal_entry', 'remaining_amount', 'REAL DEFAULT 0');
+    }
+
+    if (oldVersion < 5) {
+      await _addColumnIfMissing(db, 'transactions', 'to_account_id', 'INTEGER REFERENCES accounts(account_id) ON DELETE SET NULL');
     }
   }
 

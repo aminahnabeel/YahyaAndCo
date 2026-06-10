@@ -6,6 +6,8 @@ class TransactionModel {
 
   int accountId;
 
+  int? toAccountId; // Destination account
+
   double amount;
 
   String type;
@@ -33,6 +35,8 @@ class TransactionModel {
     required this.businessId,
 
     required this.accountId,
+
+    this.toAccountId,
 
     required this.amount,
 
@@ -67,6 +71,9 @@ class TransactionModel {
 
       'account_id':
           accountId,
+
+      'to_account_id':
+          toAccountId,
 
       'amount':
           amount,
@@ -111,6 +118,9 @@ class TransactionModel {
 
       accountId:
           map['account_id'],
+
+      toAccountId:
+          map['to_account_id'],
 
       amount:
           map['amount'],
