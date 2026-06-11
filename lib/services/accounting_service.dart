@@ -151,6 +151,54 @@ class AccountingService {
     });
   }
 
+  Future<void> updateCompleteJournal({
+    required int journalId,
+    required JournalEntryModel journalEntry,
+    required List<JournalLineModel> journalLines,
+  }) async {
+    final db = await DatabaseHelper.instance.database;
+
+    double totalDebit = 0;
+    double totalCredit = 0;
+
+    for (var line in journalLines) {
+      totalDebit += line.debit;
+      totalCredit += line.credit;
+    }
+
+    // VALIDATION
+    if (totalDebit != totalCredit) {
+      throw Exception('Debit and Credit must be equal');
+    }
+
+    await db.transaction((txn) async {
+      // UPDATE JOURNAL ENTRY
+      await txn.update(
+        'journal_entry',
+        journalEntry.toMap(),
+        where: 'journal_id = ?',
+        whereArgs: [journalId],
+      );
+
+      // DELETE OLD JOURNAL LINES
+      await txn.delete(
+        'journal_lines',
+        where: 'journal_id = ?',
+        whereArgs: [journalId],
+      );
+
+      // INSERT NEW JOURNAL LINES
+      for (var line in journalLines) {
+        await txn.insert('journal_lines', {
+          'journal_id': journalId,
+          'account_id': line.accountId,
+          'debit': line.debit,
+          'credit': line.credit,
+        });
+      }
+    });
+  }
+
   Future<void> updatePaymentStatus({
     required String tableName,
     required int id,
@@ -688,7 +736,6 @@ class AccountingService {
       getBusinessExpense(businessId),
     ]);
 
-    final cashTotal = results[0];
     final bankTotal = results[1];
     final cashInHand = results[2];
 

@@ -83,7 +83,6 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
   // Get all months from account creation to now
   List<Map<String, dynamic>> _getAllMonths() {
     final now = DateTime.now();
-    final startMonth = DateTime(now.year, now.month, 1);
     final months = <Map<String, dynamic>>[];
 
     // Go back 12 months from now (can adjust if needed)
@@ -482,18 +481,6 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
     if (value == null) return '0.00';
     final num = double.tryParse(value.toString()) ?? 0;
     return num.toStringAsFixed(2);
-  }
-
-  void _previousMonth() {
-    setState(() {
-      _selectedMonth = DateTime(_selectedMonth!.year, _selectedMonth!.month - 1);
-    });
-  }
-
-  void _nextMonth() {
-    setState(() {
-      _selectedMonth = DateTime(_selectedMonth!.year, _selectedMonth!.month + 1);
-    });
   }
 
   @override

@@ -93,9 +93,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   void initState() {
     super.initState();
     isEditMode = widget.transactionId != null;
-    loadAccounts();
-    if (isEditMode) {
-      _loadTransactionData();
+    _initializeScreen();
+  }
+
+  Future<void> _initializeScreen() async {
+    await loadAccounts();
+    if (isEditMode && widget.transactionId != null) {
+      await _loadTransactionData();
     }
   }
 
