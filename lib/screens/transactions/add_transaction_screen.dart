@@ -42,7 +42,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   List<AccountModel> accounts = [];
   AccountModel? selectedFromAccount;
-  AccountModel? selectedToAccount;
   int? cashAccountId;
   String transactionType = 'Payment';
   String paymentMethod = 'Cash';
@@ -286,18 +285,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       widget.businessId,
     );
 
-    // Include all accounts (including cash) for transaction form
-    accounts = allAccounts;
+    // Only show non-cash accounts in the transaction form; cash is implicit in CP entries.
+    accounts = cashAccountId != null
+        ? allAccounts.where((account) => account.accountId != cashAccountId).toList()
+        : allAccounts;
 
     if (accounts.isNotEmpty && !isEditMode) {
       selectedFromAccount = accounts.first;
-      selectedToAccount = accounts.length > 1 ? accounts[1] : accounts.first;
     } else if (isEditMode) {
       selectedFromAccount = null; // Will be set by _loadTransactionData
-      selectedToAccount = null;
     } else {
       selectedFromAccount = null;
-      selectedToAccount = null;
     }
 
     setState(() {});
@@ -315,18 +313,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
-    if (selectedToAccount == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select destination account')),
-      );
-      return;
-    }
-
     if (cashAccountId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(LocalizationService.instance.t('cash_account_required')),
         ),
+      );
+      return;
+    }
+
+    if (selectedFromAccount!.accountId == cashAccountId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a non-cash source account')),
       );
       return;
     }
@@ -379,12 +377,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       List<JournalLineModel> journalLines = [];
 
       int fromAccountId = selectedFromAccount!.accountId!;
-      int toAccountId = selectedToAccount!.accountId!;
+      int cashId = cashAccountId!;
 
       // Debit (Money Out) = FromAccount gets DEBIT (decreases)
       // Credit (Money In) = FromAccount gets CREDIT (increases)
       if (side == 'Debit') {
-        // Money OUT: debit from account (decrease), credit to account
+        // Money OUT: debit selected account, credit cash account
         journalLines.add(
           JournalLineModel(
             journalId: 0,
@@ -396,13 +394,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         journalLines.add(
           JournalLineModel(
             journalId: 0,
-            accountId: toAccountId,
+            accountId: cashId,
             debit: 0,
             credit: amount,
           ),
         );
       } else {
-        // Money IN: credit from account (increase), debit to account
+        // Money IN: credit selected account, debit cash account
         journalLines.add(
           JournalLineModel(
             journalId: 0,
@@ -414,7 +412,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         journalLines.add(
           JournalLineModel(
             journalId: 0,
-            accountId: toAccountId,
+            accountId: cashId,
             debit: amount,
             credit: 0,
           ),
@@ -504,32 +502,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               ),
               const SizedBox(height: 15),
 
-              // =====================
-              // TO ACCOUNT (Destination of transaction)
-              // =====================
-              DropdownButtonFormField<AccountModel>(
-                value: (selectedToAccount != null &&
-                        accounts.any((account) => account.accountId == selectedToAccount!.accountId))
-                    ? selectedToAccount
-                    : null,
-                decoration: const InputDecoration(
-                  labelText: 'To Account (Destination)',
-                  border: OutlineInputBorder(),
-                  hintText: 'Select destination account',
-                ),
-                items: accounts.map((account) {
-                  return DropdownMenuItem(
-                    value: account,
-                    child: Text(account.name),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedToAccount = value;
-                  });
-                },
-                validator: (value) => value == null ? 'Please select a destination account' : null,
-              ),
               const SizedBox(height: 15),
 
               // =====================

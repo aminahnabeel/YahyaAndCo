@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../models/journal_entry_model.dart';
+import '../../screens/journal/journal_detail_screen.dart';
 import '../../services/accounting_service.dart';
 
 class CashBookScreen extends StatefulWidget {
@@ -85,22 +87,17 @@ class _CashBookScreenState extends State<CashBookScreen> {
                   itemBuilder:
                       (context, index) {
 
-                    final item =
-                        cashBook[index];
+                    final item = cashBook[index];
 
                     double debit = item['debit'] == null ? 0 : (item['debit'] as num).toDouble();
-
                     double credit = item['credit'] == null ? 0 : (item['credit'] as num).toDouble();
-
                     final status = (item['payment_status'] ?? 'Paid').toString();
+                    final journalId = item['journal_id'] as int?;
+                    final isPaid = status.toLowerCase() == 'paid';
 
-                    if (status != 'Paid') {
-                      return const SizedBox.shrink();
+                    if (isPaid) {
+                      runningBalance += credit - debit;
                     }
-
-                    runningBalance +=
-                        debit -
-                            credit;
 
                     return Card(
 
@@ -109,11 +106,33 @@ class _CashBookScreenState extends State<CashBookScreen> {
                               .all(10),
 
                       child: ListTile(
-
+                        onTap: journalId != null
+                            ? () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => JournalDetailScreen(
+                                      journal: JournalEntryModel(
+                                        journalId: journalId,
+                                        businessId: widget.businessId,
+                                        transactionId: null,
+                                        voucherNo: item['voucher_no']?.toString() ?? '',
+                                        voucherType: 'CP',
+                                        description: item['description']?.toString() ?? '',
+                                        dueDate: item['due_date']?.toString(),
+                                        paymentStatus: status,
+                                        remainingAmount: (item['remaining_amount'] as num?)?.toDouble() ?? 0,
+                                        imageUrl: null,
+                                        date: item['date']?.toString() ?? '',
+                                        createdAt: item['date']?.toString() ?? '',
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+                            : null,
                         title: Text(item['voucher_no'].toString()),
-
-                        subtitle: Text('${item['account_name'] ?? 'Cash'} • ${item['date']}'),
-
+                        subtitle: Text('${item['account_name'] ?? 'Cash'} • ${item['date']} • $status'),
                         trailing:
                             Column(
 

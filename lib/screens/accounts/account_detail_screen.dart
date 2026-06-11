@@ -26,6 +26,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
   late String selectedType;
   bool isLoading = false;
   bool isEditing = false;
+  double openingBalanceDisplay = 0;
 
   final AccountService _accountService = AccountService();
   
@@ -50,6 +51,22 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     addressController = TextEditingController(text: widget.account.address ?? '');
     openingBalanceController = TextEditingController(text: widget.account.openingBalance.toString());
     selectedType = widget.account.type;
+    openingBalanceDisplay = widget.account.openingBalance;
+    _loadOpeningBalance();
+  }
+
+  Future<void> _loadOpeningBalance() async {
+    if (widget.account.accountId == null) return;
+
+    final openingBalance =
+        await _accountService.getAccountOpeningBalanceFromJournal(widget.account.accountId!);
+
+    if (mounted) {
+      setState(() {
+        openingBalanceDisplay = openingBalance;
+        openingBalanceController.text = openingBalance.toStringAsFixed(2);
+      });
+    }
   }
 
   @override
@@ -77,6 +94,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
       );
 
       await _accountService.updateAccount(updatedAccount);
+      final refreshedOpeningBalance = await _accountService.getAccountOpeningBalanceFromJournal(widget.account.accountId!);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -86,7 +104,11 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
           ),
         );
 
-        setState(() => isEditing = false);
+        setState(() {
+          isEditing = false;
+          openingBalanceDisplay = refreshedOpeningBalance;
+          openingBalanceController.text = refreshedOpeningBalance.toStringAsFixed(2);
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -107,7 +129,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     return FutureBuilder<double>(
       future: _accountService.getAccountClosingBalance(widget.account.accountId!),
       builder: (context, snapshot) {
-        final closingBalance = snapshot.data ?? widget.account.openingBalance;
+        final closingBalance = snapshot.data ?? openingBalanceDisplay;
         
         return Scaffold(
           appBar: AppBar(
@@ -158,7 +180,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    '₹${widget.account.openingBalance.toStringAsFixed(2)}',
+                                    '₹${openingBalanceDisplay.toStringAsFixed(2)}',
                                     style: const TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.w800,

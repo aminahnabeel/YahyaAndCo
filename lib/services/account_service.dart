@@ -58,12 +58,83 @@ class AccountService {
   Future updateAccount(
     AccountModel account,
   ) async {
+    if (account.accountId == null) {
+      throw Exception('Account ID is required for update');
+    }
 
-    await DatabaseHelper
-        .instance
-        .updateAccount(
-      account,
+    await updateOpeningBalance(account.accountId!, account.openingBalance);
+
+    final accountToUpdate = AccountModel(
+      accountId: account.accountId,
+      businessId: account.businessId,
+      name: account.name,
+      type: account.type,
+      phone: account.phone,
+      address: account.address,
+      openingBalance: 0,
+      createdAt: account.createdAt,
     );
+
+    await DatabaseHelper.instance.updateAccount(accountToUpdate);
+  }
+
+  Future<void> updateOpeningBalance(
+    int accountId,
+    double newOpeningBalance,
+  ) async {
+    final account = await getAccountById(accountId);
+    if (account == null) {
+      throw Exception('Account not found');
+    }
+
+    final journalOpeningTotal =
+        await DatabaseHelper.instance.getOpeningBalanceJournalTotal(accountId);
+    final currentOpeningBalance = journalOpeningTotal + account.openingBalance;
+
+    if (account.openingBalance != 0) {
+      await DatabaseHelper.instance.insertOpeningBalanceJournalEntry(
+        account.businessId,
+        accountId,
+        account.openingBalance,
+      );
+    }
+
+    final difference = newOpeningBalance - currentOpeningBalance;
+    if (difference != 0) {
+      await DatabaseHelper.instance.insertOpeningBalanceJournalEntry(
+        account.businessId,
+        accountId,
+        difference,
+      );
+    }
+
+    if (account.openingBalance != 0) {
+      final migratedAccount = AccountModel(
+        accountId: account.accountId,
+        businessId: account.businessId,
+        name: account.name,
+        type: account.type,
+        phone: account.phone,
+        address: account.address,
+        openingBalance: 0,
+        createdAt: account.createdAt,
+      );
+      await DatabaseHelper.instance.updateAccount(migratedAccount);
+    }
+  }
+
+  Future<double> getAccountOpeningBalanceFromJournal(int accountId) async {
+    final account = await DatabaseHelper.instance.getAccountById(accountId);
+    if (account == null) return 0;
+
+    final journalOpeningTotal =
+        await DatabaseHelper.instance.getOpeningBalanceJournalTotal(accountId);
+
+    if (journalOpeningTotal != 0 || account.openingBalance == 0) {
+      return journalOpeningTotal;
+    }
+
+    return account.openingBalance;
   }
 
   // =========================
@@ -94,8 +165,9 @@ class AccountService {
   ) async {
     final existingCash = await accountExists(businessId, 'Cash');
     final existingExpense = await accountExists(businessId, 'General Expense');
+    final existingOpeningBalanceEquity = await accountExists(businessId, 'Opening Balance Equity');
 
-    if (existingCash && existingExpense) {
+    if (existingCash && existingExpense && existingOpeningBalanceEquity) {
       return;
     }
 
@@ -117,6 +189,17 @@ class AccountService {
         businessId: businessId,
         name: 'General Expense',
         type: 'Expense',
+        phone: null,
+        address: null,
+        openingBalance: 0,
+        createdAt: DateTime.now().toString(),
+      ),
+      // Opening Balance Equity Account
+      // Used to balance opening balance journal entries for audit compliance
+      AccountModel(
+        businessId: businessId,
+        name: 'Opening Balance Equity',
+        type: 'Equity',
         phone: null,
         address: null,
         openingBalance: 0,

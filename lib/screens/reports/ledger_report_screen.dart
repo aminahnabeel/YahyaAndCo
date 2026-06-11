@@ -54,27 +54,27 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
 
   // Get date range based on filter
   Map<String, DateTime> _getDateRange() {
-    final now = DateTime.now();
+    final baseDate = _selectedMonth ?? DateTime.now();
     late DateTime startDate;
     late DateTime endDate;
 
     switch (_dateRangeFilter) {
       case '3months':
-        startDate = DateTime(now.year, now.month - 2, 1);
-        endDate = DateTime(now.year, now.month + 1, 0);
+        startDate = DateTime(baseDate.year, baseDate.month - 2, 1);
+        endDate = DateTime(baseDate.year, baseDate.month + 1, 0);
         break;
       case '6months':
-        startDate = DateTime(now.year, now.month - 5, 1);
-        endDate = DateTime(now.year, now.month + 1, 0);
+        startDate = DateTime(baseDate.year, baseDate.month - 5, 1);
+        endDate = DateTime(baseDate.year, baseDate.month + 1, 0);
         break;
       case '1year':
-        startDate = DateTime(now.year - 1, now.month, 1);
-        endDate = DateTime(now.year, now.month + 1, 0);
+        startDate = DateTime(baseDate.year - 1, baseDate.month, 1);
+        endDate = DateTime(baseDate.year, baseDate.month + 1, 0);
         break;
       case '1month':
       default:
-        startDate = _getMonthStart(now);
-        endDate = _getMonthEnd(now);
+        startDate = _getMonthStart(baseDate);
+        endDate = _getMonthEnd(baseDate);
     }
 
     return {'start': startDate, 'end': endDate};
@@ -121,7 +121,7 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
     final startDate = range['start']!;
     final endDate = range['end']!;
 
-    return _rows.where((row) {
+    final filtered = _rows.where((row) {
       try {
         final date = DateTime.parse(row['date']?.toString() ?? '');
         return date.isAfter(startDate.subtract(const Duration(days: 1))) &&
@@ -130,6 +130,27 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
         return false;
       }
     }).toList();
+
+    // Preserve database ordering (journal_id, line_id) returned by the query
+
+    return filtered;
+  }
+
+  double _calculateOpeningBalance(DateTime startDate) {
+    double balance = 0;
+    for (var row in _rows) {
+      try {
+        final date = DateTime.parse(row['date']?.toString() ?? '');
+        if (date.isBefore(startDate)) {
+          final debit = (row['debit'] ?? 0) as num;
+          final credit = (row['credit'] ?? 0) as num;
+          balance += credit.toDouble() - debit.toDouble();
+        }
+      } catch (_) {
+        continue;
+      }
+    }
+    return balance;
   }
 
   Future<void> _downloadPDF() async {
@@ -139,16 +160,27 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
       final monthStart = range['start']!;
       final monthEnd = range['end']!;
 
+      final openingBalance = _calculateOpeningBalance(monthStart);
+
       // Create PDF document
       final pdf = pw.Document();
-      double finalBalance = 0;
+      double finalBalance = openingBalance;
 
       // Calculate data for PDF
       final pdfRows = <Map<String, dynamic>>[];
+      pdfRows.add({
+        'date': _formatDate(monthStart),
+        'voucher': 'Opening Balance',
+        'debit': openingBalance < 0 ? openingBalance.abs() : 0.0,
+        'credit': openingBalance > 0 ? openingBalance : 0.0,
+        'balance': finalBalance,
+        'status': '',
+      });
+
       for (var row in monthlyData) {
         final debit = (row['debit'] ?? 0) as num;
         final credit = (row['credit'] ?? 0) as num;
-        finalBalance += debit.toDouble() - credit.toDouble();
+        finalBalance += credit.toDouble() - debit.toDouble();
         pdfRows.add({
           'date': row['date']?.toString() ?? '-',
           'voucher': row['voucher_no']?.toString() ?? '-',
@@ -254,34 +286,33 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
                       _buildPdfCell(row['date'], bgColor: bgColor),
                       _buildPdfCell(row['voucher'], bgColor: bgColor),
                       _buildPdfCell(
-                        '₹${row['debit'].toStringAsFixed(2)}',
+                        row['debit'].toStringAsFixed(2),
                         bgColor: bgColor,
                         align: pw.TextAlign.right,
                         color: row['debit'] > 0
-                            ? PdfColors.green
-                            : PdfColors.grey,
-                      ),
-                      _buildPdfCell(
-                        '₹${row['credit'].toStringAsFixed(2)}',
-                        bgColor: bgColor,
-                        align: pw.TextAlign.right,
-                        color: row['credit'] > 0
                             ? PdfColors.red
                             : PdfColors.grey,
                       ),
                       _buildPdfCell(
-                        '₹${row['balance'].toStringAsFixed(2)}',
+                        row['credit'].toStringAsFixed(2),
+                        bgColor: bgColor,
+                        align: pw.TextAlign.right,
+                        color: row['credit'] > 0
+                            ? PdfColors.green
+                            : PdfColors.grey,
+                      ),
+                      _buildPdfCell(
+                        row['balance'].toStringAsFixed(2),
                         bgColor: bgColor,
                         align: pw.TextAlign.right,
                         bold: true,
-                        color: row['balance'] >= 0
-                            ? PdfColors.green
-                            : PdfColors.red,
+                        color: PdfColors.black,
                       ),
                       _buildPdfCell(
                         row['status'],
                         bgColor: bgColor,
                         align: pw.TextAlign.center,
+                        color: _statusColor(row['status']?.toString() ?? ''),
                       ),
                     ],
                   );
@@ -311,9 +342,7 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
                         style: pw.TextStyle(
                           fontSize: 16,
                           fontWeight: pw.FontWeight.bold,
-                          color: finalBalance >= 0
-                              ? PdfColors.green
-                              : PdfColors.red,
+                          color: PdfColors.black,
                         ),
                       ),
                     ],
@@ -401,6 +430,20 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
     );
   }
 
+  PdfColor _statusColor(String status) {
+    final normalized = status.trim().toLowerCase();
+    if (normalized == 'paid') {
+      return PdfColors.green;
+    }
+    if (normalized == 'pending') {
+      return PdfColors.orange;
+    }
+    if (normalized == 'overdue') {
+      return PdfColors.red;
+    }
+    return PdfColors.black;
+  }
+
   Widget _buildFilterButton(String label, String value) {
     final isSelected = _dateRangeFilter == value;
     return GestureDetector(
@@ -436,9 +479,9 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
   }
 
   String _formatCurrency(dynamic value) {
-    if (value == null) return '₹0.00';
+    if (value == null) return '0.00';
     final num = double.tryParse(value.toString()) ?? 0;
-    return '₹${num.toStringAsFixed(2)}';
+    return num.toStringAsFixed(2);
   }
 
   void _previousMonth() {

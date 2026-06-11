@@ -196,7 +196,7 @@ class AccountingService {
   //
   // Includes opening balance through account's opening_balance field
 
-  Future<double> getAccountBalance(int accountId) async {
+  Future<double> getAccountBalance(int accountId, {bool paidOnly = true}) async {
     final account = await DatabaseHelper.instance.getAccountById(accountId);
     if (account == null) return 0;
 
@@ -204,31 +204,36 @@ class AccountingService {
 
     final db = await DatabaseHelper.instance.database;
 
-    final debitResult = await db.rawQuery(
+    final debitQuery = paidOnly
+        ? '''
+      SELECT SUM(jl.debit) as totalDebit
+      FROM journal_lines jl
+      INNER JOIN journal_entry je ON je.journal_id = jl.journal_id
+      WHERE jl.account_id = ?
+        AND LOWER(COALESCE(je.payment_status, '')) = 'paid'
       '''
-      SELECT SUM(debit)
-      as totalDebit
-
+        : '''
+      SELECT SUM(debit) as totalDebit
       FROM journal_lines
-
       WHERE account_id = ?
-      ''',
+      ''';
 
-      [accountId],
-    );
-
-    final creditResult = await db.rawQuery(
+    final creditQuery = paidOnly
+        ? '''
+      SELECT SUM(jl.credit) as totalCredit
+      FROM journal_lines jl
+      INNER JOIN journal_entry je ON je.journal_id = jl.journal_id
+      WHERE jl.account_id = ?
+        AND LOWER(COALESCE(je.payment_status, '')) = 'paid'
       '''
-      SELECT SUM(credit)
-      as totalCredit
-
+        : '''
+      SELECT SUM(credit) as totalCredit
       FROM journal_lines
-
       WHERE account_id = ?
-      ''',
+      ''';
 
-      [accountId],
-    );
+    final debitResult = await db.rawQuery(debitQuery, [accountId]);
+    final creditResult = await db.rawQuery(creditQuery, [accountId]);
 
     final double totalDebit = _asDouble(debitResult.first['totalDebit']);
     final double totalCredit = _asDouble(creditResult.first['totalCredit']);
@@ -265,8 +270,8 @@ class AccountingService {
 
     for (final account in accounts) {
       final name = account.name.toLowerCase();
-      // Look for account with "Cash" in name (primary lookup)
-      if (name == 'cash') {
+      // Look for account with "cash" in name (primary lookup)
+      if (name.contains('cash')) {
         return account.accountId;
       }
     }
@@ -275,20 +280,100 @@ class AccountingService {
   }
 
   Future<double> getCashBalanceForBusiness(int businessId) async {
-    final cashAccountId = await getCashAccountId(businessId);
+    // Use the same dynamic cash-total calculation as getCashTotalBalance
+    return await getCashTotalBalance(businessId);
+  }
 
-    if (cashAccountId == null) {
-      return 0;
-    }
+  Future<double> getBusinessTotalBalance(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
 
-    // Get account opening balance
-    final account = await DatabaseHelper.instance.getAccountById(cashAccountId);
-    double balance = account?.openingBalance ?? 0;
+    final result = await db.rawQuery(
+      '''
+      SELECT SUM(
+        COALESCE(accounts.opening_balance, 0)
+        - COALESCE(journal_sums.total_debit, 0)
+        + COALESCE(journal_sums.total_credit, 0)
+      ) AS total
+      FROM accounts
+      LEFT JOIN (
+        SELECT journal_lines.account_id,
+               SUM(journal_lines.debit) AS total_debit,
+               SUM(journal_lines.credit) AS total_credit
+        FROM journal_lines
+        INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
+        WHERE journal_entry.business_id = ?
+        GROUP BY journal_lines.account_id
+      ) AS journal_sums ON journal_sums.account_id = accounts.account_id
+      WHERE accounts.business_id = ?
+      ''',
+      [businessId, businessId],
+    );
 
-    // Add journal entries balance (debit - credit)
-    balance += await getAccountBalance(cashAccountId);
+    return _asDouble(result.first['total']);
+  }
 
-    return balance;
+  // =====================================================
+  // GET BANK ACCOUNTS TOTAL BALANCE
+  // Sum of closing balances for accounts whose name contains 'bank'
+  // =====================================================
+  Future<double> getBankTotalBalance(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+
+    final result = await db.rawQuery(
+      '''
+      SELECT SUM(
+        COALESCE(accounts.opening_balance, 0)
+        - COALESCE(journal_sums.total_debit, 0)
+        + COALESCE(journal_sums.total_credit, 0)
+      ) AS total
+      FROM accounts
+      LEFT JOIN (
+        SELECT journal_lines.account_id,
+               SUM(journal_lines.debit) AS total_debit,
+               SUM(journal_lines.credit) AS total_credit
+        FROM journal_lines
+        INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
+        WHERE journal_entry.business_id = ?
+          AND LOWER(COALESCE(journal_entry.payment_status, '')) = 'paid'
+        GROUP BY journal_lines.account_id
+      ) AS journal_sums ON journal_sums.account_id = accounts.account_id
+      WHERE accounts.business_id = ?
+        AND LOWER(accounts.name) LIKE '%bank%'
+      ''',
+      [businessId, businessId],
+    );
+
+    return _asDouble(result.first['total']);
+  }
+
+  Future<double> getCashTotalBalance(int businessId) async {
+    final db = await DatabaseHelper.instance.database;
+
+    final result = await db.rawQuery(
+      '''
+      SELECT SUM(
+        COALESCE(accounts.opening_balance, 0)
+        - COALESCE(journal_sums.total_debit, 0)
+        + COALESCE(journal_sums.total_credit, 0)
+      ) AS total
+      FROM accounts
+      LEFT JOIN (
+        SELECT journal_lines.account_id,
+               SUM(journal_lines.debit) AS total_debit,
+               SUM(journal_lines.credit) AS total_credit
+        FROM journal_lines
+        INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
+        WHERE journal_entry.business_id = ?
+          AND LOWER(COALESCE(journal_entry.payment_status, '')) = 'paid'
+        GROUP BY journal_lines.account_id
+      ) AS journal_sums ON journal_sums.account_id = accounts.account_id
+      WHERE accounts.business_id = ?
+        AND LOWER(accounts.name) LIKE '%cash%'
+      ''',
+      [businessId, businessId],
+    );
+
+    return _asDouble(result.first['total']);
   }
 
   Future<List<Map<String, dynamic>>> getPendingTransactions(
@@ -538,6 +623,7 @@ class AccountingService {
       FROM journal_lines
       INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
       WHERE journal_entry.business_id = ?
+        AND LOWER(COALESCE(journal_entry.payment_status, '')) = 'paid'
       ''',
       [businessId],
     );
@@ -552,6 +638,7 @@ class AccountingService {
       FROM journal_lines
       INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
       WHERE journal_entry.business_id = ?
+        AND LOWER(COALESCE(journal_entry.payment_status, '')) = 'paid'
       ''',
       [businessId],
     );
@@ -592,6 +679,8 @@ class AccountingService {
 
   Future<Map<String, double>> getDashboardSummary(int businessId) async {
     final results = await Future.wait<double>([
+      getCashTotalBalance(businessId),
+      getBankTotalBalance(businessId),
       getCashBalanceForBusiness(businessId),
       getBusinessTotalCredit(businessId),
       getBusinessTotalDebit(businessId),
@@ -599,12 +688,18 @@ class AccountingService {
       getBusinessExpense(businessId),
     ]);
 
+    final cashTotal = results[0];
+    final bankTotal = results[1];
+    final cashInHand = results[2];
+
     return {
-      'totalCash': results[0],
-      'totalCredit': results[1],
-      'totalDebit': results[2],
-      'totalIncome': results[3],
-      'totalExpense': results[4],
+      // Total Balance = dynamic cash balance from vouchers + bank account closing balances
+      'totalBalance': cashInHand + bankTotal,
+      'totalCash': cashInHand,
+      'totalCredit': results[3],
+      'totalDebit': results[4],
+      'totalIncome': results[5],
+      'totalExpense': results[6],
     };
   }
 
@@ -617,22 +712,69 @@ class AccountingService {
     int businessId,
   ) async {
     final db = await DatabaseHelper.instance.database;
-
-    return await db.rawQuery(
+    final rows = await db.rawQuery(
       '''
       SELECT
         accounts.account_id,
         accounts.name,
-        SUM(journal_lines.debit) as total_debit,
-        SUM(journal_lines.credit) as total_credit
-      FROM journal_lines
-      INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
-      INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
-      WHERE journal_entry.business_id = ?
+        COALESCE(SUM(jl.debit), 0) AS total_debit,
+        COALESCE(SUM(jl.credit), 0) AS total_credit
+      FROM accounts
+      LEFT JOIN journal_lines jl ON jl.account_id = accounts.account_id
+      LEFT JOIN journal_entry je ON je.journal_id = jl.journal_id
+        AND je.business_id = ?
+      WHERE accounts.business_id = ?
       GROUP BY accounts.account_id
       ''',
-      [businessId],
+      [businessId, businessId],
     );
+    final List<Map<String, dynamic>> result = [];
+
+    for (final row in rows) {
+      final accountId = row['account_id'];
+      final totalDebit = _asDouble(row['total_debit']);
+      final totalCredit = _asDouble(row['total_credit']);
+      final closingBalance = totalCredit - totalDebit;
+
+      // Find the last journal line for this account by date DESC and line_id DESC.
+      final lastLine = await db.rawQuery(
+        '''
+        SELECT jl.debit AS debit, jl.credit AS credit
+        FROM journal_lines jl
+        INNER JOIN journal_entry je ON je.journal_id = jl.journal_id
+        WHERE je.business_id = ? AND jl.account_id = ?
+        ORDER BY je.date DESC, jl.line_id DESC
+        LIMIT 1
+        ''',
+        [businessId, accountId],
+      );
+
+      double displayDebit = 0;
+      double displayCredit = 0;
+
+      if (lastLine.isNotEmpty) {
+        final lastDebit = _asDouble(lastLine.first['debit']);
+        final lastCredit = _asDouble(lastLine.first['credit']);
+
+        if (lastDebit > 0) {
+          displayDebit = closingBalance;
+        } else if (lastCredit > 0) {
+          displayCredit = closingBalance;
+        }
+      } else {
+        displayCredit = 0;
+      }
+
+      result.add({
+        'account_id': accountId,
+        'name': row['name'],
+        'total_debit': displayDebit,
+        'total_credit': displayCredit,
+        'net_balance': closingBalance,
+      });
+    }
+
+    return result;
   }
 
   // =====================================================
@@ -646,7 +788,8 @@ class AccountingService {
     final db = await DatabaseHelper.instance.database;
     return await db.rawQuery(
       '''
-      SELECT journal_entry.date as date,
+      SELECT journal_entry.journal_id as journal_id,
+             journal_entry.date as date,
              journal_entry.voucher_no as voucher_no,
              journal_entry.due_date as due_date,
              journal_entry.payment_status as payment_status,
@@ -659,8 +802,8 @@ class AccountingService {
       INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
       INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
       WHERE journal_entry.business_id = ?
+        AND journal_entry.voucher_type = 'CP'
         AND journal_lines.account_id = ?
-        AND LOWER(COALESCE(journal_entry.payment_status, 'paid')) = 'paid'
       ORDER BY journal_entry.date ASC, journal_entry.journal_id ASC
       ''',
       [businessId, cashId],
@@ -679,7 +822,9 @@ class AccountingService {
 
     final rows = await db.rawQuery(
       '''
-        SELECT journal_entry.date as date,
+        SELECT journal_entry.journal_id as journal_id,
+          journal_lines.line_id as line_id,
+          journal_entry.date as date,
           journal_entry.voucher_no as voucher_no,
           journal_entry.due_date as due_date,
           journal_entry.payment_status as payment_status,
@@ -692,7 +837,8 @@ class AccountingService {
       INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
         INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
       WHERE journal_entry.business_id = ? AND journal_lines.account_id = ?
-      ORDER BY journal_entry.date ASC, journal_entry.journal_id ASC
+      -- Preserve insertion/chronological sequence: order by journal_id then journal line id
+      ORDER BY journal_entry.journal_id ASC, journal_lines.line_id ASC
     ''',
       [businessId, accountId],
     );
@@ -892,33 +1038,11 @@ class AccountingService {
 
   Future<String> _getBalanceSheetStatus(int businessId) async {
     try {
-      final db = await DatabaseHelper.instance.database;
+      final balanceSheet = await getBalanceSheet(businessId);
 
-      final result = await db.rawQuery(
-        '''
-        SELECT
-          SUM(CASE WHEN LOWER(accounts.type) = 'asset' THEN 
-            (COALESCE(journal_lines.debit, 0) - COALESCE(journal_lines.credit, 0)) 
-            ELSE 0 END) as total_assets,
-          SUM(CASE WHEN LOWER(accounts.type) IN ('liability', 'payable') THEN 
-            (COALESCE(journal_lines.credit, 0) - COALESCE(journal_lines.debit, 0)) 
-            ELSE 0 END) as total_liabilities,
-          SUM(CASE WHEN LOWER(accounts.type) = 'equity' THEN 
-            (COALESCE(journal_lines.credit, 0) - COALESCE(journal_lines.debit, 0)) 
-            ELSE 0 END) as total_equity
-        FROM journal_lines
-        INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
-        INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
-        WHERE journal_entry.business_id = ?
-      ''',
-        [businessId],
-      );
-
-      if (result.isEmpty) return 'Healthy';
-
-      final assets = _asDouble(result.first['total_assets']);
-      final liabilities = _asDouble(result.first['total_liabilities']);
-      final equity = _asDouble(result.first['total_equity']);
+      final assets = _asDouble(balanceSheet['totalAssets']);
+      final liabilities = _asDouble(balanceSheet['totalLiabilities']);
+      final equity = _asDouble(balanceSheet['totalEquity']);
 
       // Check if the balance sheet equation holds: Assets = Liabilities + Equity
       final difference = (assets - (liabilities + equity)).abs();
@@ -1224,17 +1348,19 @@ class AccountingService {
         accounts.account_id,
         accounts.name,
         accounts.type,
-        SUM(journal_lines.debit) as total_debit,
-        SUM(journal_lines.credit) as total_credit
-      FROM journal_lines
-      INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
-      INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
-      WHERE journal_entry.business_id = ?
+        COALESCE(accounts.opening_balance, 0) AS opening_balance,
+        COALESCE(SUM(journal_lines.debit), 0) as total_debit,
+        COALESCE(SUM(journal_lines.credit), 0) as total_credit
+      FROM accounts
+      LEFT JOIN journal_lines ON journal_lines.account_id = accounts.account_id
+      LEFT JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
+        AND journal_entry.business_id = ?
+      WHERE accounts.business_id = ?
         AND LOWER(accounts.type) IN ('asset', 'liability', 'equity', 'payable', 'drawing')
       GROUP BY accounts.account_id
       ORDER BY accounts.type, accounts.name
       ''',
-      [businessId],
+      [businessId, businessId],
     );
 
     double totalAssets = 0;
@@ -1247,27 +1373,20 @@ class AccountingService {
 
     for (final row in rows) {
       final type = (row['type'] ?? '').toString().toLowerCase();
+      final openingBalance = _asDouble(row['opening_balance']);
       final totalDebit = _asDouble(row['total_debit']);
       final totalCredit = _asDouble(row['total_credit']);
-      final balance = totalDebit - totalCredit;
+      final balance = openingBalance - totalDebit + totalCredit;
 
       if (type == 'asset') {
-        totalAssets += totalDebit;
-        assets.add({...row, 'balance': totalDebit});
+        totalAssets += balance;
+        assets.add({...row, 'balance': balance});
       } else if (type == 'liability' || type == 'payable') {
-        totalLiabilities += totalCredit;
-        liabilities.add({...row, 'balance': totalCredit});
+        totalLiabilities += balance;
+        liabilities.add({...row, 'balance': balance});
       } else if (type == 'equity' || type == 'drawing') {
-        // Equity includes capital accounts, drawing is deducted
-        if (type == 'drawing') {
-          totalEquity -= totalDebit;
-        } else {
-          totalEquity += totalCredit;
-        }
-        equity.add({
-          ...row,
-          'balance': type == 'drawing' ? -totalDebit : totalCredit,
-        });
+        totalEquity += balance;
+        equity.add({...row, 'balance': balance});
       }
     }
 

@@ -916,6 +916,97 @@ class DatabaseHelper {
     });
   }
 
+  Future<int> getOrCreateOpeningBalanceEquityAccount(int businessId) async {
+    final db = await database;
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      'accounts',
+      where: 'business_id = ? AND LOWER(name) = ?',
+      whereArgs: [businessId, 'opening balance equity'],
+      limit: 1,
+    );
+
+    if (maps.isNotEmpty) {
+      return maps.first['account_id'] as int;
+    }
+
+    final equityAccount = AccountModel(
+      businessId: businessId,
+      name: 'Opening Balance Equity',
+      type: 'Equity',
+      phone: null,
+      address: null,
+      openingBalance: 0,
+      createdAt: DateTime.now().toIso8601String(),
+    );
+
+    return await insertAccount(equityAccount);
+  }
+
+  Future<int> insertOpeningBalanceJournalEntry(
+    int businessId,
+    int accountId,
+    double amount,
+  ) async {
+    if (amount == 0) return 0;
+
+    final now = DateTime.now().toIso8601String();
+
+    final journalEntry = JournalEntryModel(
+      businessId: businessId,
+      transactionId: null,
+      voucherNo: 'OB-${DateTime.now().millisecondsSinceEpoch}',
+      voucherType: 'OB',
+      description: 'Opening Balance',
+      paymentStatus: 'Paid',
+      remainingAmount: 0,
+      date: now,
+      createdAt: now,
+    );
+
+    final journalId = await insertJournalEntry(journalEntry);
+    final equityAccountId = await getOrCreateOpeningBalanceEquityAccount(businessId);
+
+    final accountLine = JournalLineModel(
+      journalId: journalId,
+      accountId: accountId,
+      debit: amount < 0 ? amount.abs() : 0.0,
+      credit: amount > 0 ? amount : 0.0,
+    );
+
+    final equityLine = JournalLineModel(
+      journalId: journalId,
+      accountId: equityAccountId,
+      debit: amount > 0 ? amount : 0.0,
+      credit: amount < 0 ? amount.abs() : 0.0,
+    );
+
+    await insertJournalLine(accountLine);
+    await insertJournalLine(equityLine);
+    return journalId;
+  }
+
+  Future<double> getOpeningBalanceJournalTotal(int accountId) async {
+    final db = await database;
+
+    final result = await db.rawQuery(
+      '''
+      SELECT
+        COALESCE(SUM(jl.credit), 0) AS totalCredit,
+        COALESCE(SUM(jl.debit), 0) AS totalDebit
+      FROM journal_lines jl
+      INNER JOIN journal_entry je ON je.journal_id = jl.journal_id
+      WHERE jl.account_id = ?
+        AND je.voucher_type = 'OB'
+      ''',
+      [accountId],
+    );
+
+    final totalCredit = (result.first['totalCredit'] as num?)?.toDouble() ?? 0.0;
+    final totalDebit = (result.first['totalDebit'] as num?)?.toDouble() ?? 0.0;
+    return totalCredit - totalDebit;
+  }
+
   Future<double> getAccountClosingBalance(int accountId) async {
     final account = await getAccountById(accountId);
     if (account == null) return 0;
