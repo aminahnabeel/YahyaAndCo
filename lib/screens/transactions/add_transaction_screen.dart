@@ -310,6 +310,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
+    // Safety check: if in edit mode, ensure we have a valid transaction ID
+    if (isEditMode && (widget.transactionId == null || widget.transactionId! <= 0)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: Invalid transaction ID for edit mode'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
     if (selectedFromAccount == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select source account')),
@@ -336,105 +344,119 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     setState(() => isLoading = true);
 
     try {
-      String voucherNo = await _accountingService.generateCashVoucher();
       double amount = double.parse(amountController.text);
 
-      TransactionModel transaction = TransactionModel(
-        businessId: widget.businessId,
-        accountId: selectedFromAccount!.accountId!,
-        amount: amount,
-        type: side,
-        note: noteController.text,
-        paymentMethod: paymentMethod,
-        dueDate: _dueDate?.toIso8601String().split('T').first,
-        remainingAmount: _dueDate == null ? 0 : amount,
-        paymentStatus: _accountingService.calculatePaymentStatus(
-          amount: amount,
-          remainingAmount: _dueDate == null ? 0 : amount,
-          dueDate: _dueDate?.toIso8601String(),
-        ),
-        imageUrl: _imageUrl,
-        date: _selectedDate.toIso8601String(),
-        createdAt: DateTime.now().toIso8601String(),
-      );
-
-      int transactionId = await _transactionService.createTransaction(transaction);
-
-      JournalEntryModel journalEntry = JournalEntryModel(
-        businessId: widget.businessId,
-        transactionId: transactionId,
-        voucherNo: voucherNo,
-        voucherType: 'CP',
-        description: noteController.text,
-        dueDate: _dueDate?.toIso8601String().split('T').first,
-        remainingAmount: _dueDate == null ? 0 : amount,
-        paymentStatus: _accountingService.calculatePaymentStatus(
-          amount: amount,
-          remainingAmount: _dueDate == null ? 0 : amount,
-          dueDate: _dueDate?.toIso8601String(),
-        ),
-        imageUrl: _imageUrl,
-        date: _selectedDate.toIso8601String(),
-        createdAt: DateTime.now().toIso8601String(),
-      );
-
-      List<JournalLineModel> journalLines = [];
-
-      int fromAccountId = selectedFromAccount!.accountId!;
-      int cashId = cashAccountId!;
-
-      // Debit (Money Out) = FromAccount gets DEBIT (decreases)
-      // Credit (Money In) = FromAccount gets CREDIT (increases)
-      if (side == 'Debit') {
-        // Money OUT: debit selected account, credit cash account
-        journalLines.add(
-          JournalLineModel(
-            journalId: 0,
-            accountId: fromAccountId,
-            debit: amount,
-            credit: 0,
-          ),
-        );
-        journalLines.add(
-          JournalLineModel(
-            journalId: 0,
-            accountId: cashId,
-            debit: 0,
-            credit: amount,
-          ),
-        );
-      } else {
-        // Money IN: credit selected account, debit cash account
-        journalLines.add(
-          JournalLineModel(
-            journalId: 0,
-            accountId: fromAccountId,
-            debit: 0,
-            credit: amount,
-          ),
-        );
-        journalLines.add(
-          JournalLineModel(
-            journalId: 0,
-            accountId: cashId,
-            debit: amount,
-            credit: 0,
-          ),
-        );
-      }
-
       if (isEditMode && widget.transactionId != null) {
-        // Update existing transaction
-        transaction.amount = amount;
-        transaction.type = side;
-        transaction.note = noteController.text;
-        transaction.paymentMethod = paymentMethod;
-        transaction.dueDate = _dueDate?.toIso8601String().split('T').first;
-        transaction.date = _selectedDate.toIso8601String();
-        transaction.imageUrl = _imageUrl;
+        // UPDATE EXISTING TRANSACTION
+        TransactionModel transaction = TransactionModel(
+          transactionId: widget.transactionId,
+          businessId: widget.businessId,
+          accountId: selectedFromAccount!.accountId!,
+          amount: amount,
+          type: side,
+          note: noteController.text,
+          paymentMethod: paymentMethod,
+          dueDate: _dueDate?.toIso8601String().split('T').first,
+          remainingAmount: _dueDate == null ? 0 : amount,
+          paymentStatus: _accountingService.calculatePaymentStatus(
+            amount: amount,
+            remainingAmount: _dueDate == null ? 0 : amount,
+            dueDate: _dueDate?.toIso8601String(),
+          ),
+          imageUrl: _imageUrl,
+          date: _selectedDate.toIso8601String(),
+          createdAt: DateTime.now().toIso8601String(),
+        );
         
         await _transactionService.updateTransaction(transaction);
       } else {
+        // CREATE NEW TRANSACTION
+        String voucherNo = await _accountingService.generateCashVoucher();
+
+        TransactionModel transaction = TransactionModel(
+          businessId: widget.businessId,
+          accountId: selectedFromAccount!.accountId!,
+          amount: amount,
+          type: side,
+          note: noteController.text,
+          paymentMethod: paymentMethod,
+          dueDate: _dueDate?.toIso8601String().split('T').first,
+          remainingAmount: _dueDate == null ? 0 : amount,
+          paymentStatus: _accountingService.calculatePaymentStatus(
+            amount: amount,
+            remainingAmount: _dueDate == null ? 0 : amount,
+            dueDate: _dueDate?.toIso8601String(),
+          ),
+          imageUrl: _imageUrl,
+          date: _selectedDate.toIso8601String(),
+          createdAt: DateTime.now().toIso8601String(),
+        );
+
+        int transactionId = await _transactionService.createTransaction(transaction);
+
+        JournalEntryModel journalEntry = JournalEntryModel(
+          businessId: widget.businessId,
+          transactionId: transactionId,
+          voucherNo: voucherNo,
+          voucherType: 'CP',
+          description: noteController.text,
+          dueDate: _dueDate?.toIso8601String().split('T').first,
+          remainingAmount: _dueDate == null ? 0 : amount,
+          paymentStatus: _accountingService.calculatePaymentStatus(
+            amount: amount,
+            remainingAmount: _dueDate == null ? 0 : amount,
+            dueDate: _dueDate?.toIso8601String(),
+          ),
+          imageUrl: _imageUrl,
+          date: _selectedDate.toIso8601String(),
+          createdAt: DateTime.now().toIso8601String(),
+        );
+
+        List<JournalLineModel> journalLines = [];
+
+        int fromAccountId = selectedFromAccount!.accountId!;
+        int cashId = cashAccountId!;
+
+        // Debit (Money Out) = FromAccount gets DEBIT (decreases)
+        // Credit (Money In) = FromAccount gets CREDIT (increases)
+        if (side == 'Debit') {
+          // Money OUT: debit selected account, credit cash account
+          journalLines.add(
+            JournalLineModel(
+              journalId: 0,
+              accountId: fromAccountId,
+              debit: amount,
+              credit: 0,
+            ),
+          );
+          journalLines.add(
+            JournalLineModel(
+              journalId: 0,
+              accountId: cashId,
+              debit: 0,
+              credit: amount,
+            ),
+          );
+        } else {
+          // Money IN: credit selected account, debit cash account
+          journalLines.add(
+            JournalLineModel(
+              journalId: 0,
+              accountId: fromAccountId,
+              debit: 0,
+              credit: amount,
+            ),
+          );
+          journalLines.add(
+            JournalLineModel(
+              journalId: 0,
+              accountId: cashId,
+              debit: amount,
+              credit: 0,
+            ),
+          );
+        }
+
         await _accountingService.createCompleteJournal(
           journalEntry: journalEntry,
           journalLines: journalLines,
@@ -467,7 +489,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     return Scaffold(
       resizeToAvoidBottomInset: true, // Let Scaffold automatically handle view insets
       appBar: AppBar(
-        title: const Text('Add Transaction'),
+        title: Text(isEditMode ? 'Edit Transaction' : 'Add Transaction'),
       ),
       body: SafeArea(
         // Removed AnimatedPadding with MediaQuery viewInsets bottom

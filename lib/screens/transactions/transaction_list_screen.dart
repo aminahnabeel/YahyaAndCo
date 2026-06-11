@@ -230,7 +230,13 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
     final paymentMethod = (row['payment_method'] ?? '-').toString();
     final date = (row['date'] ?? '').toString();
     final dueDate = (row['due_date'] ?? '').toString();
-    final transactionId = row['transaction_id'] as int?;
+    final transactionIdRaw = row['transaction_id'];
+    int? transactionId;
+    if (transactionIdRaw is int) {
+      transactionId = transactionIdRaw;
+    } else if (transactionIdRaw is String) {
+      transactionId = int.tryParse(transactionIdRaw);
+    }
     final hasImage = row['image_url'] != null && (row['image_url'] as String).isNotEmpty;
 
     return Card(
