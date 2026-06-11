@@ -287,7 +287,7 @@ class _JournalListScreenState extends State<JournalListScreen> {
               onTap: () async {
                 await Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => JournalCreateScreen(businessId: widget.businessId)),
+                  MaterialPageRoute(builder: (_) => JournalCreateScreen(businessId: widget.businessId, journalId: journalId)),
                 );
                 _load();
               },

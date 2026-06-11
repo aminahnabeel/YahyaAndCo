@@ -146,9 +146,9 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
       }
 
       // Pre-fill journal entry details
-      _voucherType = journalEntry.voucherType ?? 'JV';
+      _voucherType = journalEntry.voucherType;
       _voucherNo = journalEntry.voucherNo;
-      _descriptionController.text = journalEntry.description ?? '';
+      _descriptionController.text = journalEntry.description;
       _dateController.text = journalEntry.date;
       
       if (journalEntry.dueDate != null) {
@@ -428,6 +428,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
 
     try {
       final journalEntry = JournalEntryModel(
+        journalId: _isEditMode ? widget.journalId : null,
         businessId: widget.businessId,
         transactionId: null,
         voucherNo: _voucherNo,
@@ -445,10 +446,20 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
         createdAt: DateTime.now().toIso8601String(),
       );
 
-      await _accountingService.createCompleteJournal(
-        journalEntry: journalEntry,
-        journalLines: journalLines,
-      );
+      if (_isEditMode && widget.journalId != null) {
+        // Update existing journal entry
+        await _accountingService.updateCompleteJournal(
+          journalId: widget.journalId!,
+          journalEntry: journalEntry,
+          journalLines: journalLines,
+        );
+      } else {
+        // Create new journal entry
+        await _accountingService.createCompleteJournal(
+          journalEntry: journalEntry,
+          journalLines: journalLines,
+        );
+      }
 
       if (!mounted) return;
 

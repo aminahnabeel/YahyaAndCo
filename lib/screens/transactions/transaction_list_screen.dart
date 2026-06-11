@@ -307,7 +307,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
               onTap: () async {
                 await Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => AddTransactionScreen(businessId: widget.businessId)),
+                  MaterialPageRoute(builder: (_) => AddTransactionScreen(businessId: widget.businessId, transactionId: transactionId)),
                 );
                 _load();
               },

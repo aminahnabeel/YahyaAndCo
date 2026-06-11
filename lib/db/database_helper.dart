@@ -33,7 +33,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -59,6 +59,10 @@ class DatabaseHelper {
       await _addColumnIfMissing(db, 'journal_entry', 'due_date', 'TEXT');
       await _addColumnIfMissing(db, 'journal_entry', 'payment_status', 'TEXT');
       await _addColumnIfMissing(db, 'journal_entry', 'remaining_amount', 'REAL DEFAULT 0');
+    }
+
+    if (oldVersion < 5) {
+      await _addColumnIfMissing(db, 'transactions', 'to_account_id', 'INTEGER');
     }
   }
 
@@ -546,6 +550,9 @@ class DatabaseHelper {
 
   Future<int> insertTransaction(TransactionModel transaction) async {
     final db = await database;
+    
+    // Ensure to_account_id column exists
+    await _addColumnIfMissing(db, 'transactions', 'to_account_id', 'INTEGER');
 
     return await db.insert('transactions', transaction.toMap());
   }
@@ -612,6 +619,9 @@ class DatabaseHelper {
 
   Future updateTransaction(TransactionModel transaction) async {
     final db = await database;
+    
+    // Ensure to_account_id column exists
+    await _addColumnIfMissing(db, 'transactions', 'to_account_id', 'INTEGER');
 
     await db.update(
       'transactions',
@@ -765,6 +775,16 @@ class DatabaseHelper {
     return List.generate(maps.length, (index) {
       return JournalLineModel.fromMap(maps[index]);
     });
+  }
+
+  Future<void> deleteJournalLines(int journalId) async {
+    final db = await database;
+
+    await db.delete(
+      'journal_lines',
+      where: 'journal_id = ?',
+      whereArgs: [journalId],
+    );
   }
 
   // ======================================================

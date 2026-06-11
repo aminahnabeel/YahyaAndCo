@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/journal_entry_model.dart';
 import '../../services/journal_service.dart';
 import '../../theme.dart';
+import 'journal_create_screen.dart';
 
 class JournalDetailScreen extends StatefulWidget {
   final JournalEntryModel journal;
@@ -39,7 +40,26 @@ class _JournalDetailScreenState extends State<JournalDetailScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text('Voucher ${widget.journal.voucherNo}')),
+      appBar: AppBar(
+        title: Text('Voucher ${widget.journal.voucherNo}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => JournalCreateScreen(
+                    businessId: widget.journal.businessId,
+                    journalId: widget.journal.journalId,
+                  ),
+                ),
+              );
+              _load();
+            },
+          ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
