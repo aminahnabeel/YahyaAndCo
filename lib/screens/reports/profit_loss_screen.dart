@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/accounting_service.dart';
 import '../../theme.dart';
+import '../../widgets/date_filter_dialog.dart';
 
 class ProfitLossScreen extends StatefulWidget {
   final int businessId;
@@ -14,6 +15,8 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
   final AccountingService _accountingService = AccountingService();
   Map<String, dynamic>? _data;
   bool _loading = true;
+  int? selectedYear;
+  int? selectedMonth;
 
   @override
   void initState() {
@@ -51,6 +54,54 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
     return '₹$reversedInteger.$decimalPart';
   }
 
+  void _onFilterPressed() {
+    showDialog(
+      context: context,
+      builder: (context) => DateFilterDialog(
+        initialYear: selectedYear,
+        initialMonth: selectedMonth,
+        onApply: (year, month) {
+          setState(() {
+            selectedYear = year;
+            selectedMonth = month;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Filter applied: ${_getMonthName(month)} $year',
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  String _getMonthName(int month) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    return months[month - 1];
+  }
+
+  void _onDownloadPressed() {
+    // TODO: Implement download functionality
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Download functionality coming soon')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -62,6 +113,16 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: _onFilterPressed,
+          ),
+          IconButton(
+            icon: const Icon(Icons.download),
+            onPressed: _onDownloadPressed,
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
