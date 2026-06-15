@@ -31,7 +31,7 @@ class _DateFilterDialogState extends State<DateFilterDialog> {
     'Sep',
     'Oct',
     'Nov',
-    'Dec'
+    'Dec',
   ];
 
   @override
@@ -98,10 +98,14 @@ class _DateFilterDialogState extends State<DateFilterDialog> {
                   },
                   child: Container(
                     decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFFA855F7) : Colors.grey[100],
+                      color: isSelected
+                          ? const Color(0xFFA855F7)
+                          : Colors.grey[100],
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: isSelected ? const Color(0xFFA855F7) : Colors.grey[300]!,
+                        color: isSelected
+                            ? const Color(0xFFA855F7)
+                            : Colors.grey[300]!,
                       ),
                     ),
                     alignment: Alignment.center,

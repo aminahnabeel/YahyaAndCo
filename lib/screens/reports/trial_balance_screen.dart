@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import '../../theme.dart';
 import '../../services/accounting_service.dart';
 import '../../widgets/date_filter_dialog.dart';
+import '../test_data_generator_screen.dart';
 
 class TrialBalanceScreen extends StatefulWidget {
   final int businessId;
@@ -25,12 +30,17 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    selectedYear = now.year;
+    selectedMonth = now.month;
     loadTrialBalance();
   }
 
   Future<void> loadTrialBalance() async {
     trialBalance = await _accountingService.getTrialBalanceForBusiness(
       widget.businessId,
+      year: selectedYear,
+      month: selectedMonth,
     );
     totalDebit = 0;
     totalCredit = 0;
@@ -166,11 +176,11 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
           });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                'Filter applied: ${_getMonthName(month)} $year',
-              ),
+              content: Text('Filter applied: ${_getMonthName(month)} $year'),
             ),
           );
+          // Reload data after filter is applied
+          loadTrialBalance();
         },
       ),
     );
@@ -189,16 +199,167 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
       'Sep',
       'Oct',
       'Nov',
-      'Dec'
+      'Dec',
     ];
     return months[month - 1];
   }
 
-  void _onDownloadPressed() {
-    // TODO: Implement download functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Download functionality coming soon')),
-    );
+  void _onDownloadPressed() async {
+    try {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Generating PDF...')));
+
+      final pdf = pw.Document();
+      final monthName = _getMonthName(selectedMonth ?? DateTime.now().month);
+      final year = selectedYear ?? DateTime.now().year;
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(20),
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Trial Balance Report',
+                  style: pw.TextStyle(
+                    fontSize: 24,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 8),
+                pw.Text(
+                  'Month: $monthName $year',
+                  style: pw.TextStyle(fontSize: 12),
+                ),
+                pw.Divider(),
+                pw.SizedBox(height: 16),
+                pw.Table(
+                  border: pw.TableBorder.all(),
+                  columnWidths: {
+                    0: const pw.FlexColumnWidth(2),
+                    1: const pw.FlexColumnWidth(2),
+                    2: const pw.FlexColumnWidth(2),
+                  },
+                  children: [
+                    pw.TableRow(
+                      decoration: const pw.BoxDecoration(
+                        color: PdfColors.grey300,
+                      ),
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(8),
+                          child: pw.Text(
+                            'Account',
+                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                          ),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(8),
+                          child: pw.Text(
+                            'Debit',
+                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                          ),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(8),
+                          child: pw.Text(
+                            'Credit',
+                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    ...trialBalance.map((item) {
+                      return pw.TableRow(
+                        children: [
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(8),
+                            child: pw.Text(item['name']?.toString() ?? ''),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(8),
+                            child: pw.Text(
+                              _formatCurrency(item['total_debit']),
+                            ),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(8),
+                            child: pw.Text(
+                              _formatCurrency(item['total_credit']),
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                    pw.TableRow(
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(8),
+                          child: pw.Text(
+                            'Total',
+                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                          ),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(8),
+                          child: pw.Text(
+                            _formatCurrency(totalDebit),
+                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                          ),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(8),
+                          child: pw.Text(
+                            _formatCurrency(totalCredit),
+                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
+      );
+
+      final output = await getApplicationDocumentsDirectory();
+      final file = File('${output.path}/TrialBalance_${monthName}_$year.pdf');
+      await file.writeAsBytes(await pdf.save());
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF saved: ${file.path}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error generating PDF: $e')));
+      }
+    }
+  }
+
+  void _openTestDataGenerator() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TestDataGeneratorScreen(businessId: widget.businessId),
+      ),
+    ).then((result) {
+      if (result == true) {
+        // Refresh the data after test data is generated
+        loadTrialBalance();
+      }
+    });
   }
 
   @override
@@ -216,6 +377,26 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
           IconButton(
             icon: const Icon(Icons.download),
             onPressed: _onDownloadPressed,
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'test_data') {
+                _openTestDataGenerator();
+              }
+            },
+            itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'test_data',
+                child: Row(
+                  children: [
+                    Icon(Icons.data_usage, size: 20),
+                    SizedBox(width: 8),
+                    Text('Generate Test Data'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),

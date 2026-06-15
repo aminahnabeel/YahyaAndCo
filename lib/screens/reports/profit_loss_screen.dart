@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import '../../services/accounting_service.dart';
+import '../../services/notification_service.dart';
+import '../../services/pdf_download_service.dart';
 import '../../theme.dart';
 import '../../widgets/date_filter_dialog.dart';
 
@@ -21,12 +25,19 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    selectedYear = now.year;
+    selectedMonth = now.month;
     _load();
   }
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    _data = await _accountingService.getProfitLoss(widget.businessId);
+    _data = await _accountingService.getProfitLoss(
+      widget.businessId,
+      year: selectedYear,
+      month: selectedMonth,
+    );
     setState(() => _loading = false);
   }
 
@@ -67,11 +78,11 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
           });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                'Filter applied: ${_getMonthName(month)} $year',
-              ),
+              content: Text('Filter applied: ${_getMonthName(month)} $year'),
             ),
           );
+          // Reload data after filter is applied
+          _load();
         },
       ),
     );
@@ -90,16 +101,167 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
       'Sep',
       'Oct',
       'Nov',
-      'Dec'
+      'Dec',
     ];
     return months[month - 1];
   }
 
-  void _onDownloadPressed() {
-    // TODO: Implement download functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Download functionality coming soon')),
-    );
+  void _onDownloadPressed() async {
+    try {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Generating PDF...')));
+
+      final pdf = pw.Document();
+      final monthName = _getMonthName(selectedMonth ?? DateTime.now().month);
+      final year = selectedYear ?? DateTime.now().year;
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(20),
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Profit & Loss Report',
+                  style: pw.TextStyle(
+                    fontSize: 24,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 8),
+                pw.Text(
+                  'Month: $monthName $year',
+                  style: pw.TextStyle(fontSize: 12),
+                ),
+                pw.Divider(),
+                pw.SizedBox(height: 16),
+                pw.Text(
+                  'REVENUE',
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                ...((_data?['incomeAccounts'] as List?) ?? []).map((item) {
+                  return pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                    child: pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text(item['name']?.toString() ?? ''),
+                        pw.Text(
+                          _formatCurrency(_asDouble(item['total_credit'])),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                pw.Divider(),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'Total Revenue',
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.Text(
+                      _formatCurrency(_asDouble(_data?['income'])),
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                    ),
+                  ],
+                ),
+                pw.SizedBox(height: 16),
+                pw.Text(
+                  'EXPENSES',
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                ...((_data?['expenseAccounts'] as List?) ?? []).map((item) {
+                  return pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                    child: pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text(item['name']?.toString() ?? ''),
+                        pw.Text(
+                          _formatCurrency(_asDouble(item['total_debit'])),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                pw.Divider(),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'Total Expenses',
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.Text(
+                      _formatCurrency(_asDouble(_data?['expense'])),
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                    ),
+                  ],
+                ),
+                pw.SizedBox(height: 16),
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(8),
+                  decoration: pw.BoxDecoration(border: pw.Border.all()),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        'NET PROFIT / LOSS',
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.Text(
+                        _formatCurrency(_asDouble(_data?['profit'])),
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+
+      final fileName = 'ProfitLoss_${monthName}_$year.pdf';
+
+      // Save PDF to Downloads folder with Android 10+ scoped storage support
+      final filePath = await PdfDownloadService.savePdfToDownloads(
+        pdfBytes: await pdf.save(),
+        fileName: fileName,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('PDF downloaded successfully'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // Show notification with clickable action to open PDF
+        await NotificationService().showDownloadNotification(
+          filePath: filePath,
+          fileName: fileName,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error generating PDF: $e')));
+      }
+    }
   }
 
   @override
