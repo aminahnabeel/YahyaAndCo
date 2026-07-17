@@ -82,6 +82,8 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     setState(() => isLoading = true);
 
     try {
+      final parsedOpeningBalance = _parseAmount(openingBalanceController.text);
+
       final updatedAccount = AccountModel(
         accountId: widget.account.accountId,
         businessId: widget.account.businessId,
@@ -89,7 +91,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
         type: selectedType,
         phone: phoneController.text.trim().isEmpty ? null : phoneController.text.trim(),
         address: addressController.text.trim().isEmpty ? null : addressController.text.trim(),
-        openingBalance: double.tryParse(openingBalanceController.text) ?? 0,
+        openingBalance: parsedOpeningBalance,
         createdAt: widget.account.createdAt,
       );
 
@@ -122,6 +124,15 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
+  }
+
+  double _parseAmount(String raw) {
+    final normalized = raw
+        .replaceAll(',', '')
+        .replaceAll('₹', '')
+        .replaceAll('\$', '')
+        .trim();
+    return double.tryParse(normalized) ?? 0;
   }
 
   @override

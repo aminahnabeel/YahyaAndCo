@@ -130,6 +130,11 @@ class AccountingService {
       throw Exception('Debit and Credit must be equal');
     }
 
+    await _validateNonNegativeBalancesForJournal(
+      journalLines: journalLines,
+      excludeJournalId: null,
+    );
+
     await db.transaction((txn) async {
       // INSERT JOURNAL ENTRY
 
@@ -171,6 +176,11 @@ class AccountingService {
       throw Exception('Debit and Credit must be equal');
     }
 
+    await _validateNonNegativeBalancesForJournal(
+      journalLines: journalLines,
+      excludeJournalId: journalId,
+    );
+
     await db.transaction((txn) async {
       // UPDATE JOURNAL ENTRY
       await txn.update(
@@ -197,6 +207,66 @@ class AccountingService {
         });
       }
     });
+  }
+
+  Future<void> _validateNonNegativeBalancesForJournal({
+    required List<JournalLineModel> journalLines,
+    int? excludeJournalId,
+  }) async {
+    if (journalLines.isEmpty) return;
+
+    final db = await DatabaseHelper.instance.database;
+    final Map<int, double> debitByAccount = {};
+    final Map<int, double> creditByAccount = {};
+
+    for (final line in journalLines) {
+      debitByAccount[line.accountId] =
+          (debitByAccount[line.accountId] ?? 0) + line.debit;
+      creditByAccount[line.accountId] =
+          (creditByAccount[line.accountId] ?? 0) + line.credit;
+    }
+
+    final affectedAccountIds = {
+      ...debitByAccount.keys,
+      ...creditByAccount.keys,
+    };
+
+    for (final accountId in affectedAccountIds) {
+      double balanceWithoutOldLines = await getAccountBalance(
+        accountId,
+        paidOnly: false,
+      );
+
+      if (excludeJournalId != null) {
+        final oldLineResult = await db.rawQuery(
+          '''
+          SELECT
+            COALESCE(SUM(debit), 0) AS old_debit,
+            COALESCE(SUM(credit), 0) AS old_credit
+          FROM journal_lines
+          WHERE journal_id = ? AND account_id = ?
+          ''',
+          [excludeJournalId, accountId],
+        );
+
+        final oldDebit = _asDouble(oldLineResult.first['old_debit']);
+        final oldCredit = _asDouble(oldLineResult.first['old_credit']);
+        balanceWithoutOldLines = balanceWithoutOldLines + oldDebit - oldCredit;
+      }
+
+      final projectedBalance =
+          balanceWithoutOldLines -
+          (debitByAccount[accountId] ?? 0) +
+          (creditByAccount[accountId] ?? 0);
+
+      if (projectedBalance < -0.0001) {
+        final account = await DatabaseHelper.instance.getAccountById(accountId);
+        final accountName = account?.name ?? 'Selected account';
+        throw Exception(
+          "$accountName doesn't have enough amount for this debit",
+        );
+      }
+    }
   }
 
   Future<void> updatePaymentStatus({
@@ -319,10 +389,29 @@ class AccountingService {
       businessId,
     );
 
+    // 1) Prefer exact system cash account first.
     for (final account in accounts) {
-      final name = account.name.toLowerCase();
-      // Look for account with "cash" in name (primary lookup)
-      if (name.contains('cash')) {
+      final name = account.name.trim().toLowerCase();
+      final type = account.type.trim().toLowerCase();
+      if (name == 'cash' && (type == 'asset' || type == 'cash')) {
+        return account.accountId;
+      }
+    }
+
+    // 2) Then exact "cash in hand" style account.
+    for (final account in accounts) {
+      final name = account.name.trim().toLowerCase();
+      final type = account.type.trim().toLowerCase();
+      if (name == 'cash in hand' && (type == 'asset' || type == 'cash')) {
+        return account.accountId;
+      }
+    }
+
+    // 3) Fallback to any asset/cash-type account containing "cash".
+    for (final account in accounts) {
+      final name = account.name.trim().toLowerCase();
+      final type = account.type.trim().toLowerCase();
+      if (name.contains('cash') && (type == 'asset' || type == 'cash')) {
         return account.accountId;
       }
     }
@@ -331,8 +420,15 @@ class AccountingService {
   }
 
   Future<double> getCashBalanceForBusiness(int businessId) async {
-    // Use the same dynamic cash-total calculation as getCashTotalBalance
-    return await getCashTotalBalance(businessId);
+    // Cash in hand should represent only the main cash account balance.
+    return await getCashInHandForBusiness(businessId);
+  }
+
+  Future<double> getCashInHandForBusiness(int businessId) async {
+    final cashAccountId = await getCashAccountId(businessId);
+    if (cashAccountId == null) return 0;
+
+    return await getAccountBalance(cashAccountId);
   }
 
   Future<double> getBusinessTotalBalance(int businessId) async {
@@ -389,7 +485,10 @@ class AccountingService {
         GROUP BY journal_lines.account_id
       ) AS journal_sums ON journal_sums.account_id = accounts.account_id
       WHERE accounts.business_id = ?
-        AND LOWER(accounts.name) LIKE '%bank%'
+        AND (
+          LOWER(accounts.type) = 'bank'
+          OR LOWER(accounts.name) LIKE '%bank%'
+        )
       ''',
       [businessId, businessId],
     );
@@ -398,6 +497,16 @@ class AccountingService {
   }
 
   Future<double> getCashTotalBalance(int businessId) async {
+    final cashInHand = await getCashInHandForBusiness(businessId);
+    final bankTotal = await getBankTotalBalance(businessId);
+    final ownerCapital = await getOwnerCapitalBalance(businessId);
+
+    // Total financial liquidity/equity view required on dashboard:
+    // cash account + all bank accounts + owner capital.
+    return cashInHand + bankTotal + ownerCapital;
+  }
+
+  Future<double> getOwnerCapitalBalance(int businessId) async {
     final db = await DatabaseHelper.instance.database;
 
     final result = await db.rawQuery(
@@ -419,7 +528,9 @@ class AccountingService {
         GROUP BY journal_lines.account_id
       ) AS journal_sums ON journal_sums.account_id = accounts.account_id
       WHERE accounts.business_id = ?
-        AND LOWER(accounts.name) LIKE '%cash%'
+        AND LOWER(accounts.type) = 'equity'
+        AND LOWER(accounts.name) LIKE '%capital%'
+        AND LOWER(accounts.name) NOT LIKE '%opening balance%'
       ''',
       [businessId, businessId],
     );
@@ -731,7 +842,6 @@ class AccountingService {
   Future<Map<String, double>> getDashboardSummary(int businessId) async {
     final results = await Future.wait<double>([
       getCashTotalBalance(businessId),
-      getBankTotalBalance(businessId),
       getCashBalanceForBusiness(businessId),
       getBusinessTotalCredit(businessId),
       getBusinessTotalDebit(businessId),
@@ -739,17 +849,17 @@ class AccountingService {
       getBusinessExpense(businessId),
     ]);
 
-    final bankTotal = results[1];
-    final cashInHand = results[2];
+    final totalCash = results[0];
+    final cashInHand = results[1];
 
     return {
-      // Total Balance = dynamic cash balance from vouchers + bank account closing balances
-      'totalBalance': cashInHand + bankTotal,
+      // Total Balance: cash account + all bank accounts + owner capital.
+      'totalBalance': totalCash,
       'totalCash': cashInHand,
-      'totalCredit': results[3],
-      'totalDebit': results[4],
-      'totalIncome': results[5],
-      'totalExpense': results[6],
+      'totalCredit': results[2],
+      'totalDebit': results[3],
+      'totalIncome': results[4],
+      'totalExpense': results[5],
     };
   }
 
@@ -765,15 +875,14 @@ class AccountingService {
   }) async {
     final db = await DatabaseHelper.instance.database;
 
-    // Build date filter if month/year provided
-    String dateFilter = '';
+    // As-of filter: include all entries up to month end for stable closing balances.
+    String joinDateFilter = '';
     List<dynamic> params = [businessId, businessId];
 
     if (year != null && month != null) {
-      final startDate = DateTime(year, month, 1).toIso8601String();
       final endDate = DateTime(year, month + 1, 0).toIso8601String();
-      dateFilter = 'AND je.date >= ? AND je.date <= ?';
-      params = [businessId, businessId, startDate, endDate];
+      joinDateFilter = 'AND je.date <= ?';
+      params = [businessId, businessId, endDate];
     }
 
     final rows = await db.rawQuery('''
@@ -786,45 +895,23 @@ class AccountingService {
       LEFT JOIN journal_lines jl ON jl.account_id = accounts.account_id
       LEFT JOIN journal_entry je ON je.journal_id = jl.journal_id
         AND je.business_id = ?
-      WHERE accounts.business_id = ? $dateFilter
+        $joinDateFilter
+      WHERE accounts.business_id = ?
       GROUP BY accounts.account_id
       ''', params);
     final List<Map<String, dynamic>> result = [];
 
     for (final row in rows) {
-      final accountId = row['account_id'];
+      final accountId = row['account_id'] as int;
       final totalDebit = _asDouble(row['total_debit']);
       final totalCredit = _asDouble(row['total_credit']);
-      final closingBalance = totalCredit - totalDebit;
+      final account = await DatabaseHelper.instance.getAccountById(accountId);
+      final openingBalance = account?.openingBalance ?? 0;
+      final closingBalance = openingBalance - totalDebit + totalCredit;
 
-      // Find the last journal line for this account by date DESC and line_id DESC.
-      final lastLine = await db.rawQuery(
-        '''
-        SELECT jl.debit AS debit, jl.credit AS credit
-        FROM journal_lines jl
-        INNER JOIN journal_entry je ON je.journal_id = jl.journal_id
-        WHERE je.business_id = ? AND jl.account_id = ?
-        ORDER BY je.date DESC, jl.line_id DESC
-        LIMIT 1
-        ''',
-        [businessId, accountId],
-      );
-
-      double displayDebit = 0;
-      double displayCredit = 0;
-
-      if (lastLine.isNotEmpty) {
-        final lastDebit = _asDouble(lastLine.first['debit']);
-        final lastCredit = _asDouble(lastLine.first['credit']);
-
-        if (lastDebit > 0) {
-          displayDebit = closingBalance;
-        } else if (lastCredit > 0) {
-          displayCredit = closingBalance;
-        }
-      } else {
-        displayCredit = 0;
-      }
+      // Never return negative amounts in debit/credit columns.
+      final displayDebit = closingBalance < 0 ? closingBalance.abs() : 0.0;
+      final displayCredit = closingBalance >= 0 ? closingBalance : 0.0;
 
       result.add({
         'account_id': accountId,
@@ -1070,7 +1157,7 @@ class AccountingService {
   // =====================================================
 
   Future<double> getTotalCash(int businessId) async {
-    return await getCashBalanceForBusiness(businessId);
+    return await getCashTotalBalance(businessId);
   }
 
   Future<double> getTotalDebit(int businessId) async {
@@ -1746,15 +1833,14 @@ class AccountingService {
   }) async {
     final db = await DatabaseHelper.instance.database;
 
-    // Build date filter if month/year provided
-    String dateFilter = '';
+    // As-of filter: include all entries up to selected month end.
+    String joinDateFilter = '';
     List<dynamic> params = [businessId, businessId];
 
     if (year != null && month != null) {
-      final startDate = DateTime(year, month, 1).toIso8601String();
       final endDate = DateTime(year, month + 1, 0).toIso8601String();
-      dateFilter = 'AND journal_entry.date >= ? AND journal_entry.date <= ?';
-      params = [businessId, businessId, startDate, endDate];
+      joinDateFilter = 'AND journal_entry.date <= ?';
+      params = [businessId, businessId, endDate];
     }
 
     // Get all assets, liabilities, and equity
@@ -1770,9 +1856,9 @@ class AccountingService {
       LEFT JOIN journal_lines ON journal_lines.account_id = accounts.account_id
       LEFT JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
         AND journal_entry.business_id = ?
+        $joinDateFilter
       WHERE accounts.business_id = ?
         AND LOWER(accounts.type) IN ('asset', 'liability', 'equity', 'payable', 'drawing')
-        $dateFilter
       GROUP BY accounts.account_id
       ORDER BY accounts.type, accounts.name
       ''', params);

@@ -78,7 +78,7 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
 
   String _formatCurrency(dynamic value) {
     if (value == null || value == 0) return '₹0';
-    double amount = (value is num) ? value.toDouble() : 0;
+    double amount = (value is num) ? value.toDouble().abs() : 0;
     if (amount >= 10000000) {
       return '₹${(amount / 10000000).toStringAsFixed(2)}Cr';
     } else if (amount >= 100000) {

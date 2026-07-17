@@ -76,6 +76,15 @@ class _AddAccountScreenState
   // SAVE ACCOUNT
   // =========================
 
+  double _parseAmount(String raw) {
+    final normalized = raw
+        .replaceAll(',', '')
+        .replaceAll('₹', '')
+        .replaceAll('\$', '')
+        .trim();
+    return double.tryParse(normalized) ?? 0;
+  }
+
   Future saveAccount() async {
 
     if (!_formKey.currentState!
@@ -121,11 +130,10 @@ class _AddAccountScreenState
             addressController.text.trim(),
 
         openingBalance:
-            double.tryParse(
-                  openingBalanceController
-                      .text,
-                ) ??
-                0,
+          _parseAmount(
+            openingBalanceController
+              .text,
+          ),
 
         createdAt:
             DateTime.now()

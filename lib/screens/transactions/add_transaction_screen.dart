@@ -346,6 +346,31 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     try {
       double amount = double.parse(amountController.text);
 
+      // Prevent negative balances: the account being debited must have enough balance.
+      final debitAccountId = side == 'Debit'
+          ? selectedFromAccount!.accountId!
+          : cashAccountId!;
+      final availableBalance = await _accountingService.getAccountBalance(
+        debitAccountId,
+        paidOnly: false,
+      );
+
+      if (availableBalance < amount) {
+        final debitAccountName = side == 'Debit'
+            ? selectedFromAccount!.name
+            : 'Cash';
+        setState(() => isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "$debitAccountName account doesn't have enough amount",
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       if (isEditMode && widget.transactionId != null) {
         // UPDATE EXISTING TRANSACTION
         TransactionModel transaction = TransactionModel(
