@@ -6,7 +6,6 @@ import 'package:pdf/widgets.dart' as pw;
 import '../../theme.dart';
 import '../../services/accounting_service.dart';
 import '../../widgets/date_filter_dialog.dart';
-import '../test_data_generator_screen.dart';
 
 class TrialBalanceScreen extends StatefulWidget {
   final int businessId;
@@ -58,24 +57,6 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
     });
   }
 
-  Future<void> _loadTestData() async {
-    setState(() {
-      isLoading = true;
-    });
-
-    try {
-      await _accountingService.addTestData(widget.businessId);
-      await loadTrialBalance();
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error loading test data: $e')));
-      setState(() {
-        isLoading = false;
-      });
-    }
-  }
-
   String _formatCurrency(dynamic value) {
     if (value == null || value == 0) return '₹0';
     double amount = (value is num) ? value.toDouble().abs() : 0;
@@ -93,7 +74,8 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
 
     for (var account in trialBalance) {
       String accountName = account['name']?.toString() ?? 'Other';
-      String groupName = _extractGroupName(accountName);
+      String accountType = account['type']?.toString() ?? '';
+      String groupName = _extractGroupName(accountName, accountType);
 
       if (!grouped.containsKey(groupName)) {
         grouped[groupName] = [];
@@ -104,11 +86,35 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
     return grouped;
   }
 
-  String _extractGroupName(String accountName) {
+  String _extractGroupName(String accountName, String? accountType) {
     accountName = accountName.trim();
+    final type = accountType?.toLowerCase();
     List<String> words = accountName.split(' ');
 
-    // Check for specific keywords first
+    if (type != null) {
+      switch (type) {
+        case 'bank':
+          return 'Bank\nAccount';
+        case 'cash':
+          return 'Cash\nAccount';
+        case 'equity':
+        case 'capital':
+          return 'Capital';
+        case 'drawing':
+          return 'Owner\nDrawing';
+        case 'expense':
+          return 'Company\nExpenses';
+        case 'income':
+        case 'revenue':
+          return 'Direct\nIncome';
+        case 'payable':
+        case 'liability':
+          return 'Liability';
+        case 'asset':
+          return 'Assets';
+      }
+    }
+
     if (accountName.contains('Bank')) {
       return 'Bank\nAccount';
     }
@@ -118,49 +124,25 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
     if (accountName.contains('Capital')) {
       return 'Capital';
     }
-    if (accountName.contains('Employee') ||
-        (words.length >= 2 && _isPersonName(accountName))) {
-      return 'Employee\nAccount';
-    }
     if (accountName.contains('Drawing')) {
       return 'Owner\nDrawing';
     }
-    if (accountName.contains('Flour') ||
-        accountName.contains('Mills') ||
-        accountName.contains('Factory') ||
-        accountName.contains('Cotton')) {
+    if (accountName.contains('Expense') ||
+        accountName.contains('Cost') ||
+        accountName.contains('Purchase')) {
       return 'Company\nExpenses';
     }
-    if (accountName.contains('Commission') ||
+    if (accountName.contains('Income') ||
         accountName.contains('Sales') ||
-        accountName.contains('Income') ||
-        accountName.contains('Brokerage')) {
+        accountName.contains('Commission')) {
       return 'Direct\nIncome';
     }
 
-    // Default: use first word as group name
     if (words.isNotEmpty) {
       return words[0];
     }
 
     return accountName;
-  }
-
-  bool _isPersonName(String name) {
-    final commonPatterns = [
-      'Muhammad',
-      'Mian',
-      'Abdul',
-      'Ahmad',
-      'Asif',
-      'Khana',
-      'Shah',
-      'Khan',
-      'Gul',
-      'Ali',
-      'Hassan',
-    ];
-    return commonPatterns.any((pattern) => name.contains(pattern));
   }
 
   void _onFilterPressed() {
@@ -348,20 +330,6 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
     }
   }
 
-  void _openTestDataGenerator() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => TestDataGeneratorScreen(businessId: widget.businessId),
-      ),
-    ).then((result) {
-      if (result == true) {
-        // Refresh the data after test data is generated
-        loadTrialBalance();
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -377,26 +345,6 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
           IconButton(
             icon: const Icon(Icons.download),
             onPressed: _onDownloadPressed,
-          ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
-            onSelected: (value) {
-              if (value == 'test_data') {
-                _openTestDataGenerator();
-              }
-            },
-            itemBuilder: (BuildContext context) => [
-              const PopupMenuItem<String>(
-                value: 'test_data',
-                child: Row(
-                  children: [
-                    Icon(Icons.data_usage, size: 20),
-                    SizedBox(width: 8),
-                    Text('Generate Test Data'),
-                  ],
-                ),
-              ),
-            ],
           ),
         ],
       ),
@@ -509,16 +457,6 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: Colors.grey[600],
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              ElevatedButton.icon(
-                                onPressed: _loadTestData,
-                                icon: const Icon(Icons.add),
-                                label: const Text('Load Test Data'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
-                                  foregroundColor: AppColors.onPrimary,
                                 ),
                               ),
                             ],
