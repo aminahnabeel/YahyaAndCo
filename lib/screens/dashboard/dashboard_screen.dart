@@ -462,7 +462,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(
-              '₹${_money(value)}',
+              _money(value),
               maxLines: 1,
               softWrap: false,
               style: TextStyle(

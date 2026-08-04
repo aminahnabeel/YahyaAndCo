@@ -42,10 +42,11 @@ class _BalanceSheetScreenState extends State<BalanceSheetScreen> {
   }
 
   String _formatCurrency(double value) {
-    if (value == 0) return '₹0.00';
+    final normalizedValue = value.abs();
+    if (normalizedValue == 0) return '₹0.00';
 
     // Format with comma separators in Indian style
-    String formatted = value.toStringAsFixed(2);
+    String formatted = normalizedValue.toStringAsFixed(2);
     List<String> parts = formatted.split('.');
     String integerPart = parts[0];
     String decimalPart = parts[1];

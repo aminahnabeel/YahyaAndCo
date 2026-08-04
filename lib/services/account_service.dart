@@ -145,7 +145,7 @@ class AccountService {
     }
 
     final difference = newOpeningBalance - currentOpeningBalance;
-    if (difference != 0) {
+    if (difference.abs() > 0.0001) {
       await DatabaseHelper.instance.insertOpeningBalanceJournalEntry(
         account.businessId,
         accountId,

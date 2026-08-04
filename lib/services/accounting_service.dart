@@ -131,6 +131,11 @@ class AccountingService {
       throw Exception('Debit and Credit must be equal');
     }
 
+    await _validateNonNegativeBalancesForJournal(
+      journalLines: journalLines,
+      excludeJournalId: null,
+    );
+
     // First, save to SQLite
     int journalId = 0;
     await db.transaction((txn) async {
@@ -227,6 +232,11 @@ class AccountingService {
       throw Exception('Debit and Credit must be equal');
     }
 
+    await _validateNonNegativeBalancesForJournal(
+      journalLines: journalLines,
+      excludeJournalId: journalId,
+    );
+
     // First, update in SQLite
     await db.transaction((txn) async {
       // UPDATE JOURNAL ENTRY
@@ -310,6 +320,66 @@ class AccountingService {
         print('✅ Journal updated and synced to Firestore');
       } catch (e) {
         print('⚠️  Journal updated in SQLite, Firestore sync failed: $e');
+      }
+    }
+  }
+
+  Future<void> _validateNonNegativeBalancesForJournal({
+    required List<JournalLineModel> journalLines,
+    int? excludeJournalId,
+  }) async {
+    if (journalLines.isEmpty) return;
+
+    final db = await DatabaseHelper.instance.database;
+    final Map<int, double> debitByAccount = {};
+    final Map<int, double> creditByAccount = {};
+
+    for (final line in journalLines) {
+      debitByAccount[line.accountId] =
+          (debitByAccount[line.accountId] ?? 0) + line.debit;
+      creditByAccount[line.accountId] =
+          (creditByAccount[line.accountId] ?? 0) + line.credit;
+    }
+
+    final affectedAccountIds = {
+      ...debitByAccount.keys,
+      ...creditByAccount.keys,
+    };
+
+    for (final accountId in affectedAccountIds) {
+      double balanceWithoutOldLines = await getAccountBalance(
+        accountId,
+        paidOnly: false,
+      );
+
+      if (excludeJournalId != null) {
+        final oldLineResult = await db.rawQuery(
+          '''
+          SELECT
+            COALESCE(SUM(debit), 0) AS old_debit,
+            COALESCE(SUM(credit), 0) AS old_credit
+          FROM journal_lines
+          WHERE journal_id = ? AND account_id = ?
+          ''',
+          [excludeJournalId, accountId],
+        );
+
+        final oldDebit = _asDouble(oldLineResult.first['old_debit']);
+        final oldCredit = _asDouble(oldLineResult.first['old_credit']);
+        balanceWithoutOldLines = balanceWithoutOldLines + oldDebit - oldCredit;
+      }
+
+      final projectedBalance =
+          balanceWithoutOldLines -
+          (debitByAccount[accountId] ?? 0) +
+          (creditByAccount[accountId] ?? 0);
+
+      if (projectedBalance < -0.0001) {
+        final account = await DatabaseHelper.instance.getAccountById(accountId);
+        final accountName = account?.name ?? 'Selected account';
+        throw Exception(
+          "$accountName doesn't have enough amount for this debit",
+        );
       }
     }
   }
@@ -434,10 +504,29 @@ class AccountingService {
       businessId,
     );
 
+    // 1) Prefer exact system cash account first.
     for (final account in accounts) {
-      final name = account.name.toLowerCase();
-      // Look for account with "cash" in name (primary lookup)
-      if (name.contains('cash')) {
+      final name = account.name.trim().toLowerCase();
+      final type = account.type.trim().toLowerCase();
+      if (name == 'cash' && (type == 'asset' || type == 'cash')) {
+        return account.accountId;
+      }
+    }
+
+    // 2) Then exact "cash in hand" style account.
+    for (final account in accounts) {
+      final name = account.name.trim().toLowerCase();
+      final type = account.type.trim().toLowerCase();
+      if (name == 'cash in hand' && (type == 'asset' || type == 'cash')) {
+        return account.accountId;
+      }
+    }
+
+    // 3) Fallback to any asset/cash-type account containing "cash".
+    for (final account in accounts) {
+      final name = account.name.trim().toLowerCase();
+      final type = account.type.trim().toLowerCase();
+      if (name.contains('cash') && (type == 'asset' || type == 'cash')) {
         return account.accountId;
       }
     }
@@ -446,8 +535,15 @@ class AccountingService {
   }
 
   Future<double> getCashBalanceForBusiness(int businessId) async {
-    // Use the same dynamic cash-total calculation as getCashTotalBalance
-    return await getCashTotalBalance(businessId);
+    // Cash in hand should represent only the main cash account balance.
+    return await getCashInHandForBusiness(businessId);
+  }
+
+  Future<double> getCashInHandForBusiness(int businessId) async {
+    final cashAccountId = await getCashAccountId(businessId);
+    if (cashAccountId == null) return 0;
+
+    return await getAccountBalance(cashAccountId);
   }
 
   Future<double> getBusinessTotalBalance(int businessId) async {
@@ -504,7 +600,10 @@ class AccountingService {
         GROUP BY journal_lines.account_id
       ) AS journal_sums ON journal_sums.account_id = accounts.account_id
       WHERE accounts.business_id = ?
-        AND LOWER(accounts.name) LIKE '%bank%'
+        AND (
+          LOWER(accounts.type) = 'bank'
+          OR LOWER(accounts.name) LIKE '%bank%'
+        )
       ''',
       [businessId, businessId],
     );
@@ -513,6 +612,16 @@ class AccountingService {
   }
 
   Future<double> getCashTotalBalance(int businessId) async {
+    final cashInHand = await getCashInHandForBusiness(businessId);
+    final bankTotal = await getBankTotalBalance(businessId);
+    final ownerCapital = await getOwnerCapitalBalance(businessId);
+
+    // Total financial liquidity/equity view required on dashboard:
+    // cash account + all bank accounts + owner capital.
+    return cashInHand + bankTotal + ownerCapital;
+  }
+
+  Future<double> getOwnerCapitalBalance(int businessId) async {
     final db = await DatabaseHelper.instance.database;
 
     final result = await db.rawQuery(
@@ -534,7 +643,9 @@ class AccountingService {
         GROUP BY journal_lines.account_id
       ) AS journal_sums ON journal_sums.account_id = accounts.account_id
       WHERE accounts.business_id = ?
-        AND LOWER(accounts.name) LIKE '%cash%'
+        AND LOWER(accounts.type) = 'equity'
+        AND LOWER(accounts.name) LIKE '%capital%'
+        AND LOWER(accounts.name) NOT LIKE '%opening balance%'
       ''',
       [businessId, businessId],
     );
@@ -846,7 +957,6 @@ class AccountingService {
   Future<Map<String, double>> getDashboardSummary(int businessId) async {
     final results = await Future.wait<double>([
       getCashTotalBalance(businessId),
-      getBankTotalBalance(businessId),
       getCashBalanceForBusiness(businessId),
       getBusinessTotalCredit(businessId),
       getBusinessTotalDebit(businessId),
@@ -854,17 +964,17 @@ class AccountingService {
       getBusinessExpense(businessId),
     ]);
 
-    final bankTotal = results[1];
-    final cashInHand = results[2];
+    final totalCash = results[0];
+    final cashInHand = results[1];
 
     return {
-      // Total Balance = dynamic cash balance from vouchers + bank account closing balances
-      'totalBalance': cashInHand + bankTotal,
+      // Total Balance: cash account + all bank accounts + owner capital.
+      'totalBalance': totalCash,
       'totalCash': cashInHand,
-      'totalCredit': results[3],
-      'totalDebit': results[4],
-      'totalIncome': results[5],
-      'totalExpense': results[6],
+      'totalCredit': results[2],
+      'totalDebit': results[3],
+      'totalIncome': results[4],
+      'totalExpense': results[5],
     };
   }
 
@@ -880,66 +990,44 @@ class AccountingService {
   }) async {
     final db = await DatabaseHelper.instance.database;
 
-    // Build date filter if month/year provided
-    String dateFilter = '';
+    // As-of filter: include all entries up to month end for stable closing balances.
+    String joinDateFilter = '';
     List<dynamic> params = [businessId, businessId];
 
     if (year != null && month != null) {
-      final startDate = DateTime(year, month, 1).toIso8601String();
       final endDate = DateTime(year, month + 1, 0).toIso8601String();
-      dateFilter = 'AND je.date >= ? AND je.date <= ?';
-      params = [businessId, businessId, startDate, endDate];
+      joinDateFilter = 'AND je.date <= ?';
+      params = [businessId, businessId, endDate];
     }
 
     final rows = await db.rawQuery('''
       SELECT
         accounts.account_id,
         accounts.name,
+        accounts.type,
         COALESCE(SUM(jl.debit), 0) AS total_debit,
         COALESCE(SUM(jl.credit), 0) AS total_credit
       FROM accounts
       LEFT JOIN journal_lines jl ON jl.account_id = accounts.account_id
       LEFT JOIN journal_entry je ON je.journal_id = jl.journal_id
         AND je.business_id = ?
-      WHERE accounts.business_id = ? $dateFilter
+        $joinDateFilter
+      WHERE accounts.business_id = ?
       GROUP BY accounts.account_id
       ''', params);
     final List<Map<String, dynamic>> result = [];
 
     for (final row in rows) {
-      final accountId = row['account_id'];
+      final accountId = row['account_id'] as int;
       final totalDebit = _asDouble(row['total_debit']);
       final totalCredit = _asDouble(row['total_credit']);
-      final closingBalance = totalCredit - totalDebit;
+      final account = await DatabaseHelper.instance.getAccountById(accountId);
+      final openingBalance = account?.openingBalance ?? 0;
+      final closingBalance = openingBalance - totalDebit + totalCredit;
 
-      // Find the last journal line for this account by date DESC and line_id DESC.
-      final lastLine = await db.rawQuery(
-        '''
-        SELECT jl.debit AS debit, jl.credit AS credit
-        FROM journal_lines jl
-        INNER JOIN journal_entry je ON je.journal_id = jl.journal_id
-        WHERE je.business_id = ? AND jl.account_id = ?
-        ORDER BY je.date DESC, jl.line_id DESC
-        LIMIT 1
-        ''',
-        [businessId, accountId],
-      );
-
-      double displayDebit = 0;
-      double displayCredit = 0;
-
-      if (lastLine.isNotEmpty) {
-        final lastDebit = _asDouble(lastLine.first['debit']);
-        final lastCredit = _asDouble(lastLine.first['credit']);
-
-        if (lastDebit > 0) {
-          displayDebit = closingBalance;
-        } else if (lastCredit > 0) {
-          displayCredit = closingBalance;
-        }
-      } else {
-        displayCredit = 0;
-      }
+      // Never return negative amounts in debit/credit columns.
+      final displayDebit = closingBalance < 0 ? closingBalance.abs() : 0.0;
+      final displayCredit = closingBalance >= 0 ? closingBalance : 0.0;
 
       result.add({
         'account_id': accountId,
@@ -1185,7 +1273,7 @@ class AccountingService {
   // =====================================================
 
   Future<double> getTotalCash(int businessId) async {
-    return await getCashBalanceForBusiness(businessId);
+    return await getCashTotalBalance(businessId);
   }
 
   Future<double> getTotalDebit(int businessId) async {
@@ -1290,549 +1378,6 @@ class AccountingService {
     }
   }
 
-  // =====================================================
-  // ADD TEST DATA FOR PREVIEW
-  // =====================================================
-  Future<void> addTestData(int businessId) async {
-    final db = await DatabaseHelper.instance.database;
-    final now = DateTime.now().toIso8601String();
-
-    try {
-      await db.transaction((txn) async {
-        // Create test accounts
-        final testAccounts = [
-          // Bank Accounts
-          {'name': 'Faysal Bank', 'type': 'Asset'},
-          {'name': 'Askari Bank', 'type': 'Asset'},
-          {'name': 'Mian Trust Bank', 'type': 'Asset'},
-          // Capital
-          {'name': 'Mian Ehtesham Ahmad', 'type': 'Equity'},
-          {'name': 'Mian Abdul Majid', 'type': 'Equity'},
-          // Employee/Payable
-          {'name': 'Muhammad Asif Khana Abbasi', 'type': 'Payable'},
-          {'name': 'Abdul Kareem Shah', 'type': 'Payable'},
-          // Owner Drawing
-          {'name': 'Mian Gul Tahir', 'type': 'Drawing'},
-          // Income
-          {'name': 'Flour Mill Commission', 'type': 'Revenue'},
-          {'name': 'Sales Income', 'type': 'Revenue'},
-          {'name': 'Brokerage', 'type': 'Revenue'},
-          // Expenses
-          {'name': 'Taj Flour Mills', 'type': 'Expense'},
-          {'name': 'United Flour Mills', 'type': 'Expense'},
-          {'name': 'Ameen Cotton Factory', 'type': 'Expense'},
-          {'name': 'AHMAD Cotton Factory', 'type': 'Expense'},
-          // Cash
-          {'name': 'Cash in Hand', 'type': 'Asset'},
-        ];
-
-        Map<String, int> accountIds = {};
-
-        for (final acc in testAccounts) {
-          final result = await txn.insert('accounts', {
-            'business_id': businessId,
-            'name': acc['name'],
-            'type': acc['type'],
-            'opening_balance': 0,
-            'created_at': now,
-          });
-          accountIds[acc['name'] ?? ''] = result;
-        }
-
-        // Create balanced journal entries
-        // Entry 1: Opening balances (Total = 5,000,000)
-        final entry1 = await txn.insert('journal_entry', {
-          'business_id': businessId,
-          'date': now,
-          'description': 'Opening balances - Banks',
-          'voucher_no': 'JV-1',
-          'voucher_type': 'JV',
-          'created_at': now,
-        });
-
-        // Bank accounts: Debit 3,000,000
-        await txn.insert('journal_lines', {
-          'journal_id': entry1,
-          'account_id': accountIds['Faysal Bank'],
-          'debit': 1500000,
-          'credit': 0,
-        });
-
-        await txn.insert('journal_lines', {
-          'journal_id': entry1,
-          'account_id': accountIds['Askari Bank'],
-          'debit': 800000,
-          'credit': 0,
-        });
-
-        await txn.insert('journal_lines', {
-          'journal_id': entry1,
-          'account_id': accountIds['Mian Trust Bank'],
-          'debit': 700000,
-          'credit': 0,
-        });
-
-        // Capital: Credit 3,000,000
-        await txn.insert('journal_lines', {
-          'journal_id': entry1,
-          'account_id': accountIds['Mian Ehtesham Ahmad'],
-          'debit': 0,
-          'credit': 2000000,
-        });
-
-        await txn.insert('journal_lines', {
-          'journal_id': entry1,
-          'account_id': accountIds['Mian Abdul Majid'],
-          'debit': 0,
-          'credit': 1000000,
-        });
-
-        // Entry 2: Expenses and Sales (Total = 2,500,000)
-        final entry2 = await txn.insert('journal_entry', {
-          'business_id': businessId,
-          'date': now,
-          'description': 'Purchase from suppliers',
-          'voucher_no': 'JV-2',
-          'voucher_type': 'JV',
-          'created_at': now,
-        });
-
-        // Expenses: Debit 1,500,000
-        await txn.insert('journal_lines', {
-          'journal_id': entry2,
-          'account_id': accountIds['Taj Flour Mills'],
-          'debit': 500000,
-          'credit': 0,
-        });
-
-        await txn.insert('journal_lines', {
-          'journal_id': entry2,
-          'account_id': accountIds['United Flour Mills'],
-          'debit': 600000,
-          'credit': 0,
-        });
-
-        await txn.insert('journal_lines', {
-          'journal_id': entry2,
-          'account_id': accountIds['Ameen Cotton Factory'],
-          'debit': 300000,
-          'credit': 0,
-        });
-
-        await txn.insert('journal_lines', {
-          'journal_id': entry2,
-          'account_id': accountIds['AHMAD Cotton Factory'],
-          'debit': 100000,
-          'credit': 0,
-        });
-
-        // Income: Credit 1,500,000
-        await txn.insert('journal_lines', {
-          'journal_id': entry2,
-          'account_id': accountIds['Flour Mill Commission'],
-          'debit': 0,
-          'credit': 600000,
-        });
-
-        await txn.insert('journal_lines', {
-          'journal_id': entry2,
-          'account_id': accountIds['Sales Income'],
-          'debit': 0,
-          'credit': 700000,
-        });
-
-        await txn.insert('journal_lines', {
-          'journal_id': entry2,
-          'account_id': accountIds['Brokerage'],
-          'debit': 0,
-          'credit': 200000,
-        });
-
-        // Entry 3: Employee payments (Total = 500,000)
-        final entry3 = await txn.insert('journal_entry', {
-          'business_id': businessId,
-          'date': now,
-          'description': 'Employee salary payments',
-          'voucher_no': 'JV-3',
-          'voucher_type': 'JV',
-          'created_at': now,
-        });
-
-        // Expenses to Employee accounts: Debit 300,000
-        await txn.insert('journal_lines', {
-          'journal_id': entry3,
-          'account_id': accountIds['Muhammad Asif Khana Abbasi'],
-          'debit': 200000,
-          'credit': 0,
-        });
-
-        await txn.insert('journal_lines', {
-          'journal_id': entry3,
-          'account_id': accountIds['Abdul Kareem Shah'],
-          'debit': 100000,
-          'credit': 0,
-        });
-
-        // Bank payment: Credit 300,000
-        await txn.insert('journal_lines', {
-          'journal_id': entry3,
-          'account_id': accountIds['Faysal Bank'],
-          'debit': 0,
-          'credit': 300000,
-        });
-
-        // Entry 4: Owner withdrawals (Total = 200,000)
-        final entry4 = await txn.insert('journal_entry', {
-          'business_id': businessId,
-          'date': now,
-          'description': 'Owner withdrawals',
-          'voucher_no': 'JV-4',
-          'voucher_type': 'JV',
-          'created_at': now,
-        });
-
-        // Owner Drawing: Debit 200,000
-        await txn.insert('journal_lines', {
-          'journal_id': entry4,
-          'account_id': accountIds['Mian Gul Tahir'],
-          'debit': 200000,
-          'credit': 0,
-        });
-
-        // Bank payment: Credit 200,000
-        await txn.insert('journal_lines', {
-          'journal_id': entry4,
-          'account_id': accountIds['Askari Bank'],
-          'debit': 0,
-          'credit': 200000,
-        });
-
-        // Entry 5: Cash account (Total = 100,000)
-        final entry5 = await txn.insert('journal_entry', {
-          'business_id': businessId,
-          'date': now,
-          'description': 'Cash handling',
-          'voucher_no': 'JV-5',
-          'voucher_type': 'JV',
-          'created_at': now,
-        });
-
-        // Cash: Debit 100,000
-        await txn.insert('journal_lines', {
-          'journal_id': entry5,
-          'account_id': accountIds['Cash in Hand'],
-          'debit': 100000,
-          'credit': 0,
-        });
-
-        // Bank payment: Credit 100,000
-        await txn.insert('journal_lines', {
-          'journal_id': entry5,
-          'account_id': accountIds['Mian Trust Bank'],
-          'debit': 0,
-          'credit': 100000,
-        });
-      });
-    } catch (e) {
-      print('Error adding test data: $e');
-    }
-  }
-
-  // =====================================================
-  // ADD MULTI-MONTH TEST DATA (Jan 2026 - June 2026)
-  // =====================================================
-  Future<void> addMultiMonthTestData(int businessId) async {
-    final db = await DatabaseHelper.instance.database;
-    final now = DateTime.now().toIso8601String();
-
-    try {
-      await db.transaction((txn) async {
-        // Create test accounts
-        final testAccounts = [
-          // Bank Accounts
-          {'name': 'Faysal Bank', 'type': 'Asset'},
-          {'name': 'Askari Bank', 'type': 'Asset'},
-          {'name': 'Mian Trust Bank', 'type': 'Asset'},
-          // Capital
-          {'name': 'Mian Ehtesham Ahmad', 'type': 'Equity'},
-          {'name': 'Mian Abdul Majid', 'type': 'Equity'},
-          // Employee/Payable
-          {'name': 'Muhammad Asif Khana Abbasi', 'type': 'Payable'},
-          {'name': 'Abdul Kareem Shah', 'type': 'Payable'},
-          // Owner Drawing
-          {'name': 'Mian Gul Tahir', 'type': 'Drawing'},
-          // Income
-          {'name': 'Flour Mill Commission', 'type': 'Revenue'},
-          {'name': 'Sales Income', 'type': 'Revenue'},
-          {'name': 'Brokerage', 'type': 'Revenue'},
-          // Expenses
-          {'name': 'Taj Flour Mills', 'type': 'Expense'},
-          {'name': 'United Flour Mills', 'type': 'Expense'},
-          {'name': 'Ameen Cotton Factory', 'type': 'Expense'},
-          {'name': 'AHMAD Cotton Factory', 'type': 'Expense'},
-          // Cash
-          {'name': 'Cash in Hand', 'type': 'Asset'},
-        ];
-
-        Map<String, int> accountIds = {};
-
-        for (final acc in testAccounts) {
-          final result = await txn.insert('accounts', {
-            'business_id': businessId,
-            'name': acc['name'],
-            'type': acc['type'],
-            'opening_balance': 0,
-            'created_at': now,
-          });
-          accountIds[acc['name'] ?? ''] = result;
-        }
-
-        // Generate data for each month: Jan 2026 to June 2026
-        // Each month has VERY DIFFERENT amounts so filter works clearly
-        final monthsData = [
-          // January 2026 - LOW sales month
-          {
-            'month': 1,
-            'sales': 500000,
-            'commission': 50000,
-            'flour_cost': 250000,
-            'cotton_cost': 150000,
-            'salary': 40000,
-            'cash_in': 30000,
-          },
-          // February 2026 - LOW-MEDIUM sales month
-          {
-            'month': 2,
-            'sales': 750000,
-            'commission': 100000,
-            'flour_cost': 400000,
-            'cotton_cost': 250000,
-            'salary': 40000,
-            'cash_in': 50000,
-          },
-          // March 2026 - MEDIUM sales month
-          {
-            'month': 3,
-            'sales': 1200000,
-            'commission': 150000,
-            'flour_cost': 600000,
-            'cotton_cost': 400000,
-            'salary': 45000,
-            'cash_in': 80000,
-          },
-          // April 2026 - MEDIUM-HIGH sales month
-          {
-            'month': 4,
-            'sales': 1800000,
-            'commission': 250000,
-            'flour_cost': 850000,
-            'cotton_cost': 550000,
-            'salary': 50000,
-            'cash_in': 120000,
-          },
-          // May 2026 - HIGH sales month
-          {
-            'month': 5,
-            'sales': 2500000,
-            'commission': 350000,
-            'flour_cost': 1200000,
-            'cotton_cost': 750000,
-            'salary': 55000,
-            'cash_in': 170000,
-          },
-          // June 2026 (Latest) - HIGHEST sales month
-          {
-            'month': 6,
-            'sales': 3200000,
-            'commission': 450000,
-            'flour_cost': 1500000,
-            'cotton_cost': 950000,
-            'salary': 60000,
-            'cash_in': 220000,
-          },
-        ];
-
-        int voucherNumber = 1;
-
-        for (final monthData in monthsData) {
-          final month = monthData['month'] as int;
-          final date = DateTime(2026, month, 15).toIso8601String();
-
-          // Entry 1: Sales Income
-          final entryIncome = await txn.insert('journal_entry', {
-            'business_id': businessId,
-            'date': date,
-            'description':
-                'Monthly sales income - ${_getMonthName(month)} 2026',
-            'voucher_no': 'JV-${voucherNumber++}',
-            'voucher_type': 'JV',
-            'payment_status': 'Paid',
-            'created_at': now,
-          });
-
-          // Sales: Debit
-          await txn.insert('journal_lines', {
-            'journal_id': entryIncome,
-            'account_id': accountIds['Faysal Bank'],
-            'debit': monthData['sales'],
-            'credit': 0,
-          });
-
-          // Revenue: Credit
-          await txn.insert('journal_lines', {
-            'journal_id': entryIncome,
-            'account_id': accountIds['Sales Income'],
-            'debit': 0,
-            'credit': monthData['sales'],
-          });
-
-          // Entry 2: Flour Mill Expense
-          final entryFlour = await txn.insert('journal_entry', {
-            'business_id': businessId,
-            'date': DateTime(2026, month, 10).toIso8601String(),
-            'description': 'Taj Flour Mills - ${_getMonthName(month)} 2026',
-            'voucher_no': 'CP-${voucherNumber++}',
-            'voucher_type': 'CP',
-            'payment_status': 'Paid',
-            'created_at': now,
-          });
-
-          // Expense: Debit
-          await txn.insert('journal_lines', {
-            'journal_id': entryFlour,
-            'account_id': accountIds['Taj Flour Mills'],
-            'debit': monthData['flour_cost'],
-            'credit': 0,
-          });
-
-          // Cash: Credit
-          await txn.insert('journal_lines', {
-            'journal_id': entryFlour,
-            'account_id': accountIds['Cash in Hand'],
-            'debit': 0,
-            'credit': monthData['flour_cost'],
-          });
-
-          // Entry 3: Cotton Expense
-          final entryCotton = await txn.insert('journal_entry', {
-            'business_id': businessId,
-            'date': DateTime(2026, month, 12).toIso8601String(),
-            'description':
-                'Ameen Cotton Factory - ${_getMonthName(month)} 2026',
-            'voucher_no': 'CP-${voucherNumber++}',
-            'voucher_type': 'CP',
-            'payment_status': 'Paid',
-            'created_at': now,
-          });
-
-          // Expense: Debit
-          await txn.insert('journal_lines', {
-            'journal_id': entryCotton,
-            'account_id': accountIds['Ameen Cotton Factory'],
-            'debit': monthData['cotton_cost'],
-            'credit': 0,
-          });
-
-          // Bank: Credit
-          await txn.insert('journal_lines', {
-            'journal_id': entryCotton,
-            'account_id': accountIds['Askari Bank'],
-            'debit': 0,
-            'credit': monthData['cotton_cost'],
-          });
-
-          // Entry 4: Commission Income
-          final entryComm = await txn.insert('journal_entry', {
-            'business_id': businessId,
-            'date': DateTime(2026, month, 20).toIso8601String(),
-            'description':
-                'Flour Mill Commission - ${_getMonthName(month)} 2026',
-            'voucher_no': 'JV-${voucherNumber++}',
-            'voucher_type': 'JV',
-            'payment_status': 'Paid',
-            'created_at': now,
-          });
-
-          // Bank: Debit
-          await txn.insert('journal_lines', {
-            'journal_id': entryComm,
-            'account_id': accountIds['Mian Trust Bank'],
-            'debit': monthData['commission'],
-            'credit': 0,
-          });
-
-          // Revenue: Credit
-          await txn.insert('journal_lines', {
-            'journal_id': entryComm,
-            'account_id': accountIds['Flour Mill Commission'],
-            'debit': 0,
-            'credit': monthData['commission'],
-          });
-
-          // Entry 5: Salary Payment
-          final entrySalary = await txn.insert('journal_entry', {
-            'business_id': businessId,
-            'date': DateTime(2026, month, 25).toIso8601String(),
-            'description':
-                'Monthly salary payment - ${_getMonthName(month)} 2026',
-            'voucher_no': 'CP-${voucherNumber++}',
-            'voucher_type': 'CP',
-            'payment_status': 'Paid',
-            'created_at': now,
-          });
-
-          // Expense: Debit
-          await txn.insert('journal_lines', {
-            'journal_id': entrySalary,
-            'account_id': accountIds['Muhammad Asif Khana Abbasi'],
-            'debit': monthData['salary'],
-            'credit': 0,
-          });
-
-          // Cash: Credit
-          await txn.insert('journal_lines', {
-            'journal_id': entrySalary,
-            'account_id': accountIds['Cash in Hand'],
-            'debit': 0,
-            'credit': monthData['salary'],
-          });
-
-          // Entry 6: Cash Deposit
-          final entryCash = await txn.insert('journal_entry', {
-            'business_id': businessId,
-            'date': DateTime(2026, month, 28).toIso8601String(),
-            'description':
-                'Cash deposit to bank - ${_getMonthName(month)} 2026',
-            'voucher_no': 'JV-${voucherNumber++}',
-            'voucher_type': 'JV',
-            'payment_status': 'Paid',
-            'created_at': now,
-          });
-
-          // Bank: Debit
-          await txn.insert('journal_lines', {
-            'journal_id': entryCash,
-            'account_id': accountIds['Faysal Bank'],
-            'debit': monthData['cash_in'],
-            'credit': 0,
-          });
-
-          // Cash: Credit
-          await txn.insert('journal_lines', {
-            'journal_id': entryCash,
-            'account_id': accountIds['Cash in Hand'],
-            'debit': 0,
-            'credit': monthData['cash_in'],
-          });
-        }
-      });
-
-      print('Multi-month test data added successfully');
-    } catch (e) {
-      print('Error adding multi-month test data: $e');
-    }
-  }
-
   String _getMonthName(int month) {
     const months = [
       'Jan',
@@ -1861,15 +1406,14 @@ class AccountingService {
   }) async {
     final db = await DatabaseHelper.instance.database;
 
-    // Build date filter if month/year provided
-    String dateFilter = '';
+    // As-of filter: include all entries up to selected month end.
+    String joinDateFilter = '';
     List<dynamic> params = [businessId, businessId];
 
     if (year != null && month != null) {
-      final startDate = DateTime(year, month, 1).toIso8601String();
       final endDate = DateTime(year, month + 1, 0).toIso8601String();
-      dateFilter = 'AND journal_entry.date >= ? AND journal_entry.date <= ?';
-      params = [businessId, businessId, startDate, endDate];
+      joinDateFilter = 'AND journal_entry.date <= ?';
+      params = [businessId, businessId, endDate];
     }
 
     // Get all assets, liabilities, and equity
@@ -1885,9 +1429,9 @@ class AccountingService {
       LEFT JOIN journal_lines ON journal_lines.account_id = accounts.account_id
       LEFT JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
         AND journal_entry.business_id = ?
+        $joinDateFilter
       WHERE accounts.business_id = ?
         AND LOWER(accounts.type) IN ('asset', 'liability', 'equity', 'payable', 'drawing')
-        $dateFilter
       GROUP BY accounts.account_id
       ORDER BY accounts.type, accounts.name
       ''', params);
