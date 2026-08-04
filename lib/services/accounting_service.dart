@@ -1,9 +1,14 @@
 import '../db/database_helper.dart';
+import '../models/business_model.dart';
 import '../models/journal_entry_model.dart';
 import '../models/journal_line_model.dart';
 import '../models/account_model.dart';
+import 'firestore_service.dart';
+import 'sync_service.dart';
 
 class AccountingService {
+  final FirestoreService _firestoreService = FirestoreService();
+  final SyncService _syncService = SyncService();
   // =====================================================
   // HELPER: Convert value to double safely
   // =====================================================
@@ -109,46 +114,97 @@ class AccountingService {
 
   Future createCompleteJournal({
     required JournalEntryModel journalEntry,
-
     required List<JournalLineModel> journalLines,
   }) async {
     final db = await DatabaseHelper.instance.database;
 
     double totalDebit = 0;
-
     double totalCredit = 0;
 
     for (var line in journalLines) {
       totalDebit += line.debit;
-
       totalCredit += line.credit;
     }
 
     // VALIDATION
-
     if (totalDebit != totalCredit) {
       throw Exception('Debit and Credit must be equal');
     }
 
+    // First, save to SQLite
+    int journalId = 0;
     await db.transaction((txn) async {
       // INSERT JOURNAL ENTRY
-
-      int journalId = await txn.insert('journal_entry', journalEntry.toMap());
+      journalId = await txn.insert('journal_entry', journalEntry.toMap());
 
       // INSERT JOURNAL LINES
-
       for (var line in journalLines) {
         await txn.insert('journal_lines', {
           'journal_id': journalId,
-
           'account_id': line.accountId,
-
           'debit': line.debit,
-
           'credit': line.credit,
         });
       }
     });
+
+    print('📝 Journal created in SQLite with ID: $journalId');
+
+    // Then, sync with Firestore if connected
+    if (_syncService.isConnected && _firestoreService.isUserLoggedIn()) {
+      try {
+        // Fetch business to get Firestore ID
+        final businesses = await DatabaseHelper.instance.getBusinesses();
+        BusinessModel? business;
+        try {
+          business = businesses.firstWhere((b) => b.businessId == journalEntry.businessId);
+        } catch (e) {
+          business = null;
+        }
+
+        if (business == null || business.firestoreId == null) {
+          throw Exception('Firestore business ID not found');
+        }
+
+        print('🔄 Syncing journal to Firestore at: businesses/${business.firestoreId}/journal_entries/');
+        
+        // Create journal entry in Firestore
+        await _firestoreService.createJournalEntry(
+          businessId: business.firestoreId!, // ✅ Use Firestore ID
+          transactionId: journalEntry.transactionId,
+          voucherNo: journalEntry.voucherNo,
+          voucherType: journalEntry.voucherType,
+          description: journalEntry.description,
+          dueDate: journalEntry.dueDate,
+          paymentStatus: journalEntry.paymentStatus,
+          remainingAmount: journalEntry.remainingAmount,
+          imageUrl: journalEntry.imageUrl,
+          date: journalEntry.date,
+          createdAt: journalEntry.createdAt,
+        );
+
+        // Add journal lines
+        final journalLinesData = journalLines
+            .map((line) => {
+          'account_id': line.accountId,
+          'debit': line.debit,
+          'credit': line.credit,
+        })
+            .toList();
+
+        await _firestoreService.addJournalLines(
+          businessId: business.firestoreId!, // ✅ Use Firestore ID
+          journalId: journalId.toString(),
+          journalLines: journalLinesData,
+        );
+
+        print('✅ Journal synced to Firestore');
+      } catch (e) {
+        print('⚠️  Journal saved to SQLite, Firestore sync failed: $e');
+      }
+    } else {
+      print('⚠️  Offline mode - Journal saved to SQLite only');
+    }
   }
 
   Future<void> updateCompleteJournal({
@@ -171,6 +227,7 @@ class AccountingService {
       throw Exception('Debit and Credit must be equal');
     }
 
+    // First, update in SQLite
     await db.transaction((txn) async {
       // UPDATE JOURNAL ENTRY
       await txn.update(
@@ -197,6 +254,64 @@ class AccountingService {
         });
       }
     });
+
+    // Then, sync with Firestore if connected
+    if (_syncService.isConnected && _firestoreService.isUserLoggedIn()) {
+      try {
+        // Fetch business to get Firestore ID
+        final businesses = await DatabaseHelper.instance.getBusinesses();
+        BusinessModel? business;
+        try {
+          business = businesses.firstWhere((b) => b.businessId == journalEntry.businessId);
+        } catch (e) {
+          business = null;
+        }
+
+        if (business == null || business.firestoreId == null) {
+          throw Exception('Firestore business ID not found');
+        }
+
+        print('🔄 Updating journal in Firestore at: businesses/${business.firestoreId}/journal_entries/$journalId');
+        
+        // Update journal entry in Firestore
+        await _firestoreService.updateJournalEntry(
+          businessId: business.firestoreId!, // ✅ Use Firestore ID
+          journalId: journalId.toString(),
+          voucherNo: journalEntry.voucherNo,
+          voucherType: journalEntry.voucherType,
+          description: journalEntry.description,
+          dueDate: journalEntry.dueDate,
+          paymentStatus: journalEntry.paymentStatus,
+          remainingAmount: journalEntry.remainingAmount,
+          imageUrl: journalEntry.imageUrl,
+          date: journalEntry.date,
+        );
+
+        // Delete old journal lines and add new ones
+        await _firestoreService.deleteJournalLines(
+          businessId: business.firestoreId!, // ✅ Use Firestore ID
+          journalId: journalId.toString(),
+        );
+
+        final journalLinesData = journalLines
+            .map((line) => {
+          'account_id': line.accountId,
+          'debit': line.debit,
+          'credit': line.credit,
+        })
+            .toList();
+
+        await _firestoreService.addJournalLines(
+          businessId: business.firestoreId!, // ✅ Use Firestore ID
+          journalId: journalId.toString(),
+          journalLines: journalLinesData,
+        );
+
+        print('✅ Journal updated and synced to Firestore');
+      } catch (e) {
+        print('⚠️  Journal updated in SQLite, Firestore sync failed: $e');
+      }
+    }
   }
 
   Future<void> updatePaymentStatus({

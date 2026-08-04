@@ -46,6 +46,8 @@ dependencies:
   path_provider: ^2.1.1
   http: ^1.1.0
   open_file: ^3.5.0
+  cloud_firestore: ^6.5.0
+  connectivity_plus: ^5.0.0
   
 dev_dependencies:
   flutter_test:

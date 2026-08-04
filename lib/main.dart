@@ -6,6 +6,8 @@ import 'firebase_options.dart';
 import 'theme.dart';
 import 'splash_screen/logo_screen.dart';
 import 'services/notification_service.dart';
+import 'services/sync_service.dart';
+import 'helpers/firebase_debug_helper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,8 +18,13 @@ void main() async {
   await NotificationService().initialize();
 
   // INITIALIZE DATABASE
-
   unawaited(DatabaseHelper.instance.database);
+
+  // INITIALIZE SYNC SERVICE
+  await SyncService().initialize();
+
+  // DEBUG: Print Firebase status
+  await FirebaseDebugHelper.printFirebaseStatus();
 
   runApp(const MyApp());
 }

@@ -1,8 +1,13 @@
 import '../db/database_helper.dart';
+import '../models/business_model.dart';
 import '../models/journal_entry_model.dart';
 import '../models/journal_line_model.dart';
+import 'firestore_service.dart';
+import 'sync_service.dart';
 
 class JournalService {
+  final FirestoreService _firestoreService = FirestoreService();
+  final SyncService _syncService = SyncService();
 
   // =========================
   // CREATE JOURNAL ENTRY
@@ -22,21 +27,92 @@ class JournalService {
       description: description,
       createdAt: DateTime.now().toIso8601String(),
     );
-    return await DatabaseHelper.instance.insertJournalEntry(journal);
+
+    print('📝 JournalService: Creating journal entry...');
+    print('   SQLite Business ID: $businessId, Voucher: $voucher');
+
+    // Fetch business to get Firestore ID
+    final businesses = await DatabaseHelper.instance.getBusinesses();
+    BusinessModel? business;
+    try {
+      business = businesses.firstWhere((b) => b.businessId == businessId);
+    } catch (e) {
+      business = null;
+    }
+
+    if (business?.firestoreId == null) {
+      print('⚠️  Firestore business ID not found');
+    } else {
+      print('✅ Firestore Business ID: ${business!.firestoreId}');
+    }
+
+    return await _syncService.syncOperation<int>(
+      sqliteOperation: () async {
+        print('💾 Saving journal to SQLite...');
+        return await DatabaseHelper.instance.insertJournalEntry(journal);
+      },
+      firestoreOperation: () async {
+        if (business != null && business.firestoreId != null) {
+          print('🔥 Syncing journal to Firestore at path: businesses/${business.firestoreId}/journal_entries/');
+          await _firestoreService.createJournalEntry(
+            businessId: business.firestoreId!, // ✅ Use Firestore ID
+            transactionId: null,
+            voucherNo: voucher,
+            voucherType: 'JV',
+            description: description,
+            dueDate: null,
+            paymentStatus: 'Paid',
+            remainingAmount: 0,
+            imageUrl: null,
+            date: date,
+            createdAt: journal.createdAt,
+          );
+        } else {
+          throw Exception('Firestore business ID not found');
+        }
+      },
+      operationName: 'Create Journal Entry',
+    );
   }
 
   // =========================
   // UPDATE JOURNAL ENTRY
   // =========================
 
-  Future updateJournalEntry(
-    JournalEntryModel journal,
-  ) async {
+  Future updateJournalEntry(JournalEntryModel journal) async {
+    // Fetch business to get Firestore ID
+    final businesses = await DatabaseHelper.instance.getBusinesses();
+    BusinessModel? business;
+    try {
+      business = businesses.firstWhere((b) => b.businessId == journal.businessId);
+    } catch (e) {
+      business = null;
+    }
 
-    await DatabaseHelper
-        .instance
-        .updateJournalEntry(
-      journal,
+    return await _syncService.syncOperation<void>(
+      sqliteOperation: () async {
+        await DatabaseHelper.instance.updateJournalEntry(journal);
+      },
+      firestoreOperation: () async {
+        if (journal.journalId != null && business != null && business.firestoreId != null) {
+          print('🔄 Updating journal entry in Firestore: businesses/${business.firestoreId}/journal_entries/${journal.journalId}');
+          await _firestoreService.updateJournalEntry(
+            businessId: business.firestoreId!, // ✅ Use Firestore ID
+            journalId: journal.journalId!.toString(),
+            voucherNo: journal.voucherNo,
+            voucherType: journal.voucherType,
+            description: journal.description,
+            dueDate: journal.dueDate,
+            paymentStatus: journal.paymentStatus,
+            remainingAmount: journal.remainingAmount,
+            imageUrl: journal.imageUrl,
+            date: journal.date,
+          );
+        } else {
+          print('⚠️  Firestore ID not found - update skipped');
+        }
+      },
+      operationName: 'Update Journal Entry',
     );
   }
 
@@ -44,15 +120,36 @@ class JournalService {
   // DELETE JOURNAL ENTRY
   // =========================
 
-  Future deleteJournalEntry(
-    int journalId,
-  ) async {
+  Future deleteJournalEntry(int journalId) async {
+    final journal = await getJournalEntryById(journalId);
+    if (journal != null) {
+      // Fetch business to get Firestore ID
+      final businesses = await DatabaseHelper.instance.getBusinesses();
+      BusinessModel? business;
+      try {
+        business = businesses.firstWhere((b) => b.businessId == journal.businessId);
+      } catch (e) {
+        business = null;
+      }
 
-    await DatabaseHelper
-        .instance
-        .deleteJournalEntry(
-      journalId,
-    );
+      return await _syncService.syncOperation<void>(
+        sqliteOperation: () async {
+          await DatabaseHelper.instance.deleteJournalEntry(journalId);
+        },
+        firestoreOperation: () async {
+          if (business != null && business.firestoreId != null) {
+            print('🔄 Deleting journal entry from Firestore: businesses/${business.firestoreId}/journal_entries/$journalId');
+            await _firestoreService.deleteJournalEntry(
+              business.firestoreId!, // ✅ Use Firestore ID
+              journalId.toString(),
+            );
+          } else {
+            print('⚠️  Firestore ID not found - delete skipped');
+          }
+        },
+        operationName: 'Delete Journal Entry',
+      );
+    }
   }
 
   // =========================
@@ -71,7 +168,43 @@ class JournalService {
       debit: debit,
       credit: credit,
     );
-    await DatabaseHelper.instance.insertJournalLine(line);
+    
+    return await _syncService.syncOperation<void>(
+      sqliteOperation: () async {
+        await DatabaseHelper.instance.insertJournalLine(line);
+      },
+      firestoreOperation: () async {
+        // Get the journal entry to get businessId
+        final journal = await getJournalEntryById(journalId);
+        if (journal != null) {
+          // Fetch business to get Firestore ID
+          final businesses = await DatabaseHelper.instance.getBusinesses();
+          BusinessModel? business;
+          try {
+            business = businesses.firstWhere((b) => b.businessId == journal.businessId);
+          } catch (e) {
+            business = null;
+          }
+
+          if (business != null && business.firestoreId != null) {
+            final journalLinesData = [
+              {
+                'account_id': accountId,
+                'debit': debit,
+                'credit': credit,
+              }
+            ];
+            print('🔥 Adding journal line to Firestore: businesses/${business.firestoreId}/journal_entries/$journalId/journal_lines/');
+            await _firestoreService.addJournalLines(
+              businessId: business.firestoreId!, // ✅ Use Firestore ID
+              journalId: journalId.toString(),
+              journalLines: journalLinesData,
+            );
+          }
+        }
+      },
+      operationName: 'Create Journal Line',
+    );
   }
 
   // =========================

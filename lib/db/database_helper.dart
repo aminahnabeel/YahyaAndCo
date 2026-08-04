@@ -33,7 +33,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -64,6 +64,11 @@ class DatabaseHelper {
     if (oldVersion < 5) {
       await _addColumnIfMissing(db, 'transactions', 'to_account_id', 'INTEGER');
     }
+
+    if (oldVersion < 6) {
+      // Add Firestore ID column to business table
+      await _addColumnIfMissing(db, 'business', 'firestore_id', 'TEXT');
+    }
   }
 
   Future<void> _addColumnIfMissing(
@@ -90,6 +95,8 @@ class DatabaseHelper {
 
       business_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
+
+      firestore_id TEXT,
 
       name TEXT,
 
