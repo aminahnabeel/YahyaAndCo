@@ -162,7 +162,9 @@ class AccountingService {
         final businesses = await DatabaseHelper.instance.getBusinesses();
         BusinessModel? business;
         try {
-          business = businesses.firstWhere((b) => b.businessId == journalEntry.businessId);
+          business = businesses.firstWhere(
+            (b) => b.businessId == journalEntry.businessId,
+          );
         } catch (e) {
           business = null;
         }
@@ -171,8 +173,10 @@ class AccountingService {
           throw Exception('Firestore business ID not found');
         }
 
-        print('🔄 Syncing journal to Firestore at: businesses/${business.firestoreId}/journal_entries/');
-        
+        print(
+          '🔄 Syncing journal to Firestore at: businesses/${business.firestoreId}/journal_entries/',
+        );
+
         // Create journal entry in Firestore
         await _firestoreService.createJournalEntry(
           businessId: business.firestoreId!, // ✅ Use Firestore ID
@@ -190,11 +194,13 @@ class AccountingService {
 
         // Add journal lines
         final journalLinesData = journalLines
-            .map((line) => {
-          'account_id': line.accountId,
-          'debit': line.debit,
-          'credit': line.credit,
-        })
+            .map(
+              (line) => {
+                'account_id': line.accountId,
+                'debit': line.debit,
+                'credit': line.credit,
+              },
+            )
             .toList();
 
         await _firestoreService.addJournalLines(
@@ -272,7 +278,9 @@ class AccountingService {
         final businesses = await DatabaseHelper.instance.getBusinesses();
         BusinessModel? business;
         try {
-          business = businesses.firstWhere((b) => b.businessId == journalEntry.businessId);
+          business = businesses.firstWhere(
+            (b) => b.businessId == journalEntry.businessId,
+          );
         } catch (e) {
           business = null;
         }
@@ -281,8 +289,10 @@ class AccountingService {
           throw Exception('Firestore business ID not found');
         }
 
-        print('🔄 Updating journal in Firestore at: businesses/${business.firestoreId}/journal_entries/$journalId');
-        
+        print(
+          '🔄 Updating journal in Firestore at: businesses/${business.firestoreId}/journal_entries/$journalId',
+        );
+
         // Update journal entry in Firestore
         await _firestoreService.updateJournalEntry(
           businessId: business.firestoreId!, // ✅ Use Firestore ID
@@ -304,11 +314,13 @@ class AccountingService {
         );
 
         final journalLinesData = journalLines
-            .map((line) => {
-          'account_id': line.accountId,
-          'debit': line.debit,
-          'credit': line.credit,
-        })
+            .map(
+              (line) => {
+                'account_id': line.accountId,
+                'debit': line.debit,
+                'credit': line.credit,
+              },
+            )
             .toList();
 
         await _firestoreService.addJournalLines(

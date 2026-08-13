@@ -7,46 +7,39 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // ==================== BUSINESSES COLLECTION ====================
-    match /businesses/{businessId} {
-      // User must own this business (firebase_uid must match)
-      allow read, write: if request.auth != null && resource.data.firebase_uid == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.firebase_uid == request.auth.uid;
+    // ==================== USER-SCOPED BUSINESSES COLLECTION ====================
+    match /users/{userId}/businesses/{businessId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
 
       // ==================== ACCOUNTS SUBCOLLECTION ====================
       match /accounts/{accountId} {
-        allow read, write: if request.auth != null && get(/databases/$(database)/documents/businesses/$(businessId)).data.firebase_uid == request.auth.uid;
-        allow create: if request.auth != null && get(/databases/$(database)/documents/businesses/$(businessId)).data.firebase_uid == request.auth.uid;
+        allow read, write, create: if request.auth != null && request.auth.uid == userId;
       }
 
       // ==================== TRANSACTIONS SUBCOLLECTION ====================
       match /transactions/{transactionId} {
-        allow read, write: if request.auth != null && get(/databases/$(database)/documents/businesses/$(businessId)).data.firebase_uid == request.auth.uid;
-        allow create: if request.auth != null && get(/databases/$(database)/documents/businesses/$(businessId)).data.firebase_uid == request.auth.uid;
+        allow read, write, create: if request.auth != null && request.auth.uid == userId;
       }
 
       // ==================== JOURNAL ENTRIES SUBCOLLECTION ====================
       match /journal_entries/{journalId} {
-        allow read, write: if request.auth != null && get(/databases/$(database)/documents/businesses/$(businessId)).data.firebase_uid == request.auth.uid;
-        allow create: if request.auth != null && get(/databases/$(database)/documents/businesses/$(businessId)).data.firebase_uid == request.auth.uid;
+        allow read, write, create: if request.auth != null && request.auth.uid == userId;
 
         // ==================== JOURNAL LINES NESTED SUBCOLLECTION ====================
         match /journal_lines/{lineId} {
-          allow read, write: if request.auth != null && get(/databases/$(database)/documents/businesses/$(businessId)).data.firebase_uid == request.auth.uid;
-          allow create: if request.auth != null && get(/databases/$(database)/documents/businesses/$(businessId)).data.firebase_uid == request.auth.uid;
+          allow read, write, create: if request.auth != null && request.auth.uid == userId;
         }
       }
 
       // ==================== EXPENSE CATEGORIES SUBCOLLECTION ====================
       match /expense_categories/{categoryId} {
-        allow read, write: if request.auth != null && get(/databases/$(database)/documents/businesses/$(businessId)).data.firebase_uid == request.auth.uid;
-        allow create: if request.auth != null && get(/databases/$(database)/documents/businesses/$(businessId)).data.firebase_uid == request.auth.uid;
+        allow read, write, create: if request.auth != null && request.auth.uid == userId;
       }
 
       // ==================== NOTES SUBCOLLECTION ====================
       match /notes/{noteId} {
-        allow read, write: if request.auth != null && get(/databases/$(database)/documents/businesses/$(businessId)).data.firebase_uid == request.auth.uid;
-        allow create: if request.auth != null && get(/databases/$(database)/documents/businesses/$(businessId)).data.firebase_uid == request.auth.uid;
+        allow read, write, create: if request.auth != null && request.auth.uid == userId;
       }
     }
 

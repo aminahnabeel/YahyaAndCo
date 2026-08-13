@@ -14,7 +14,7 @@ class BusinessService {
   Future<int> createBusiness(BusinessModel business) async {
     // Step 1: Create in SQLite
     final businessId = await DatabaseHelper.instance.insertBusiness(business);
-    
+
     // Step 2: Create in Firestore and capture the document ID
     if (_syncService.isConnected && _firestoreService.isUserLoggedIn()) {
       try {
@@ -27,9 +27,9 @@ class BusinessService {
             pin: business.pin,
             createdAt: business.createdAt,
           );
-          
+
           print('📝 Firestore business created with ID: $firestoreDocId');
-          
+
           // Step 3: Update the business record with the Firestore ID
           final updatedBusiness = BusinessModel(
             businessId: businessId,
@@ -39,7 +39,7 @@ class BusinessService {
             pin: business.pin,
             createdAt: business.createdAt,
           );
-          
+
           await DatabaseHelper.instance.updateBusiness(updatedBusiness);
           print('✅ Firestore ID stored in SQLite: $firestoreDocId');
         }
@@ -47,7 +47,7 @@ class BusinessService {
         print('⚠️  Business created in SQLite, Firestore sync failed: $e');
       }
     }
-    
+
     return businessId;
   }
 

@@ -22,17 +22,14 @@ class FirestoreService {
     required String createdAt,
   }) async {
     try {
-      await _db.collection('users').doc(firebaseUid).set(
-        {
-          'firebase_uid': firebaseUid,
-          'name': name,
-          'email': email,
-          'is_verified': isVerified,
-          'created_at': createdAt,
-          'updated_at': DateTime.now().toIso8601String(),
-        },
-        SetOptions(merge: true),
-      );
+      await _db.collection('users').doc(firebaseUid).set({
+        'firebase_uid': firebaseUid,
+        'name': name,
+        'email': email,
+        'is_verified': isVerified,
+        'created_at': createdAt,
+        'updated_at': DateTime.now().toIso8601String(),
+      }, SetOptions(merge: true));
     } catch (e) {
       print('Error creating/updating user: $e');
       rethrow;
@@ -59,16 +56,13 @@ class FirestoreService {
     required String createdAt,
   }) async {
     try {
-      final docRef = await _db.collection('businesses').add(
-        {
-          'firebase_uid': firebaseUid,
-          'name': name,
-          'type': type,
-          'pin': pin,
-          'created_at': createdAt,
-          'updated_at': DateTime.now().toIso8601String(),
-        },
-      );
+      final docRef = await _businessesCollection(firebaseUid).add({
+        'name': name,
+        'type': type,
+        'pin': pin,
+        'created_at': createdAt,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
       return docRef.id;
     } catch (e) {
       print('Error creating business: $e');
@@ -83,7 +77,7 @@ class FirestoreService {
     String? pin,
   }) async {
     try {
-      await _db.collection('businesses').doc(businessId).update({
+      await _businessDocRefForCurrentUser(businessId).update({
         'name': name,
         'type': type,
         'pin': pin,
@@ -96,17 +90,12 @@ class FirestoreService {
   }
 
   Future<List<Map<String, dynamic>>> getBusinessesByUser(
-      String firebaseUid) async {
+    String firebaseUid,
+  ) async {
     try {
-      final snapshot = await _db
-          .collection('businesses')
-          .where('firebase_uid', isEqualTo: firebaseUid)
-          .get();
+      final snapshot = await _businessesCollection(firebaseUid).get();
       return snapshot.docs.map((doc) {
-        return {
-          'id': doc.id,
-          ...doc.data(),
-        };
+        return {'id': doc.id, ...doc.data()};
       }).toList();
     } catch (e) {
       print('Error getting businesses: $e');
@@ -116,7 +105,7 @@ class FirestoreService {
 
   Future<void> deleteBusiness(String businessId) async {
     try {
-      await _db.collection('businesses').doc(businessId).delete();
+      await _businessDocRefForCurrentUser(businessId).delete();
     } catch (e) {
       print('Error deleting business: $e');
       rethrow;
@@ -137,23 +126,18 @@ class FirestoreService {
     try {
       print('📝 Creating account in Firestore...');
       print('   Business ID: $businessId, Account: $name');
-      
-      final docRef = await _db
-          .collection('businesses')
-          .doc(businessId)
-          .collection('accounts')
-          .add(
-        {
-          'name': name,
-          'type': type,
-          'phone': phone,
-          'address': address,
-          'opening_balance': openingBalance,
-          'created_at': createdAt,
-          'updated_at': DateTime.now().toIso8601String(),
-        },
-      );
-      
+
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      final docRef = await businessRef.collection('accounts').add({
+            'name': name,
+            'type': type,
+            'phone': phone,
+            'address': address,
+            'opening_balance': openingBalance,
+            'created_at': createdAt,
+            'updated_at': DateTime.now().toIso8601String(),
+          });
+
       print('✅ Account created: ${docRef.id}');
       return docRef.id;
     } catch (e) {
@@ -172,19 +156,18 @@ class FirestoreService {
     required double openingBalance,
   }) async {
     try {
-      await _db
-          .collection('businesses')
-          .doc(businessId)
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      await businessRef
           .collection('accounts')
           .doc(accountId)
           .update({
-        'name': name,
-        'type': type,
-        'phone': phone,
-        'address': address,
-        'opening_balance': openingBalance,
-        'updated_at': DateTime.now().toIso8601String(),
-      });
+            'name': name,
+            'type': type,
+            'phone': phone,
+            'address': address,
+            'opening_balance': openingBalance,
+            'updated_at': DateTime.now().toIso8601String(),
+          });
     } catch (e) {
       print('Error updating account: $e');
       rethrow;
@@ -192,18 +175,13 @@ class FirestoreService {
   }
 
   Future<List<Map<String, dynamic>>> getAccountsByBusiness(
-      String businessId) async {
+    String businessId,
+  ) async {
     try {
-      final snapshot = await _db
-          .collection('businesses')
-          .doc(businessId)
-          .collection('accounts')
-          .get();
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      final snapshot = await businessRef.collection('accounts').get();
       return snapshot.docs.map((doc) {
-        return {
-          'id': doc.id,
-          ...doc.data(),
-        };
+        return {'id': doc.id, ...doc.data()};
       }).toList();
     } catch (e) {
       print('Error getting accounts: $e');
@@ -211,12 +189,10 @@ class FirestoreService {
     }
   }
 
-  Future<void> deleteAccount(
-      String businessId, String accountId) async {
+  Future<void> deleteAccount(String businessId, String accountId) async {
     try {
-      await _db
-          .collection('businesses')
-          .doc(businessId)
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      await businessRef
           .collection('accounts')
           .doc(accountId)
           .delete();
@@ -247,29 +223,24 @@ class FirestoreService {
       print('📝 Creating transaction in Firestore...');
       print('   Business ID: $businessId');
       print('   Amount: $amount, Type: $type');
-      
-      final docRef = await _db
-          .collection('businesses')
-          .doc(businessId)
-          .collection('transactions')
-          .add(
-        {
-          'account_id': accountId,
-          'to_account_id': toAccountId,
-          'amount': amount,
-          'type': type,
-          'note': note,
-          'payment_method': paymentMethod,
-          'due_date': dueDate,
-          'payment_status': paymentStatus,
-          'remaining_amount': remainingAmount,
-          'image_url': imageUrl,
-          'date': date,
-          'created_at': createdAt,
-          'updated_at': DateTime.now().toIso8601String(),
-        },
-      );
-      
+
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      final docRef = await businessRef.collection('transactions').add({
+            'account_id': accountId,
+            'to_account_id': toAccountId,
+            'amount': amount,
+            'type': type,
+            'note': note,
+            'payment_method': paymentMethod,
+            'due_date': dueDate,
+            'payment_status': paymentStatus,
+            'remaining_amount': remainingAmount,
+            'image_url': imageUrl,
+            'date': date,
+            'created_at': createdAt,
+            'updated_at': DateTime.now().toIso8601String(),
+          });
+
       print('✅ Transaction created: ${docRef.id}');
       return docRef.id;
     } catch (e) {
@@ -292,23 +263,22 @@ class FirestoreService {
     required String date,
   }) async {
     try {
-      await _db
-          .collection('businesses')
-          .doc(businessId)
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      await businessRef
           .collection('transactions')
           .doc(transactionId)
           .update({
-        'amount': amount,
-        'type': type,
-        'note': note,
-        'payment_method': paymentMethod,
-        'due_date': dueDate,
-        'payment_status': paymentStatus,
-        'remaining_amount': remainingAmount,
-        'image_url': imageUrl,
-        'date': date,
-        'updated_at': DateTime.now().toIso8601String(),
-      });
+            'amount': amount,
+            'type': type,
+            'note': note,
+            'payment_method': paymentMethod,
+            'due_date': dueDate,
+            'payment_status': paymentStatus,
+            'remaining_amount': remainingAmount,
+            'image_url': imageUrl,
+            'date': date,
+            'updated_at': DateTime.now().toIso8601String(),
+          });
     } catch (e) {
       print('Error updating transaction: $e');
       rethrow;
@@ -316,19 +286,16 @@ class FirestoreService {
   }
 
   Future<List<Map<String, dynamic>>> getTransactionsByBusiness(
-      String businessId) async {
+    String businessId,
+  ) async {
     try {
-      final snapshot = await _db
-          .collection('businesses')
-          .doc(businessId)
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      final snapshot = await businessRef
           .collection('transactions')
           .orderBy('created_at', descending: true)
           .get();
       return snapshot.docs.map((doc) {
-        return {
-          'id': doc.id,
-          ...doc.data(),
-        };
+        return {'id': doc.id, ...doc.data()};
       }).toList();
     } catch (e) {
       print('Error getting transactions: $e');
@@ -337,11 +304,12 @@ class FirestoreService {
   }
 
   Future<void> deleteTransaction(
-      String businessId, String transactionId) async {
+    String businessId,
+    String transactionId,
+  ) async {
     try {
-      await _db
-          .collection('businesses')
-          .doc(businessId)
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      await businessRef
           .collection('transactions')
           .doc(transactionId)
           .delete();
@@ -370,27 +338,22 @@ class FirestoreService {
       print('📝 Creating journal entry in Firestore...');
       print('   Business ID: $businessId');
       print('   Voucher: $voucherNo ($voucherType)');
-      
-      final docRef = await _db
-          .collection('businesses')
-          .doc(businessId)
-          .collection('journal_entries')
-          .add(
-        {
-          'transaction_id': transactionId,
-          'voucher_no': voucherNo,
-          'voucher_type': voucherType,
-          'description': description,
-          'due_date': dueDate,
-          'payment_status': paymentStatus,
-          'remaining_amount': remainingAmount,
-          'image_url': imageUrl,
-          'date': date,
-          'created_at': createdAt,
-          'updated_at': DateTime.now().toIso8601String(),
-        },
-      );
-      
+
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      final docRef = await businessRef.collection('journal_entries').add({
+            'transaction_id': transactionId,
+            'voucher_no': voucherNo,
+            'voucher_type': voucherType,
+            'description': description,
+            'due_date': dueDate,
+            'payment_status': paymentStatus,
+            'remaining_amount': remainingAmount,
+            'image_url': imageUrl,
+            'date': date,
+            'created_at': createdAt,
+            'updated_at': DateTime.now().toIso8601String(),
+          });
+
       print('✅ Journal entry created: ${docRef.id}');
       return docRef.id;
     } catch (e) {
@@ -412,22 +375,21 @@ class FirestoreService {
     required String date,
   }) async {
     try {
-      await _db
-          .collection('businesses')
-          .doc(businessId)
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      await businessRef
           .collection('journal_entries')
           .doc(journalId)
           .update({
-        'voucher_no': voucherNo,
-        'voucher_type': voucherType,
-        'description': description,
-        'due_date': dueDate,
-        'payment_status': paymentStatus,
-        'remaining_amount': remainingAmount,
-        'image_url': imageUrl,
-        'date': date,
-        'updated_at': DateTime.now().toIso8601String(),
-      });
+            'voucher_no': voucherNo,
+            'voucher_type': voucherType,
+            'description': description,
+            'due_date': dueDate,
+            'payment_status': paymentStatus,
+            'remaining_amount': remainingAmount,
+            'image_url': imageUrl,
+            'date': date,
+            'updated_at': DateTime.now().toIso8601String(),
+          });
     } catch (e) {
       print('Error updating journal entry: $e');
       rethrow;
@@ -435,19 +397,16 @@ class FirestoreService {
   }
 
   Future<List<Map<String, dynamic>>> getJournalEntriesByBusiness(
-      String businessId) async {
+    String businessId,
+  ) async {
     try {
-      final snapshot = await _db
-          .collection('businesses')
-          .doc(businessId)
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      final snapshot = await businessRef
           .collection('journal_entries')
           .orderBy('created_at', descending: true)
           .get();
       return snapshot.docs.map((doc) {
-        return {
-          'id': doc.id,
-          ...doc.data(),
-        };
+        return {'id': doc.id, ...doc.data()};
       }).toList();
     } catch (e) {
       print('Error getting journal entries: $e');
@@ -455,12 +414,10 @@ class FirestoreService {
     }
   }
 
-  Future<void> deleteJournalEntry(
-      String businessId, String journalId) async {
+  Future<void> deleteJournalEntry(String businessId, String journalId) async {
     try {
-      await _db
-          .collection('businesses')
-          .doc(businessId)
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      await businessRef
           .collection('journal_entries')
           .doc(journalId)
           .delete();
@@ -477,16 +434,10 @@ class FirestoreService {
     required String name,
   }) async {
     try {
-      final docRef = await _db
-          .collection('businesses')
-          .doc(businessId)
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      final docRef = await businessRef
           .collection('expense_categories')
-          .add(
-        {
-          'name': name,
-          'created_at': DateTime.now().toIso8601String(),
-        },
-      );
+          .add({'name': name, 'created_at': DateTime.now().toIso8601String()});
       return docRef.id;
     } catch (e) {
       print('Error creating expense category: $e');
@@ -500,15 +451,14 @@ class FirestoreService {
     required String name,
   }) async {
     try {
-      await _db
-          .collection('businesses')
-          .doc(businessId)
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      await businessRef
           .collection('expense_categories')
           .doc(categoryId)
           .update({
-        'name': name,
-        'updated_at': DateTime.now().toIso8601String(),
-      });
+            'name': name,
+            'updated_at': DateTime.now().toIso8601String(),
+          });
     } catch (e) {
       print('Error updating expense category: $e');
       rethrow;
@@ -516,18 +466,15 @@ class FirestoreService {
   }
 
   Future<List<Map<String, dynamic>>> getExpenseCategoriesByBusiness(
-      String businessId) async {
+    String businessId,
+  ) async {
     try {
-      final snapshot = await _db
-          .collection('businesses')
-          .doc(businessId)
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      final snapshot = await businessRef
           .collection('expense_categories')
           .get();
       return snapshot.docs.map((doc) {
-        return {
-          'id': doc.id,
-          ...doc.data(),
-        };
+        return {'id': doc.id, ...doc.data()};
       }).toList();
     } catch (e) {
       print('Error getting expense categories: $e');
@@ -536,11 +483,12 @@ class FirestoreService {
   }
 
   Future<void> deleteExpenseCategory(
-      String businessId, String categoryId) async {
+    String businessId,
+    String categoryId,
+  ) async {
     try {
-      await _db
-          .collection('businesses')
-          .doc(businessId)
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      await businessRef
           .collection('expense_categories')
           .doc(categoryId)
           .delete();
@@ -559,18 +507,13 @@ class FirestoreService {
     required String createdAt,
   }) async {
     try {
-      final docRef = await _db
-          .collection('businesses')
-          .doc(businessId)
-          .collection('notes')
-          .add(
-        {
-          'title': title,
-          'description': description,
-          'created_at': createdAt,
-          'updated_at': DateTime.now().toIso8601String(),
-        },
-      );
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      final docRef = await businessRef.collection('notes').add({
+            'title': title,
+            'description': description,
+            'created_at': createdAt,
+            'updated_at': DateTime.now().toIso8601String(),
+          });
       return docRef.id;
     } catch (e) {
       print('Error creating note: $e');
@@ -585,16 +528,15 @@ class FirestoreService {
     required String description,
   }) async {
     try {
-      await _db
-          .collection('businesses')
-          .doc(businessId)
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      await businessRef
           .collection('notes')
           .doc(noteId)
           .update({
-        'title': title,
-        'description': description,
-        'updated_at': DateTime.now().toIso8601String(),
-      });
+            'title': title,
+            'description': description,
+            'updated_at': DateTime.now().toIso8601String(),
+          });
     } catch (e) {
       print('Error updating note: $e');
       rethrow;
@@ -602,19 +544,16 @@ class FirestoreService {
   }
 
   Future<List<Map<String, dynamic>>> getNotesByBusiness(
-      String businessId) async {
+    String businessId,
+  ) async {
     try {
-      final snapshot = await _db
-          .collection('businesses')
-          .doc(businessId)
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      final snapshot = await businessRef
           .collection('notes')
           .orderBy('created_at', descending: true)
           .get();
       return snapshot.docs.map((doc) {
-        return {
-          'id': doc.id,
-          ...doc.data(),
-        };
+        return {'id': doc.id, ...doc.data()};
       }).toList();
     } catch (e) {
       print('Error getting notes: $e');
@@ -624,9 +563,8 @@ class FirestoreService {
 
   Future<void> deleteNote(String businessId, String noteId) async {
     try {
-      await _db
-          .collection('businesses')
-          .doc(businessId)
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      await businessRef
           .collection('notes')
           .doc(noteId)
           .delete();
@@ -645,16 +583,15 @@ class FirestoreService {
   }) async {
     try {
       final batch = _db.batch();
-      
+
       for (final line in journalLines) {
-        final docRef = _db
-            .collection('businesses')
-            .doc(businessId)
+        final businessRef = _businessDocRefForCurrentUser(businessId);
+        final docRef = businessRef
             .collection('journal_entries')
             .doc(journalId)
             .collection('journal_lines')
             .doc();
-        
+
         batch.set(docRef, {
           'account_id': line['account_id'],
           'debit': line['debit'],
@@ -662,7 +599,7 @@ class FirestoreService {
           'created_at': DateTime.now().toIso8601String(),
         });
       }
-      
+
       await batch.commit();
     } catch (e) {
       print('Error adding journal lines: $e');
@@ -675,19 +612,18 @@ class FirestoreService {
     required String journalId,
   }) async {
     try {
-      final snapshot = await _db
-          .collection('businesses')
-          .doc(businessId)
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      final snapshot = await businessRef
           .collection('journal_entries')
           .doc(journalId)
           .collection('journal_lines')
           .get();
-      
+
       final batch = _db.batch();
       for (final doc in snapshot.docs) {
         batch.delete(doc.reference);
       }
-      
+
       await batch.commit();
     } catch (e) {
       print('Error deleting journal lines: $e');
@@ -703,5 +639,24 @@ class FirestoreService {
 
   bool isUserLoggedIn() {
     return _auth.currentUser != null;
+  }
+
+  CollectionReference<Map<String, dynamic>> _businessesCollection(
+      String uid) {
+    return _db.collection('users').doc(uid).collection('businesses');
+  }
+
+  DocumentReference<Map<String, dynamic>> _businessDocRef(
+      {required String uid, required String businessId}) {
+    return _businessesCollection(uid).doc(businessId);
+  }
+
+  DocumentReference<Map<String, dynamic>> _businessDocRefForCurrentUser(
+      String businessId) {
+    final uid = getCurrentUserUid();
+    if (uid == null) {
+      throw Exception('User not logged in');
+    }
+    return _businessDocRef(uid: uid, businessId: businessId);
   }
 }

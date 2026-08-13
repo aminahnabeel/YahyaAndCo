@@ -15,12 +15,14 @@ class TransactionService {
   Future<int> createTransaction(TransactionModel transaction) async {
     print('📝 TransactionService: Creating transaction...');
     print('   SQLite Business ID: ${transaction.businessId}');
-    
+
     // Fetch business to get Firestore ID
     final businesses = await DatabaseHelper.instance.getBusinesses();
     BusinessModel? business;
     try {
-      business = businesses.firstWhere((b) => b.businessId == transaction.businessId);
+      business = businesses.firstWhere(
+        (b) => b.businessId == transaction.businessId,
+      );
     } catch (e) {
       business = null;
     }
@@ -38,7 +40,9 @@ class TransactionService {
       },
       firestoreOperation: () async {
         if (business != null && business.firestoreId != null) {
-          print('🔥 Syncing to Firestore at path: businesses/${business.firestoreId}/transactions/');
+          print(
+            '🔥 Syncing to Firestore at path: businesses/${business.firestoreId}/transactions/',
+          );
           await _firestoreService.createTransaction(
             businessId: business.firestoreId!, // ✅ Use Firestore ID
             accountId: transaction.accountId,
@@ -67,12 +71,14 @@ class TransactionService {
   // =========================
 
   Future<List<TransactionModel>> getTransactionsByBusiness(
-      int businessId) async {
+    int businessId,
+  ) async {
     return await DatabaseHelper.instance.getTransactionsByBusiness(businessId);
   }
 
   Future<List<Map<String, dynamic>>> getTransactionRowsByBusiness(
-      int businessId) async {
+    int businessId,
+  ) async {
     return await DatabaseHelper.instance.getTransactionLedgerRows(businessId);
   }
 
@@ -89,7 +95,9 @@ class TransactionService {
     final businesses = await DatabaseHelper.instance.getBusinesses();
     BusinessModel? business;
     try {
-      business = businesses.firstWhere((b) => b.businessId == transaction.businessId);
+      business = businesses.firstWhere(
+        (b) => b.businessId == transaction.businessId,
+      );
     } catch (e) {
       business = null;
     }
@@ -99,8 +107,12 @@ class TransactionService {
         await DatabaseHelper.instance.updateTransaction(transaction);
       },
       firestoreOperation: () async {
-        if (transaction.transactionId != null && business != null && business.firestoreId != null) {
-          print('🔄 Updating transaction in Firestore: businesses/${business.firestoreId}/transactions/${transaction.transactionId}');
+        if (transaction.transactionId != null &&
+            business != null &&
+            business.firestoreId != null) {
+          print(
+            '🔄 Updating transaction in Firestore: businesses/${business.firestoreId}/transactions/${transaction.transactionId}',
+          );
           await _firestoreService.updateTransaction(
             businessId: business.firestoreId!, // ✅ Use Firestore ID
             transactionId: transaction.transactionId!.toString(),
@@ -134,7 +146,9 @@ class TransactionService {
       final businesses = await DatabaseHelper.instance.getBusinesses();
       BusinessModel? business;
       try {
-        business = businesses.firstWhere((b) => b.businessId == transaction.businessId);
+        business = businesses.firstWhere(
+          (b) => b.businessId == transaction.businessId,
+        );
       } catch (e) {
         business = null;
       }
@@ -145,7 +159,9 @@ class TransactionService {
         },
         firestoreOperation: () async {
           if (business != null && business.firestoreId != null) {
-            print('🔄 Deleting transaction from Firestore: businesses/${business.firestoreId}/transactions/$transactionId');
+            print(
+              '🔄 Deleting transaction from Firestore: businesses/${business.firestoreId}/transactions/$transactionId',
+            );
             await _firestoreService.deleteTransaction(
               business.firestoreId!, // ✅ Use Firestore ID
               transactionId.toString(),

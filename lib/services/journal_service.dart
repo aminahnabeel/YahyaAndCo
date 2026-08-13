@@ -53,7 +53,9 @@ class JournalService {
       },
       firestoreOperation: () async {
         if (business != null && business.firestoreId != null) {
-          print('🔥 Syncing journal to Firestore at path: businesses/${business.firestoreId}/journal_entries/');
+          print(
+            '🔥 Syncing journal to Firestore at path: businesses/${business.firestoreId}/journal_entries/',
+          );
           await _firestoreService.createJournalEntry(
             businessId: business.firestoreId!, // ✅ Use Firestore ID
             transactionId: null,
@@ -84,7 +86,9 @@ class JournalService {
     final businesses = await DatabaseHelper.instance.getBusinesses();
     BusinessModel? business;
     try {
-      business = businesses.firstWhere((b) => b.businessId == journal.businessId);
+      business = businesses.firstWhere(
+        (b) => b.businessId == journal.businessId,
+      );
     } catch (e) {
       business = null;
     }
@@ -94,8 +98,12 @@ class JournalService {
         await DatabaseHelper.instance.updateJournalEntry(journal);
       },
       firestoreOperation: () async {
-        if (journal.journalId != null && business != null && business.firestoreId != null) {
-          print('🔄 Updating journal entry in Firestore: businesses/${business.firestoreId}/journal_entries/${journal.journalId}');
+        if (journal.journalId != null &&
+            business != null &&
+            business.firestoreId != null) {
+          print(
+            '🔄 Updating journal entry in Firestore: businesses/${business.firestoreId}/journal_entries/${journal.journalId}',
+          );
           await _firestoreService.updateJournalEntry(
             businessId: business.firestoreId!, // ✅ Use Firestore ID
             journalId: journal.journalId!.toString(),
@@ -127,7 +135,9 @@ class JournalService {
       final businesses = await DatabaseHelper.instance.getBusinesses();
       BusinessModel? business;
       try {
-        business = businesses.firstWhere((b) => b.businessId == journal.businessId);
+        business = businesses.firstWhere(
+          (b) => b.businessId == journal.businessId,
+        );
       } catch (e) {
         business = null;
       }
@@ -138,7 +148,9 @@ class JournalService {
         },
         firestoreOperation: () async {
           if (business != null && business.firestoreId != null) {
-            print('🔄 Deleting journal entry from Firestore: businesses/${business.firestoreId}/journal_entries/$journalId');
+            print(
+              '🔄 Deleting journal entry from Firestore: businesses/${business.firestoreId}/journal_entries/$journalId',
+            );
             await _firestoreService.deleteJournalEntry(
               business.firestoreId!, // ✅ Use Firestore ID
               journalId.toString(),
@@ -168,7 +180,7 @@ class JournalService {
       debit: debit,
       credit: credit,
     );
-    
+
     return await _syncService.syncOperation<void>(
       sqliteOperation: () async {
         await DatabaseHelper.instance.insertJournalLine(line);
@@ -181,20 +193,20 @@ class JournalService {
           final businesses = await DatabaseHelper.instance.getBusinesses();
           BusinessModel? business;
           try {
-            business = businesses.firstWhere((b) => b.businessId == journal.businessId);
+            business = businesses.firstWhere(
+              (b) => b.businessId == journal.businessId,
+            );
           } catch (e) {
             business = null;
           }
 
           if (business != null && business.firestoreId != null) {
             final journalLinesData = [
-              {
-                'account_id': accountId,
-                'debit': debit,
-                'credit': credit,
-              }
+              {'account_id': accountId, 'debit': debit, 'credit': credit},
             ];
-            print('🔥 Adding journal line to Firestore: businesses/${business.firestoreId}/journal_entries/$journalId/journal_lines/');
+            print(
+              '🔥 Adding journal line to Firestore: businesses/${business.firestoreId}/journal_entries/$journalId/journal_lines/',
+            );
             await _firestoreService.addJournalLines(
               businessId: business.firestoreId!, // ✅ Use Firestore ID
               journalId: journalId.toString(),
@@ -211,23 +223,17 @@ class JournalService {
   // GET JOURNAL ENTRIES
   // =========================
 
-  Future<List<JournalEntryModel>>
-      getJournalEntries(
-    int businessId,
-  ) async {
-
-    return await DatabaseHelper
-        .instance
-        .getJournalEntries(
-      businessId,
-    );
+  Future<List<JournalEntryModel>> getJournalEntries(int businessId) async {
+    return await DatabaseHelper.instance.getJournalEntries(businessId);
   }
 
   Future<JournalEntryModel?> getJournalEntryById(int journalId) async {
     return await DatabaseHelper.instance.getJournalEntryById(journalId);
   }
 
-  Future<List<Map<String, dynamic>>> getJournalRowsByBusiness(int businessId) async {
+  Future<List<Map<String, dynamic>>> getJournalRowsByBusiness(
+    int businessId,
+  ) async {
     return await DatabaseHelper.instance.getJournalLedgerRows(businessId);
   }
 
@@ -235,12 +241,10 @@ class JournalService {
   // GET JOURNAL LINES
   // =========================
 
-  Future<List<Map<String, dynamic>>>
-      getJournalLines(
-    int journalId,
-  ) async {
+  Future<List<Map<String, dynamic>>> getJournalLines(int journalId) async {
     final db = await DatabaseHelper.instance.database;
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT
         journal_lines.*,
         accounts.name AS account_name
@@ -248,22 +252,29 @@ class JournalService {
       LEFT JOIN accounts ON accounts.account_id = journal_lines.account_id
       WHERE journal_lines.journal_id = ?
       ORDER BY journal_lines.line_id ASC
-    ''', [journalId]);
+    ''',
+      [journalId],
+    );
   }
 
   // =========================
   // GET JOURNAL BY TRANSACTION ID
   // =========================
 
-  Future<JournalEntryModel?> getJournalByTransactionId(int transactionId) async {
+  Future<JournalEntryModel?> getJournalByTransactionId(
+    int transactionId,
+  ) async {
     final db = await DatabaseHelper.instance.database;
-    final result = await db.rawQuery('''
+    final result = await db.rawQuery(
+      '''
       SELECT DISTINCT je.* FROM journal_entry je
       INNER JOIN transactions t ON DATE(je.date) = DATE(t.date)
       WHERE t.transaction_id = ?
       LIMIT 1
-    ''', [transactionId]);
-    
+    ''',
+      [transactionId],
+    );
+
     if (result.isEmpty) return null;
     return JournalEntryModel.fromMap(result.first);
   }

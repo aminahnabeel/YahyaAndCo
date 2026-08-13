@@ -12,14 +12,14 @@ class ExpenseCategoryService {
   // CREATE CATEGORY
   // =========================
 
-  Future<int> createExpenseCategory(
-    ExpenseCategoryModel category,
-  ) async {
+  Future<int> createExpenseCategory(ExpenseCategoryModel category) async {
     // Fetch business to get Firestore ID
     final businesses = await DatabaseHelper.instance.getBusinesses();
     BusinessModel? business;
     try {
-      business = businesses.firstWhere((b) => b.businessId == category.businessId);
+      business = businesses.firstWhere(
+        (b) => b.businessId == category.businessId,
+      );
     } catch (e) {
       business = null;
     }
@@ -30,7 +30,9 @@ class ExpenseCategoryService {
       },
       firestoreOperation: () async {
         if (business != null && business.firestoreId != null) {
-          print('🔥 Creating expense category in Firestore: businesses/${business.firestoreId}/expense_categories/');
+          print(
+            '🔥 Creating expense category in Firestore: businesses/${business.firestoreId}/expense_categories/',
+          );
           await _firestoreService.createExpenseCategory(
             businessId: business.firestoreId!, // ✅ Use Firestore ID
             name: category.name,

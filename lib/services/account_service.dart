@@ -19,7 +19,9 @@ class AccountService {
     final businesses = await DatabaseHelper.instance.getBusinesses();
     BusinessModel? business;
     try {
-      business = businesses.firstWhere((b) => b.businessId == account.businessId);
+      business = businesses.firstWhere(
+        (b) => b.businessId == account.businessId,
+      );
     } catch (e) {
       business = null;
     }
@@ -30,7 +32,9 @@ class AccountService {
       },
       firestoreOperation: () async {
         if (business != null && business.firestoreId != null) {
-          print('🔥 Creating account in Firestore: businesses/${business.firestoreId}/accounts/');
+          print(
+            '🔥 Creating account in Firestore: businesses/${business.firestoreId}/accounts/',
+          );
           await _firestoreService.createAccount(
             businessId: business.firestoreId!, // ✅ Use Firestore ID
             name: account.name,
@@ -58,8 +62,9 @@ class AccountService {
     final accounts = await getAccountsByBusiness(businessId);
     final normalizedName = accountName.trim().toLowerCase();
 
-    return accounts
-        .any((account) => account.name.trim().toLowerCase() == normalizedName);
+    return accounts.any(
+      (account) => account.name.trim().toLowerCase() == normalizedName,
+    );
   }
 
   // =========================
@@ -96,7 +101,9 @@ class AccountService {
     final businesses = await DatabaseHelper.instance.getBusinesses();
     BusinessModel? business;
     try {
-      business = businesses.firstWhere((b) => b.businessId == account.businessId);
+      business = businesses.firstWhere(
+        (b) => b.businessId == account.businessId,
+      );
     } catch (e) {
       business = null;
     }
@@ -106,8 +113,12 @@ class AccountService {
         await DatabaseHelper.instance.updateAccount(accountToUpdate);
       },
       firestoreOperation: () async {
-        if (business != null && business.firestoreId != null && account.accountId != null) {
-          print('🔄 Updating account in Firestore: businesses/${business.firestoreId}/accounts/${account.accountId}');
+        if (business != null &&
+            business.firestoreId != null &&
+            account.accountId != null) {
+          print(
+            '🔄 Updating account in Firestore: businesses/${business.firestoreId}/accounts/${account.accountId}',
+          );
           await _firestoreService.updateAccount(
             businessId: business.firestoreId!, // ✅ Use Firestore ID
             accountId: account.accountId!.toString(),
@@ -132,8 +143,8 @@ class AccountService {
       throw Exception('Account not found');
     }
 
-    final journalOpeningTotal =
-        await DatabaseHelper.instance.getOpeningBalanceJournalTotal(accountId);
+    final journalOpeningTotal = await DatabaseHelper.instance
+        .getOpeningBalanceJournalTotal(accountId);
     final currentOpeningBalance = journalOpeningTotal + account.openingBalance;
 
     if (account.openingBalance != 0) {
@@ -172,8 +183,8 @@ class AccountService {
     final account = await DatabaseHelper.instance.getAccountById(accountId);
     if (account == null) return 0;
 
-    final journalOpeningTotal =
-        await DatabaseHelper.instance.getOpeningBalanceJournalTotal(accountId);
+    final journalOpeningTotal = await DatabaseHelper.instance
+        .getOpeningBalanceJournalTotal(accountId);
 
     if (journalOpeningTotal != 0 || account.openingBalance == 0) {
       return journalOpeningTotal;
@@ -193,7 +204,9 @@ class AccountService {
       final businesses = await DatabaseHelper.instance.getBusinesses();
       BusinessModel? business;
       try {
-        business = businesses.firstWhere((b) => b.businessId == account.businessId);
+        business = businesses.firstWhere(
+          (b) => b.businessId == account.businessId,
+        );
       } catch (e) {
         business = null;
       }
@@ -204,7 +217,9 @@ class AccountService {
         },
         firestoreOperation: () async {
           if (business != null && business.firestoreId != null) {
-            print('🔄 Deleting account from Firestore: businesses/${business.firestoreId}/accounts/$accountId');
+            print(
+              '🔄 Deleting account from Firestore: businesses/${business.firestoreId}/accounts/$accountId',
+            );
             await _firestoreService.deleteAccount(
               business.firestoreId!, // ✅ Use Firestore ID
               accountId.toString(),
@@ -224,12 +239,13 @@ class AccountService {
   // - Cash Account: Required for cash transactions and Cash Book reports
   // - General Expense Account: Required for expense tracking
 
-  Future<void> createDefaultAccounts(
-    int businessId,
-  ) async {
+  Future<void> createDefaultAccounts(int businessId) async {
     final existingCash = await accountExists(businessId, 'Cash');
     final existingExpense = await accountExists(businessId, 'General Expense');
-    final existingOpeningBalanceEquity = await accountExists(businessId, 'Opening Balance Equity');
+    final existingOpeningBalanceEquity = await accountExists(
+      businessId,
+      'Opening Balance Equity',
+    );
 
     if (existingCash && existingExpense && existingOpeningBalanceEquity) {
       return;
@@ -292,11 +308,15 @@ class AccountService {
     return await DatabaseHelper.instance.getAccountClosingBalance(accountId);
   }
 
-  Future<List<TransactionModel>> getTransactionsByAccountId(int accountId) async {
+  Future<List<TransactionModel>> getTransactionsByAccountId(
+    int accountId,
+  ) async {
     return await DatabaseHelper.instance.getTransactionsByAccountId(accountId);
   }
 
-  Future<List<JournalLineModel>> getJournalLinesByAccountId(int accountId) async {
+  Future<List<JournalLineModel>> getJournalLinesByAccountId(
+    int accountId,
+  ) async {
     return await DatabaseHelper.instance.getJournalLinesByAccountId(accountId);
   }
 }

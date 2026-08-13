@@ -28,7 +28,9 @@ class NoteService {
       },
       firestoreOperation: () async {
         if (business != null && business.firestoreId != null) {
-          print('🔥 Creating note in Firestore: businesses/${business.firestoreId}/notes/');
+          print(
+            '🔥 Creating note in Firestore: businesses/${business.firestoreId}/notes/',
+          );
           await _firestoreService.createNote(
             businessId: business.firestoreId!, // ✅ Use Firestore ID
             title: note.title,
