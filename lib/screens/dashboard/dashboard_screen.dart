@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../db/database_helper.dart';
 import '../../services/accounting_service.dart';
 import '../../services/payment_reminder_service.dart';
 import '../../theme.dart';
@@ -53,6 +54,116 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _summaryFuture = _accountingService.getDashboardSummary(widget.businessId);
     });
     await _summaryFuture;
+  }
+
+  Future<List<Map<String, dynamic>>> _getBankAccountsWithAmounts() async {
+    final accounts = await DatabaseHelper.instance.getAccountsByBusiness(widget.businessId);
+    final bankAccounts = accounts.where((account) {
+      final name = (account.name ?? '').toString().toLowerCase();
+      final type = (account.type ?? '').toString().toLowerCase();
+      return type == 'bank' || name.contains('bank');
+    }).toList();
+
+    final results = <Map<String, dynamic>>[];
+    for (final account in bankAccounts) {
+      final accountId = account.accountId;
+      if (accountId == null) continue;
+
+      final amount = await _accountingService.getAccountBalance(accountId);
+      results.add({
+        'name': account.name,
+        'amount': amount,
+      });
+    }
+    return results;
+  }
+
+  Future<List<Map<String, dynamic>>> _getCashAndOwnerCapitalAccounts() async {
+    final accounts = await DatabaseHelper.instance.getAccountsByBusiness(widget.businessId);
+    final targeted = accounts.where((account) {
+      final name = (account.name ?? '').toString().trim().toLowerCase();
+      final type = (account.type ?? '').toString().trim().toLowerCase();
+      return name == 'cash' ||
+          name == 'cash in hand' ||
+          name == 'owner capital' ||
+          type == 'cash' ||
+          (name.contains('cash') && name.contains('hand')) ||
+          (name.contains('capital') && type == 'equity');
+    }).toList();
+
+    final results = <Map<String, dynamic>>[];
+    for (final account in targeted) {
+      final accountId = account.accountId;
+      if (accountId == null) continue;
+
+      final amount = await _accountingService.getAccountBalance(accountId);
+      results.add({
+        'name': account.name,
+        'amount': amount,
+      });
+    }
+    return results;
+  }
+
+  Future<void> _showBreakdownDialog({
+    required String title,
+    required List<Map<String, dynamic>> rows,
+  }) async {
+    final total = rows.fold<double>(0, (sum, row) => sum + (row['amount'] as num).toDouble());
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: rows.isEmpty
+                ? const Text('No account data found.')
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ...rows.map((row) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    (row['name'] ?? 'Account').toString(),
+                                    style: const TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                                Text(
+                                  _money((row['amount'] as num).toDouble()),
+                                  style: const TextStyle(fontWeight: FontWeight.w700),
+                                ),
+                              ],
+                            ),
+                          )),
+                      const Divider(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Total', style: TextStyle(fontWeight: FontWeight.w700)),
+                          Text(
+                            _money(total),
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   String _money(double value) => value.toStringAsFixed(2);
@@ -307,6 +418,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           future: _summaryFuture,
           builder: (context, snapshot) {
             final summary = snapshot.data ?? <String, double>{};
+            final totalBankBalance = summary['totalBankBalance'] ?? summary['totalBalance'] ?? 0;
+            final cashInHand = summary['cashInHand'] ?? summary['totalCash'] ?? 0;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -319,10 +432,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   physics: const NeverScrollableScrollPhysics(),
                   childAspectRatio: 1.4,
                   children: [
-                    _financialCard('Total Balance', summary['totalBalance'] ?? 0, Colors.blue, Icons.account_balance_wallet),
-                    _financialCard('Cash in Hand', summary['totalCash'] ?? 0, Colors.green, Icons.money),
-                    _financialCard('Debit', summary['totalDebit'] ?? 0, Colors.orange, Icons.trending_up),
-                    _financialCard('Credit', summary['totalCredit'] ?? 0, Colors.red, Icons.trending_down),
+                    _financialCard(
+                      title: 'Total Bank Balance',
+                      value: totalBankBalance,
+                      color: Colors.blue,
+                      icon: Icons.account_balance_wallet,
+                      onTap: () async {
+                        final rows = await _getBankAccountsWithAmounts();
+                        if (!mounted) return;
+                        await _showBreakdownDialog(title: 'Bank Accounts', rows: rows);
+                      },
+                    ),
+                    _financialCard(
+                      title: 'Cash in Hand',
+                      value: cashInHand,
+                      color: Colors.orange,
+                      icon: Icons.money,
+                      onTap: () async {
+                        final rows = await _getCashAndOwnerCapitalAccounts();
+                        if (!mounted) return;
+                        await _showBreakdownDialog(title: 'Cash & Owner Capital', rows: rows);
+                      },
+                    ),
+                    _financialCard(
+                      title: 'Debit',
+                      value: summary['totalDebit'] ?? 0,
+                      color: Colors.green,
+                      icon: Icons.trending_up,
+                      onTap: null,
+                    ),
+                    _financialCard(
+                      title: 'Credit',
+                      value: summary['totalCredit'] ?? 0,
+                      color: Colors.red,
+                      icon: Icons.trending_down,
+                      onTap: null,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -411,8 +556,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _financialCard(String title, double value, Color color, IconData icon) {
-    return Container(
+  Widget _financialCard({
+    required String title,
+    required double value,
+    required Color color,
+    required IconData icon,
+    VoidCallback? onTap,
+  }) {
+    final card = Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -475,6 +626,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
+    );
+
+    if (onTap == null) {
+      return card;
+    }
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: card,
     );
   }
 

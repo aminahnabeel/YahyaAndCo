@@ -41,6 +41,35 @@ class AccountingService {
     return isOverdue ? 'Overdue' : 'Pending';
   }
 
+  static Map<String, double> calculateTrialBalancePlacement({
+    required double totalDebit,
+    required double totalCredit,
+  }) {
+    final netDiff = totalCredit - totalDebit;
+
+    if (netDiff < 0) {
+      return {
+        'netDiff': netDiff,
+        'tbDebit': netDiff.abs(),
+        'tbCredit': 0.0,
+      };
+    }
+
+    if (netDiff > 0) {
+      return {
+        'netDiff': netDiff,
+        'tbDebit': 0.0,
+        'tbCredit': netDiff,
+      };
+    }
+
+    return {
+      'netDiff': 0.0,
+      'tbDebit': 0.0,
+      'tbCredit': 0.0,
+    };
+  }
+
   // =====================================================
   // GENERATE JOURNAL VOUCHER
   // =====================================================
@@ -968,21 +997,23 @@ class AccountingService {
 
   Future<Map<String, double>> getDashboardSummary(int businessId) async {
     final results = await Future.wait<double>([
-      getCashTotalBalance(businessId),
-      getCashBalanceForBusiness(businessId),
+      getBankTotalBalance(businessId),
+      getCashInHandForBusiness(businessId),
       getBusinessTotalCredit(businessId),
       getBusinessTotalDebit(businessId),
       getBusinessIncome(businessId),
       getBusinessExpense(businessId),
     ]);
 
-    final totalCash = results[0];
-    final cashInHand = results[1];
+    final bankBalance = results[0];
+    final cashBalance = results[1];
+    final ownerCapital = await getOwnerCapitalBalance(businessId);
 
     return {
-      // Total Balance: cash account + all bank accounts + owner capital.
-      'totalBalance': totalCash,
-      'totalCash': cashInHand,
+      'totalBalance': bankBalance,
+      'totalBankBalance': bankBalance,
+      'totalCash': cashBalance + ownerCapital,
+      'cashInHand': cashBalance + ownerCapital,
       'totalCredit': results[2],
       'totalDebit': results[3],
       'totalIncome': results[4],
@@ -1002,7 +1033,6 @@ class AccountingService {
   }) async {
     final db = await DatabaseHelper.instance.database;
 
-    // As-of filter: include all entries up to month end for stable closing balances.
     String joinDateFilter = '';
     List<dynamic> params = [businessId, businessId];
 
@@ -1027,30 +1057,53 @@ class AccountingService {
       WHERE accounts.business_id = ?
       GROUP BY accounts.account_id
       ''', params);
+
     final List<Map<String, dynamic>> result = [];
+    double totalTbDebit = 0;
+    double totalTbCredit = 0;
 
     for (final row in rows) {
       final accountId = row['account_id'] as int;
       final totalDebit = _asDouble(row['total_debit']);
       final totalCredit = _asDouble(row['total_credit']);
-      final account = await DatabaseHelper.instance.getAccountById(accountId);
-      final openingBalance = account?.openingBalance ?? 0;
-      final closingBalance = openingBalance - totalDebit + totalCredit;
+      final placement = calculateTrialBalancePlacement(
+        totalDebit: totalDebit,
+        totalCredit: totalCredit,
+      );
 
-      // Never return negative amounts in debit/credit columns.
-      final displayDebit = closingBalance < 0 ? closingBalance.abs() : 0.0;
-      final displayCredit = closingBalance >= 0 ? closingBalance : 0.0;
+      final tbDebit = placement['tbDebit'] ?? 0.0;
+      final tbCredit = placement['tbCredit'] ?? 0.0;
+      final netDiff = placement['netDiff'] ?? 0.0;
+
+      totalTbDebit += tbDebit;
+      totalTbCredit += tbCredit;
 
       result.add({
         'account_id': accountId,
         'name': row['name'],
-        'total_debit': displayDebit,
-        'total_credit': displayCredit,
-        'net_balance': closingBalance,
+        'type': row['type'],
+        'total_debit': totalDebit,
+        'total_credit': totalCredit,
+        'tb_debit': tbDebit,
+        'tb_credit': tbCredit,
+        'net_diff': netDiff,
       });
     }
 
-    return result;
+    final isBalanced = (totalTbDebit - totalTbCredit).abs() < 0.01;
+
+    return result
+      ..add({
+        'account_id': -1,
+        'name': 'TOTAL',
+        'type': 'TOTAL',
+        'total_debit': totalTbDebit,
+        'total_credit': totalTbCredit,
+        'tb_debit': totalTbDebit,
+        'tb_credit': totalTbCredit,
+        'net_diff': totalTbCredit - totalTbDebit,
+        'is_balanced': isBalanced,
+      });
   }
 
   // =====================================================
@@ -1067,7 +1120,6 @@ class AccountingService {
 
     final db = await DatabaseHelper.instance.database;
 
-    // Build date filter if month/year provided
     String dateFilter = '';
     List<dynamic> params = [businessId, cashId];
 
@@ -1079,24 +1131,26 @@ class AccountingService {
     }
 
     return await db.rawQuery('''
-      SELECT journal_entry.journal_id as journal_id,
-             journal_entry.date as date,
-             journal_entry.voucher_no as voucher_no,
-             journal_entry.due_date as due_date,
-             journal_entry.payment_status as payment_status,
-             journal_entry.remaining_amount as remaining_amount,
-             journal_lines.debit as debit,
-             journal_lines.credit as credit,
-             journal_entry.description as description,
-             accounts.name as account_name
+      SELECT
+        journal_entry.journal_id AS journal_id,
+        journal_entry.date AS date,
+        journal_entry.created_at AS created_at,
+        journal_entry.voucher_no AS voucher_no,
+        journal_entry.due_date AS due_date,
+        journal_entry.payment_status AS payment_status,
+        journal_entry.remaining_amount AS remaining_amount,
+        journal_lines.line_id AS line_id,
+        journal_lines.debit AS debit,
+        journal_lines.credit AS credit,
+        journal_entry.description AS description,
+        accounts.name AS account_name
       FROM journal_lines
       INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
       INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
       WHERE journal_entry.business_id = ?
-        AND journal_entry.voucher_type = 'CP'
         AND journal_lines.account_id = ?
         $dateFilter
-      ORDER BY journal_entry.date ASC, journal_entry.journal_id ASC
+      ORDER BY journal_entry.date ASC, journal_entry.created_at ASC, journal_entry.journal_id ASC, journal_lines.line_id ASC
       ''', params);
   }
 
@@ -1112,28 +1166,44 @@ class AccountingService {
 
     final rows = await db.rawQuery(
       '''
-        SELECT journal_entry.journal_id as journal_id,
-          journal_lines.line_id as line_id,
-          journal_entry.date as date,
-          journal_entry.voucher_no as voucher_no,
-          journal_entry.due_date as due_date,
-          journal_entry.payment_status as payment_status,
-          journal_entry.remaining_amount as remaining_amount,
-          journal_lines.debit as debit,
-          journal_lines.credit as credit,
-          journal_entry.description as description,
-          accounts.name as account_name
+        SELECT
+          journal_entry.journal_id AS journal_id,
+          journal_entry.created_at AS created_at,
+          journal_lines.line_id AS line_id,
+          journal_entry.date AS date,
+          journal_entry.voucher_no AS voucher_no,
+          journal_entry.voucher_type AS voucher_type,
+          journal_entry.due_date AS due_date,
+          journal_entry.payment_status AS payment_status,
+          journal_entry.remaining_amount AS remaining_amount,
+          journal_lines.debit AS debit,
+          journal_lines.credit AS credit,
+          journal_entry.description AS description,
+          accounts.name AS account_name
       FROM journal_lines
       INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
-        INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
+      INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
       WHERE journal_entry.business_id = ? AND journal_lines.account_id = ?
-      -- Preserve insertion/chronological sequence: order by journal_id then journal line id
-      ORDER BY journal_entry.journal_id ASC, journal_lines.line_id ASC
+      ORDER BY journal_entry.date ASC, journal_entry.created_at ASC, journal_entry.journal_id ASC, journal_lines.line_id ASC
     ''',
       [businessId, accountId],
     );
 
-    return rows;
+    double runningBalance = 0;
+    final orderedRows = <Map<String, dynamic>>[];
+
+    for (final row in rows) {
+      final debit = _asDouble(row['debit']);
+      final credit = _asDouble(row['credit']);
+      runningBalance = runningBalance + credit - debit;
+
+      orderedRows.add({
+        ...row,
+        'running_balance': runningBalance,
+      });
+    }
+
+    return orderedRows;
   }
 
   // =====================================================
@@ -1187,7 +1257,6 @@ class AccountingService {
   }) async {
     final db = await DatabaseHelper.instance.database;
 
-    // Build date filter if month/year provided
     String dateFilter = '';
     List<dynamic> params = [businessId];
 
@@ -1203,8 +1272,8 @@ class AccountingService {
         accounts.account_id,
         accounts.name,
         accounts.type,
-        SUM(journal_lines.debit) as total_debit,
-        SUM(journal_lines.credit) as total_credit
+        SUM(journal_lines.debit) AS total_debit,
+        SUM(journal_lines.credit) AS total_credit
       FROM journal_lines
       INNER JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
       INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
@@ -1215,9 +1284,8 @@ class AccountingService {
       ORDER BY accounts.type, accounts.name
       ''', params);
 
-    double income = 0;
-    double expense = 0;
-
+    double totalIncome = 0;
+    double totalExpense = 0;
     final incomeAccounts = <Map<String, dynamic>>[];
     final expenseAccounts = <Map<String, dynamic>>[];
 
@@ -1227,18 +1295,29 @@ class AccountingService {
       final totalCredit = _asDouble(row['total_credit']);
 
       if (type == 'expense') {
-        expense += totalDebit;
-        expenseAccounts.add({...row, 'net_balance': totalDebit - totalCredit});
+        final netBalance = totalDebit - totalCredit;
+        totalExpense += netBalance;
+        expenseAccounts.add({
+          ...row,
+          'net_balance': netBalance,
+        });
       } else if (type == 'income' || type == 'revenue') {
-        income += totalCredit;
-        incomeAccounts.add({...row, 'net_balance': totalCredit - totalDebit});
+        final netBalance = totalCredit - totalDebit;
+        totalIncome += netBalance;
+        incomeAccounts.add({
+          ...row,
+          'net_balance': netBalance,
+        });
       }
     }
 
+    final netProfit = totalIncome - totalExpense;
+
     return {
-      'income': income,
-      'expense': expense,
-      'profit': income - expense,
+      'income': totalIncome,
+      'expense': totalExpense,
+      'netProfit': netProfit,
+      'profit': netProfit,
       'incomeAccounts': incomeAccounts,
       'expenseAccounts': expenseAccounts,
     };
@@ -1418,7 +1497,6 @@ class AccountingService {
   }) async {
     final db = await DatabaseHelper.instance.database;
 
-    // As-of filter: include all entries up to selected month end.
     String joinDateFilter = '';
     List<dynamic> params = [businessId, businessId];
 
@@ -1428,15 +1506,14 @@ class AccountingService {
       params = [businessId, businessId, endDate];
     }
 
-    // Get all assets, liabilities, and equity
     final rows = await db.rawQuery('''
       SELECT
         accounts.account_id,
         accounts.name,
         accounts.type,
         COALESCE(accounts.opening_balance, 0) AS opening_balance,
-        COALESCE(SUM(journal_lines.debit), 0) as total_debit,
-        COALESCE(SUM(journal_lines.credit), 0) as total_credit
+        COALESCE(SUM(journal_lines.debit), 0) AS total_debit,
+        COALESCE(SUM(journal_lines.credit), 0) AS total_credit
       FROM accounts
       LEFT JOIN journal_lines ON journal_lines.account_id = accounts.account_id
       LEFT JOIN journal_entry ON journal_entry.journal_id = journal_lines.journal_id
@@ -1461,7 +1538,7 @@ class AccountingService {
       final openingBalance = _asDouble(row['opening_balance']);
       final totalDebit = _asDouble(row['total_debit']);
       final totalCredit = _asDouble(row['total_credit']);
-      final balance = openingBalance - totalDebit + totalCredit;
+      final balance = openingBalance + (totalCredit - totalDebit);
 
       if (type == 'asset') {
         totalAssets += balance;
@@ -1475,6 +1552,10 @@ class AccountingService {
       }
     }
 
+    final pnl = await getProfitLoss(businessId, year: year, month: month);
+    final netProfit = _asDouble(pnl['netProfit']);
+    totalEquity += netProfit;
+
     final isBalanced =
         (totalAssets - (totalLiabilities + totalEquity)).abs() < 0.01;
 
@@ -1485,6 +1566,7 @@ class AccountingService {
       'totalAssets': totalAssets,
       'totalLiabilities': totalLiabilities,
       'totalEquity': totalEquity,
+      'netProfit': netProfit,
       'isBalanced': isBalanced,
     };
   }

@@ -11,8 +11,8 @@ import '../../services/image_upload_service.dart';
 
 class _JournalFormRow {
   AccountModel? account;
-  final TextEditingController debitController = TextEditingController(text: '0.00');
-  final TextEditingController creditController = TextEditingController(text: '0.00');
+  final TextEditingController debitController = TextEditingController();
+  final TextEditingController creditController = TextEditingController();
   final GlobalKey rowKey = GlobalKey(); // Har individual row ke liye unique key
 
   void dispose() {
@@ -366,7 +366,8 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
   }
 
   void _clearAmountIfDefault(TextEditingController controller) {
-    if (controller.text == '0.00' || controller.text == '0') {
+    final value = controller.text.trim();
+    if (value == '0.00' || value == '0' || value.isEmpty) {
       controller.clear();
     }
   }
