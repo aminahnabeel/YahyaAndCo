@@ -49,7 +49,11 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     nameController = TextEditingController(text: widget.account.name);
     phoneController = TextEditingController(text: widget.account.phone ?? '');
     addressController = TextEditingController(text: widget.account.address ?? '');
-    openingBalanceController = TextEditingController(text: widget.account.openingBalance.toString());
+    openingBalanceController = TextEditingController(
+      text: widget.account.openingBalance == 0
+          ? ''
+          : widget.account.openingBalance.toString(),
+    );
     selectedType = widget.account.type;
     openingBalanceDisplay = widget.account.openingBalance;
     _loadOpeningBalance();
@@ -64,7 +68,8 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     if (mounted) {
       setState(() {
         openingBalanceDisplay = openingBalance;
-        openingBalanceController.text = openingBalance.toStringAsFixed(2);
+        openingBalanceController.text =
+            openingBalance == 0 ? '' : openingBalance.toStringAsFixed(2);
       });
     }
   }
@@ -109,7 +114,9 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
         setState(() {
           isEditing = false;
           openingBalanceDisplay = refreshedOpeningBalance;
-          openingBalanceController.text = refreshedOpeningBalance.toStringAsFixed(2);
+          openingBalanceController.text = refreshedOpeningBalance == 0
+              ? ''
+              : refreshedOpeningBalance.toStringAsFixed(2);
         });
       }
     } catch (e) {
@@ -303,6 +310,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(
                             labelText: 'Opening Balance',
+                            hintText: '0.00',
                             border: OutlineInputBorder(),
                           ),
                         ),

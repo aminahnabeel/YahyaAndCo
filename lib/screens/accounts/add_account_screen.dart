@@ -364,6 +364,9 @@ class _AddAccountScreenState
                   labelText:
                       'Opening Balance',
 
+                  hintText:
+                    '0.00',
+
                   border:
                       OutlineInputBorder(),
                 ),
