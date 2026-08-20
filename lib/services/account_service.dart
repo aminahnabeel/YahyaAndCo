@@ -26,17 +26,16 @@ class AccountService {
       business = null;
     }
 
-    return await _syncService.syncOperation<int>(
-      sqliteOperation: () async {
-        return await DatabaseHelper.instance.insertAccount(account);
-      },
-      firestoreOperation: () async {
+    final accountId = await DatabaseHelper.instance.insertAccount(account);
+
+    if (_syncService.isConnected && _firestoreService.isUserLoggedIn()) {
+      try {
         if (business != null && business.firestoreId != null) {
           print(
             '🔥 Creating account in Firestore: businesses/${business.firestoreId}/accounts/',
           );
-          await _firestoreService.createAccount(
-            businessId: business.firestoreId!, // ✅ Use Firestore ID
+          final firestoreAccountId = await _firestoreService.createAccount(
+            businessId: business.firestoreId!,
             name: account.name,
             type: account.type,
             phone: account.phone,
@@ -44,10 +43,17 @@ class AccountService {
             openingBalance: account.openingBalance,
             createdAt: account.createdAt,
           );
+          await DatabaseHelper.instance.updateAccountFirestoreId(
+            accountId,
+            firestoreAccountId,
+          );
         }
-      },
-      operationName: 'Create Account',
-    );
+      } catch (e) {
+        print('⚠️  Account created in SQLite, Firestore sync failed: $e');
+      }
+    }
+
+    return accountId;
   }
 
   // =========================
@@ -84,7 +90,13 @@ class AccountService {
       throw Exception('Account ID is required for update');
     }
 
-    await updateOpeningBalance(account.accountId!, account.openingBalance);
+    await updateOpeningBalance(
+      account.accountId!,
+      account.openingBalance,
+      surfaceFirestoreFailure: true,
+    );
+
+    final firestoreOpeningBalance = account.openingBalance;
 
     final accountToUpdate = AccountModel(
       accountId: account.accountId,
@@ -113,30 +125,35 @@ class AccountService {
         await DatabaseHelper.instance.updateAccount(accountToUpdate);
       },
       firestoreOperation: () async {
+        final firestoreAccountId = account.accountId == null
+            ? null
+            : await DatabaseHelper.instance.getAccountFirestoreId(account.accountId!);
+
         if (business != null &&
             business.firestoreId != null &&
-            account.accountId != null) {
+            firestoreAccountId != null) {
           print(
-            '🔄 Updating account in Firestore: businesses/${business.firestoreId}/accounts/${account.accountId}',
+            '🔄 Updating account in Firestore: businesses/${business.firestoreId}/accounts/$firestoreAccountId',
           );
           await _firestoreService.updateAccount(
             businessId: business.firestoreId!, // ✅ Use Firestore ID
-            accountId: account.accountId!.toString(),
+            accountId: firestoreAccountId,
             name: account.name,
             type: account.type,
             phone: account.phone,
             address: account.address,
-            openingBalance: 0,
+            openingBalance: firestoreOpeningBalance,
           );
         }
       },
       operationName: 'Update Account',
+      surfaceFirestoreFailure: true,
     );
   }
 
   Future<void> updateOpeningBalance(
     int accountId,
-    double newOpeningBalance,
+    double newOpeningBalance, {bool surfaceFirestoreFailure = false}
   ) async {
     final account = await getAccountById(accountId);
     if (account == null) {
@@ -144,14 +161,76 @@ class AccountService {
     }
 
     final journalOpeningTotal = await DatabaseHelper.instance
-        .getOpeningBalanceJournalTotal(accountId);
+      .getOpeningBalanceJournalTotal(accountId);
     final currentOpeningBalance = journalOpeningTotal + account.openingBalance;
 
-    if (account.openingBalance != 0) {
-      await DatabaseHelper.instance.insertOpeningBalanceJournalEntry(
+    final businesses = await DatabaseHelper.instance.getBusinesses();
+    BusinessModel? business;
+    try {
+      business = businesses.firstWhere(
+        (b) => b.businessId == account.businessId,
+      );
+    } catch (e) {
+      business = null;
+    }
+
+    Future<void> syncOpeningBalanceToFirestore(double amount) async {
+      if (!_syncService.isConnected || !_firestoreService.isUserLoggedIn()) {
+        return;
+      }
+
+      if (business == null || business.firestoreId == null) {
+        return;
+      }
+
+      final firestoreBusinessId = business.firestoreId!;
+      final firestoreAccountId = await _ensureFirestoreAccount(
+        firestoreBusinessId,
+        account,
+      );
+      final equityAccountId = await _ensureOpeningBalanceEquityAccount(
+        firestoreBusinessId,
         account.businessId,
-        accountId,
-        account.openingBalance,
+      );
+
+      if (firestoreAccountId == null || equityAccountId == null) {
+        return;
+      }
+
+      final now = DateTime.now().toIso8601String();
+      final journalDocId = await _firestoreService.createJournalEntry(
+        businessId: firestoreBusinessId,
+        transactionId: null,
+        voucherNo: 'OB-$accountId-${DateTime.now().millisecondsSinceEpoch}',
+        voucherType: 'OB',
+        description: 'Opening Balance',
+        dueDate: null,
+        paymentStatus: 'Paid',
+        remainingAmount: 0,
+        imageUrl: null,
+        date: now,
+        createdAt: now,
+      );
+
+      await _firestoreService.addJournalLines(
+        businessId: firestoreBusinessId,
+        journalId: journalDocId,
+        journalLines: [
+          {
+            'account_id': account.accountId,
+            'account_firestore_id': firestoreAccountId,
+            'account_name': account.name,
+            'debit': amount < 0 ? amount.abs() : 0.0,
+            'credit': amount > 0 ? amount : 0.0,
+          },
+          {
+            'account_id': equityAccountId['localAccountId'],
+            'account_firestore_id': equityAccountId['firestoreAccountId'],
+            'account_name': 'Opening Balance Equity',
+            'debit': amount > 0 ? amount : 0.0,
+            'credit': amount < 0 ? amount.abs() : 0.0,
+          },
+        ],
       );
     }
 
@@ -162,10 +241,16 @@ class AccountService {
         accountId,
         difference,
       );
+      try {
+        await syncOpeningBalanceToFirestore(difference);
+      } catch (e) {
+        if (surfaceFirestoreFailure) {
+          rethrow;
+        }
+      }
     }
 
-    if (account.openingBalance != 0) {
-      final migratedAccount = AccountModel(
+    final migratedAccount = AccountModel(
         accountId: account.accountId,
         businessId: account.businessId,
         name: account.name,
@@ -175,8 +260,113 @@ class AccountService {
         openingBalance: 0,
         createdAt: account.createdAt,
       );
-      await DatabaseHelper.instance.updateAccount(migratedAccount);
+    await DatabaseHelper.instance.updateAccount(migratedAccount);
+  }
+
+  Future<String?> _ensureFirestoreAccount(
+    String firestoreBusinessId,
+    AccountModel account,
+  ) async {
+    final localFirestoreId = account.accountId == null
+        ? null
+        : await DatabaseHelper.instance.getAccountFirestoreId(account.accountId!);
+    if (localFirestoreId != null && localFirestoreId.isNotEmpty) {
+      return localFirestoreId;
     }
+
+    final firestoreAccounts = await _firestoreService.getAccountsByBusiness(
+      firestoreBusinessId,
+    );
+    final normalizedName = account.name.trim().toLowerCase();
+    final existing = firestoreAccounts.firstWhere(
+      (item) => (item['name'] ?? '').toString().trim().toLowerCase() == normalizedName,
+      orElse: () => <String, dynamic>{},
+    );
+
+    if (existing.isNotEmpty) {
+      final firestoreId = existing['id']?.toString();
+      if (firestoreId != null && account.accountId != null) {
+        await DatabaseHelper.instance.updateAccountFirestoreId(
+          account.accountId!,
+          firestoreId,
+        );
+      }
+      return firestoreId;
+    }
+
+    final firestoreId = await _firestoreService.createAccount(
+      businessId: firestoreBusinessId,
+      name: account.name,
+      type: account.type,
+      phone: account.phone,
+      address: account.address,
+      openingBalance: account.openingBalance,
+      createdAt: account.createdAt,
+    );
+
+    if (account.accountId != null) {
+      await DatabaseHelper.instance.updateAccountFirestoreId(
+        account.accountId!,
+        firestoreId,
+      );
+    }
+
+    return firestoreId;
+  }
+
+  Future<Map<String, dynamic>?> _ensureOpeningBalanceEquityAccount(
+    String firestoreBusinessId,
+    int businessId,
+  ) async {
+    final localAccounts = await DatabaseHelper.instance.getAccountsByBusiness(
+      businessId,
+    );
+    final localEquity = localAccounts.firstWhere(
+      (account) => account.name.trim().toLowerCase() == 'opening balance equity',
+      orElse: () => AccountModel(
+        businessId: businessId,
+        name: 'Opening Balance Equity',
+        type: 'Equity',
+        openingBalance: 0,
+        createdAt: DateTime.now().toIso8601String(),
+      ),
+    );
+
+    final firestoreAccounts = await _firestoreService.getAccountsByBusiness(
+      firestoreBusinessId,
+    );
+    final existing = firestoreAccounts.firstWhere(
+      (item) => (item['name'] ?? '').toString().trim().toLowerCase() == 'opening balance equity',
+      orElse: () => <String, dynamic>{},
+    );
+
+    String? firestoreAccountId;
+    if (existing.isNotEmpty) {
+      firestoreAccountId = existing['id']?.toString();
+    } else {
+      firestoreAccountId = await _firestoreService.createAccount(
+        businessId: firestoreBusinessId,
+        name: 'Opening Balance Equity',
+        type: 'Equity',
+        phone: null,
+        address: null,
+        openingBalance: 0,
+        createdAt: DateTime.now().toIso8601String(),
+      );
+    }
+
+    final localAccountId = localEquity.accountId;
+    if (localAccountId != null && firestoreAccountId != null) {
+      await DatabaseHelper.instance.updateAccountFirestoreId(
+        localAccountId,
+        firestoreAccountId,
+      );
+    }
+
+    return {
+      'localAccountId': localAccountId,
+      'firestoreAccountId': firestoreAccountId,
+    };
   }
 
   Future<double> getAccountOpeningBalanceFromJournal(int accountId) async {
@@ -216,13 +406,17 @@ class AccountService {
           await DatabaseHelper.instance.deleteAccount(accountId);
         },
         firestoreOperation: () async {
-          if (business != null && business.firestoreId != null) {
+            final firestoreAccountId = account.accountId == null
+                ? null
+                : await DatabaseHelper.instance.getAccountFirestoreId(account.accountId!);
+
+            if (business != null && business.firestoreId != null && firestoreAccountId != null) {
             print(
-              '🔄 Deleting account from Firestore: businesses/${business.firestoreId}/accounts/$accountId',
+                '🔄 Deleting account from Firestore: businesses/${business.firestoreId}/accounts/$firestoreAccountId',
             );
             await _firestoreService.deleteAccount(
               business.firestoreId!, // ✅ Use Firestore ID
-              accountId.toString(),
+                firestoreAccountId,
             );
           }
         },

@@ -1,0 +1,149 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "git-status",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"status",
+				"--short",
+				"--branch"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "git-add-commit",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"add",
+				"lib/services/sync_service.dart",
+				"lib/services/account_service.dart",
+				"lib/services/accounting_service.dart",
+				"lib/services/transaction_service.dart",
+				"lib/services/restore_service.dart",
+				"lib/db/database_helper.dart",
+				"lib/screens/startup_gate.dart",
+				"lib/services/business_service.dart",
+				"lib/services/firestore_service.dart",
+				"lib/services/journal_service.dart",
+				"lib/screens/calculator_screen.dart",
+				"pubspec.lock",
+				"macos/Flutter/GeneratedPluginRegistrant.swift",
+				"windows/flutter/generated_plugin_registrant.cc",
+				"windows/flutter/generated_plugins.cmake"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "git-log",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"log",
+				"-1",
+				"--oneline"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "git-push",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"push",
+				"origin",
+				"main"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "git-fetch",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"fetch",
+				"origin",
+				"main"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "git-status2",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"status",
+				"--short",
+				"--branch"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "git-commit",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"commit",
+				"-m",
+				"Sync Firestore writes and restore flow"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "git-log2",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"log",
+				"--oneline",
+				"--decorate",
+				"-n",
+				"3"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "git-rebase",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"rebase",
+				"origin/main"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "git-status3",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"status",
+				"--short",
+				"--branch"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}

@@ -3,14 +3,42 @@ import 'package:flutter/material.dart';
 
 import '../db/database_helper.dart';
 import '../models/business_model.dart';
-import 'business_details.dart';
-import 'dashboard/dashboard_screen.dart';
-import 'enter_pin_screen.dart';
+import '../services/restore_service.dart';
 import 'auth_screen.dart';
+import 'business_details.dart';
+import 'business_switch_screen.dart';
+import 'dashboard/dashboard_screen.dart';
 import 'email_verification_pending_screen.dart';
+import 'enter_pin_screen.dart';
 
 class StartupGate extends StatelessWidget {
   const StartupGate({super.key});
+
+  Future<List<BusinessModel>> _loadBusinessesAfterLogin() async {
+    final localBusinesses = await DatabaseHelper.instance.getBusinesses();
+    print('StartupGate: local businesses count = ${localBusinesses.length}');
+    if (localBusinesses.isNotEmpty) {
+      return localBusinesses;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      print('StartupGate: no current Firebase user');
+      return const [];
+    }
+
+    print('StartupGate: user UID = ${user.uid}; attempting Firestore restore');
+    final restoreService = RestoreService();
+    final restored = await restoreService.restoreUserDataOnLogin();
+    if (!restored) {
+      print('StartupGate: Firestore restore returned false');
+      return const [];
+    }
+
+    final restoredBusinesses = await DatabaseHelper.instance.getBusinesses();
+    print('StartupGate: restored businesses count = ${restoredBusinesses.length}');
+    return restoredBusinesses;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,8 +60,8 @@ class StartupGate extends StatelessWidget {
           return const EmailVerificationPendingScreen();
         }
 
-        return FutureBuilder<BusinessModel?>(
-          future: DatabaseHelper.instance.getLatestBusiness(),
+        return FutureBuilder<List<BusinessModel>>(
+          future: _loadBusinessesAfterLogin(),
           builder: (context, businessSnapshot) {
             if (businessSnapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(
@@ -41,11 +69,16 @@ class StartupGate extends StatelessWidget {
               );
             }
 
-            final business = businessSnapshot.data;
-            if (business == null || business.businessId == null) {
+            final businesses = businessSnapshot.data ?? const <BusinessModel>[];
+            if (businesses.isEmpty) {
               return const BusinessDetailsScreen();
             }
 
+            if (businesses.length > 1) {
+              return BusinessSwitchScreen(currentBusinessId: -1);
+            }
+
+            final business = businesses.first;
             if (business.pin != null && business.pin!.isNotEmpty) {
               return EnterPinScreen(businessId: business.businessId!);
             }

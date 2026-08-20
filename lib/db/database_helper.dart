@@ -72,6 +72,20 @@ class DatabaseHelper {
     }
 
     if (oldVersion < 7) {
+      // Ensure Firestore ID columns exist for sync
+      await _addColumnIfMissing(db, 'accounts', 'firestore_id', 'TEXT');
+      await _addColumnIfMissing(db, 'transactions', 'firestore_id', 'TEXT');
+      await _addColumnIfMissing(db, 'journal_entry', 'firestore_id', 'TEXT');
+      await _addColumnIfMissing(db, 'journal_lines', 'firestore_id', 'TEXT');
+
+      // Create indexes to speed up lookups by Firestore ID
+      await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_business_firestore_id ON business(firestore_id);');
+      await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_firestore_id ON accounts(firestore_id);');
+      await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_firestore_id ON transactions(firestore_id);');
+      await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_journal_entry_firestore_id ON journal_entry(firestore_id);');
+      await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_journal_lines_firestore_id ON journal_lines(firestore_id);');
+
+      // Ensure reminders table exists for older DB versions
       await _createRemindersTable(db);
     }
   }
@@ -134,7 +148,7 @@ class DatabaseHelper {
       business_id INTEGER
       PRIMARY KEY AUTOINCREMENT,
 
-      firestore_id TEXT,
+      firestore_id TEXT UNIQUE,
 
       name TEXT,
 
@@ -157,6 +171,8 @@ class DatabaseHelper {
       PRIMARY KEY AUTOINCREMENT,
 
       business_id INTEGER,
+
+      firestore_id TEXT UNIQUE,
 
       name TEXT,
 
@@ -187,6 +203,8 @@ class DatabaseHelper {
       business_id INTEGER,
 
       account_id INTEGER,
+
+      firestore_id TEXT UNIQUE,
 
       amount REAL,
 
@@ -227,6 +245,8 @@ class DatabaseHelper {
 
       transaction_id INTEGER,
 
+      firestore_id TEXT UNIQUE,
+
       description TEXT,
 
       image_url TEXT,
@@ -263,6 +283,8 @@ class DatabaseHelper {
       journal_id INTEGER,
 
       account_id INTEGER,
+
+      firestore_id TEXT UNIQUE,
 
       debit REAL,
 
@@ -542,6 +564,35 @@ class DatabaseHelper {
     });
   }
 
+  Future<int> upsertBusiness(BusinessModel business) async {
+    final db = await database;
+
+    final map = business.toMap();
+    if (business.firestoreId == null || business.firestoreId!.trim().isEmpty) {
+      return await db.insert('business', map, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    final existing = await db.query(
+      'business',
+      where: 'firestore_id = ?',
+      whereArgs: [business.firestoreId],
+      limit: 1,
+    );
+
+    if (existing.isNotEmpty) {
+      final localBusinessId = existing.first['business_id'] as int;
+      await db.update(
+        'business',
+        map,
+        where: 'business_id = ?',
+        whereArgs: [localBusinessId],
+      );
+      return localBusinessId;
+    }
+
+    return await db.insert('business', map, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
   Future<List<BusinessModel>> getBusinesses() async {
     final db = await database;
 
@@ -621,6 +672,61 @@ class DatabaseHelper {
     return await db.insert('accounts', account.toMap());
   }
 
+  Future<void> updateAccountFirestoreId(int accountId, String firestoreId) async {
+    final db = await database;
+
+    await db.update(
+      'accounts',
+      {'firestore_id': firestoreId},
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+    );
+  }
+
+  Future<String?> getAccountFirestoreId(int accountId) async {
+    final db = await database;
+
+    final maps = await db.query(
+      'accounts',
+      columns: ['firestore_id'],
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+      limit: 1,
+    );
+
+    if (maps.isEmpty) return null;
+    return maps.first['firestore_id'] as String?;
+  }
+
+  Future<int> upsertAccount(Map<String, dynamic> account) async {
+    final db = await database;
+    final firestoreId = account['firestore_id'];
+
+    if (firestoreId == null || firestoreId.toString().trim().isEmpty) {
+      return await db.insert('accounts', account, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    final existing = await db.query(
+      'accounts',
+      where: 'firestore_id = ?',
+      whereArgs: [firestoreId],
+      limit: 1,
+    );
+
+    if (existing.isNotEmpty) {
+      final localAccountId = existing.first['account_id'] as int;
+      await db.update(
+        'accounts',
+        account,
+        where: 'account_id = ?',
+        whereArgs: [localAccountId],
+      );
+      return localAccountId;
+    }
+
+    return await db.insert('accounts', account, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
   Future<List<AccountModel>> getAccountsByBusiness(int businessId) async {
     final db = await database;
 
@@ -693,6 +799,78 @@ class DatabaseHelper {
     return await db.insert('transactions', transaction.toMap());
   }
 
+  Future<void> updateTransactionFirestoreId(int transactionId, String firestoreId) async {
+    final db = await database;
+
+    await db.update(
+      'transactions',
+      {'firestore_id': firestoreId},
+      where: 'transaction_id = ?',
+      whereArgs: [transactionId],
+    );
+  }
+
+  Future<String?> getTransactionFirestoreId(int transactionId) async {
+    final db = await database;
+
+    final maps = await db.query(
+      'transactions',
+      columns: ['firestore_id'],
+      where: 'transaction_id = ?',
+      whereArgs: [transactionId],
+      limit: 1,
+    );
+
+    if (maps.isEmpty) return null;
+    return maps.first['firestore_id'] as String?;
+  }
+
+  Future<int> upsertTransaction(Map<String, dynamic> transaction) async {
+    final db = await database;
+    final firestoreId = transaction['firestore_id'];
+    final sanitizedTransaction = <String, dynamic>{
+      'transaction_id': transaction['transaction_id'],
+      'business_id': transaction['business_id'],
+      'account_id': transaction['account_id'],
+      'to_account_id': transaction['to_account_id'],
+      'firestore_id': transaction['firestore_id'],
+      'amount': transaction['amount'],
+      'type': transaction['type'],
+      'note': transaction['note'],
+      'payment_method': transaction['payment_method'],
+      'due_date': transaction['due_date'],
+      'payment_status': transaction['payment_status'],
+      'remaining_amount': transaction['remaining_amount'],
+      'image_url': transaction['image_url'],
+      'date': transaction['date'],
+      'created_at': transaction['created_at'],
+    };
+
+    if (firestoreId == null || firestoreId.toString().trim().isEmpty) {
+      return await db.insert('transactions', sanitizedTransaction, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    final existing = await db.query(
+      'transactions',
+      where: 'firestore_id = ?',
+      whereArgs: [firestoreId],
+      limit: 1,
+    );
+
+    if (existing.isNotEmpty) {
+      final localTransactionId = existing.first['transaction_id'] as int;
+      await db.update(
+        'transactions',
+        sanitizedTransaction,
+        where: 'transaction_id = ?',
+        whereArgs: [localTransactionId],
+      );
+      return localTransactionId;
+    }
+
+    return await db.insert('transactions', sanitizedTransaction, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
   Future<List<TransactionModel>> getTransactionsByBusiness(
     int businessId,
   ) async {
@@ -725,6 +903,97 @@ class DatabaseHelper {
 
     if (maps.isEmpty) return null;
     return TransactionModel.fromMap(maps.first);
+  }
+
+  Future<int> upsertJournalEntry(Map<String, dynamic> journalEntry) async {
+    final db = await database;
+    final firestoreId = journalEntry['firestore_id'];
+
+    if (firestoreId == null || firestoreId.toString().trim().isEmpty) {
+      return await db.insert('journal_entry', journalEntry, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    final existing = await db.query(
+      'journal_entry',
+      where: 'firestore_id = ?',
+      whereArgs: [firestoreId],
+      limit: 1,
+    );
+
+    if (existing.isNotEmpty) {
+      final localJournalId = existing.first['journal_id'] as int;
+      await db.update(
+        'journal_entry',
+        journalEntry,
+        where: 'journal_id = ?',
+        whereArgs: [localJournalId],
+      );
+      return localJournalId;
+    }
+
+    return await db.insert('journal_entry', journalEntry, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> updateJournalFirestoreId(int journalId, String firestoreId) async {
+    final db = await database;
+
+    await db.update(
+      'journal_entry',
+      {'firestore_id': firestoreId},
+      where: 'journal_id = ?',
+      whereArgs: [journalId],
+    );
+  }
+
+  Future<String?> getJournalFirestoreId(int journalId) async {
+    final db = await database;
+
+    final maps = await db.query(
+      'journal_entry',
+      columns: ['firestore_id'],
+      where: 'journal_id = ?',
+      whereArgs: [journalId],
+      limit: 1,
+    );
+
+    if (maps.isEmpty) return null;
+    return maps.first['firestore_id'] as String?;
+  }
+
+  Future<int> upsertJournalLine(Map<String, dynamic> journalLine) async {
+    final db = await database;
+    final firestoreId = journalLine['firestore_id'];
+    final sanitizedLine = <String, dynamic>{
+      'journal_id': journalLine['journal_id'],
+      'account_id': journalLine['account_id'],
+      'firestore_id': journalLine['firestore_id'],
+      'debit': journalLine['debit'],
+      'credit': journalLine['credit'],
+    };
+
+    if (firestoreId == null || firestoreId.toString().trim().isEmpty) {
+      return await db.insert('journal_lines', sanitizedLine, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    final existing = await db.query(
+      'journal_lines',
+      where: 'firestore_id = ?',
+      whereArgs: [firestoreId],
+      limit: 1,
+    );
+
+    if (existing.isNotEmpty) {
+      final localLineId = existing.first['line_id'] as int;
+      await db.update(
+        'journal_lines',
+        sanitizedLine,
+        where: 'line_id = ?',
+        whereArgs: [localLineId],
+      );
+      return localLineId;
+    }
+
+    return await db.insert('journal_lines', sanitizedLine, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<List<Map<String, dynamic>>> getTransactionLedgerRows(int businessId) async {

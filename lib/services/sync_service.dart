@@ -113,6 +113,7 @@ class SyncService {
     required Future<T> Function() sqliteOperation,
     required Future<void> Function() firestoreOperation,
     required String operationName,
+    bool surfaceFirestoreFailure = false,
   }) async {
     try {
       print('🔄 [$operationName] Starting sync operation...');
@@ -129,7 +130,9 @@ class SyncService {
           print('✅ [$operationName] Synced to Firestore');
         } catch (e) {
           print('⚠️  [$operationName] Firestore sync failed: $e');
-          // Data is still saved locally in SQLite
+          if (surfaceFirestoreFailure) {
+            rethrow;
+          }
         }
       } else {
         print('⚠️  [$operationName] Offline mode - saved to SQLite only');

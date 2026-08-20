@@ -62,6 +62,7 @@ class FirestoreService {
         'name': name,
         'type': type,
         'pin': pin,
+        'owner_uid': firebaseUid,
         'created_at': createdAt,
         'updated_at': DateTime.now().toIso8601String(),
       });
@@ -210,6 +211,10 @@ class FirestoreService {
     required String businessId,
     required int accountId,
     int? toAccountId,
+    String? accountFirestoreId,
+    String? accountName,
+    String? toAccountFirestoreId,
+    String? toAccountName,
     required double amount,
     required String type,
     required String note,
@@ -229,7 +234,11 @@ class FirestoreService {
       final businessRef = _businessDocRefForCurrentUser(businessId);
       final docRef = await businessRef.collection('transactions').add({
             'account_id': accountId,
+        'account_firestore_id': accountFirestoreId,
+        'account_name': accountName,
             'to_account_id': toAccountId,
+        'to_account_firestore_id': toAccountFirestoreId,
+        'to_account_name': toAccountName,
             'amount': amount,
             'type': type,
             'note': note,
@@ -263,6 +272,12 @@ class FirestoreService {
     required double remainingAmount,
     String? imageUrl,
     required String date,
+    int? accountId,
+    String? accountFirestoreId,
+    String? accountName,
+    int? toAccountId,
+    String? toAccountFirestoreId,
+    String? toAccountName,
   }) async {
     try {
       final businessRef = _businessDocRefForCurrentUser(businessId);
@@ -270,6 +285,12 @@ class FirestoreService {
           .collection('transactions')
           .doc(transactionId)
           .update({
+            'account_id': accountId,
+            'account_firestore_id': accountFirestoreId,
+            'account_name': accountName,
+            'to_account_id': toAccountId,
+            'to_account_firestore_id': toAccountFirestoreId,
+            'to_account_name': toAccountName,
             'amount': amount,
             'type': type,
             'note': note,
@@ -627,6 +648,8 @@ class FirestoreService {
 
         batch.set(docRef, {
           'account_id': line['account_id'],
+          'account_firestore_id': line['account_firestore_id'],
+          'account_name': line['account_name'],
           'debit': line['debit'],
           'credit': line['credit'],
           'created_at': DateTime.now().toIso8601String(),

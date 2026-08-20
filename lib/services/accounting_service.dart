@@ -3,6 +3,7 @@ import '../models/business_model.dart';
 import '../models/journal_entry_model.dart';
 import '../models/journal_line_model.dart';
 import '../models/account_model.dart';
+import '../models/transaction_model.dart';
 import 'firestore_service.dart';
 import 'reminder_service.dart';
 import 'sync_service.dart';
@@ -208,8 +209,7 @@ class AccountingService {
           '🔄 Syncing journal to Firestore at: businesses/${business.firestoreId}/journal_entries/',
         );
 
-        // Create journal entry in Firestore
-        await _firestoreService.createJournalEntry(
+        final firestoreJournalId = await _firestoreService.createJournalEntry(
           businessId: business.firestoreId!, // ✅ Use Firestore ID
           transactionId: journalEntry.transactionId,
           voucherNo: journalEntry.voucherNo,
@@ -223,21 +223,40 @@ class AccountingService {
           createdAt: journalEntry.createdAt,
         );
 
+        await DatabaseHelper.instance.updateJournalFirestoreId(
+          journalId,
+          firestoreJournalId,
+        );
+
         // Add journal lines
         final journalLinesData = journalLines
             .map(
-              (line) => {
-                'account_id': line.accountId,
-                'debit': line.debit,
-                'credit': line.credit,
+              (line) async {
+                final account = await DatabaseHelper.instance.getAccountById(line.accountId);
+                final firestoreAccountId = account == null
+                    ? null
+                    : await DatabaseHelper.instance.getAccountFirestoreId(line.accountId);
+
+                return {
+                  'account_id': line.accountId,
+                  'account_name': account?.name,
+                  'account_firestore_id': firestoreAccountId,
+                  'debit': line.debit,
+                  'credit': line.credit,
+                };
               },
             )
             .toList();
 
+        final resolvedJournalLinesData = <Map<String, dynamic>>[];
+        for (final item in journalLinesData) {
+          resolvedJournalLinesData.add(await item);
+        }
+
         await _firestoreService.addJournalLines(
           businessId: business.firestoreId!, // ✅ Use Firestore ID
-          journalId: journalId.toString(),
-          journalLines: journalLinesData,
+          journalId: firestoreJournalId,
+          journalLines: resolvedJournalLinesData,
         );
 
         print('✅ Journal synced to Firestore');
@@ -320,14 +339,20 @@ class AccountingService {
           throw Exception('Firestore business ID not found');
         }
 
+        final firestoreJournalId = await DatabaseHelper.instance.getJournalFirestoreId(journalId);
+
+        if (firestoreJournalId == null) {
+          throw Exception('Firestore journal ID not found');
+        }
+
         print(
-          '🔄 Updating journal in Firestore at: businesses/${business.firestoreId}/journal_entries/$journalId',
+          '🔄 Updating journal in Firestore at: businesses/${business.firestoreId}/journal_entries/$firestoreJournalId',
         );
 
         // Update journal entry in Firestore
         await _firestoreService.updateJournalEntry(
           businessId: business.firestoreId!, // ✅ Use Firestore ID
-          journalId: journalId.toString(),
+          journalId: firestoreJournalId,
           voucherNo: journalEntry.voucherNo,
           voucherType: journalEntry.voucherType,
           description: journalEntry.description,
@@ -341,22 +366,26 @@ class AccountingService {
         // Delete old journal lines and add new ones
         await _firestoreService.deleteJournalLines(
           businessId: business.firestoreId!, // ✅ Use Firestore ID
-          journalId: journalId.toString(),
+          journalId: firestoreJournalId,
         );
 
-        final journalLinesData = journalLines
-            .map(
-              (line) => {
-                'account_id': line.accountId,
-                'debit': line.debit,
-                'credit': line.credit,
-              },
-            )
-            .toList();
+        final journalLinesData = <Map<String, dynamic>>[];
+        for (final line in journalLines) {
+          final account = await DatabaseHelper.instance.getAccountById(line.accountId);
+          journalLinesData.add({
+            'account_id': line.accountId,
+            'account_name': account?.name,
+            'account_firestore_id': account == null
+                ? null
+                : await DatabaseHelper.instance.getAccountFirestoreId(line.accountId),
+            'debit': line.debit,
+            'credit': line.credit,
+          });
+        }
 
         await _firestoreService.addJournalLines(
           businessId: business.firestoreId!, // ✅ Use Firestore ID
-          journalId: journalId.toString(),
+          journalId: firestoreJournalId,
           journalLines: journalLinesData,
         );
 
@@ -447,9 +476,9 @@ class AccountingService {
       'due_date': dueDate,
     };
 
-    final idColumn = tableName == 'transactions'
-        ? 'transaction_id'
-        : 'journal_id';
+    final idColumn = tableName == 'transactions' ? 'transaction_id' : 'journal_id';
+
+    // Update SQLite first
     await db.update(
       tableName,
       payload,
@@ -457,6 +486,7 @@ class AccountingService {
       whereArgs: [id],
     );
 
+    // Refresh reminders locally
     final sourceRows = await db.query(
       tableName,
       columns: ['business_id'],
@@ -468,6 +498,163 @@ class AccountingService {
       final businessId = (sourceRows.first['business_id'] as num).toInt();
       await _reminderService.refreshReminders(businessId);
     }
+
+    // Then attempt to sync to Firestore (surface failures to caller)
+    await _syncService.syncOperation<void>(
+      sqliteOperation: () async => null,
+      firestoreOperation: () async {
+        final recordRows = await db.query(
+          tableName,
+          where: '$idColumn = ?',
+          whereArgs: [id],
+          limit: 1,
+        );
+
+        if (recordRows.isEmpty) {
+          throw Exception('Record not found for payment status sync');
+        }
+
+        final record = recordRows.first;
+        final businessId = (record['business_id'] as num?)?.toInt();
+        if (businessId == null) throw Exception('Business ID missing for payment status sync');
+
+        final businesses = await DatabaseHelper.instance.getBusinesses();
+        BusinessModel? business;
+        try {
+          business = businesses.firstWhere((item) => item.businessId == businessId);
+        } catch (e) {
+          business = null;
+        }
+
+        if (business == null || business.firestoreId == null) throw Exception('Firestore business ID not found');
+
+        if (tableName == 'transactions') {
+          final firestoreTransactionId = await DatabaseHelper.instance.getTransactionFirestoreId(id);
+          if (firestoreTransactionId == null) throw Exception('Firestore transaction ID not found');
+
+          final accountId = (record['account_id'] as num?)?.toInt();
+          final toAccountId = (record['to_account_id'] as num?)?.toInt();
+          final account = accountId == null ? null : await DatabaseHelper.instance.getAccountById(accountId);
+          final toAccount = toAccountId == null ? null : await DatabaseHelper.instance.getAccountById(toAccountId);
+          final accountFirestoreId = accountId == null ? null : await DatabaseHelper.instance.getAccountFirestoreId(accountId);
+          final toAccountFirestoreId = toAccountId == null ? null : await DatabaseHelper.instance.getAccountFirestoreId(toAccountId);
+
+          await _firestoreService.updateTransaction(
+            businessId: business.firestoreId!,
+            transactionId: firestoreTransactionId,
+            amount: amount,
+            type: (record['type'] ?? '').toString(),
+            note: (record['note'] ?? '').toString(),
+            paymentMethod: (record['payment_method'] ?? '').toString(),
+            dueDate: dueDate,
+            paymentStatus: status,
+            remainingAmount: remainingAmount,
+            imageUrl: record['image_url']?.toString(),
+            date: (record['date'] ?? '').toString(),
+            accountId: accountId,
+            accountFirestoreId: accountFirestoreId,
+            accountName: account?.name,
+            toAccountId: toAccountId,
+            toAccountFirestoreId: toAccountFirestoreId,
+            toAccountName: toAccount?.name,
+          );
+
+          final linkedJournal = await DatabaseHelper.instance.getJournalEntryByTransactionId(id);
+          if (linkedJournal != null) {
+            await db.update('journal_entry', payload, where: 'journal_id = ?', whereArgs: [linkedJournal.journalId]);
+
+            final firestoreJournalId = await DatabaseHelper.instance.getJournalFirestoreId(linkedJournal.journalId!);
+            if (firestoreJournalId != null) {
+              await _firestoreService.updateJournalEntry(
+                businessId: business.firestoreId!,
+                journalId: firestoreJournalId,
+                voucherNo: linkedJournal.voucherNo,
+                voucherType: linkedJournal.voucherType,
+                description: linkedJournal.description,
+                dueDate: dueDate,
+                paymentStatus: status,
+                remainingAmount: remainingAmount,
+                imageUrl: linkedJournal.imageUrl,
+                date: linkedJournal.date,
+              );
+            }
+          }
+
+          return;
+        }
+
+        final firestoreJournalId = await DatabaseHelper.instance.getJournalFirestoreId(id);
+        if (firestoreJournalId == null) throw Exception('Firestore journal ID not found');
+
+        final linkedTransactionId = (record['transaction_id'] as num?)?.toInt();
+        await _firestoreService.updateJournalEntry(
+          businessId: business.firestoreId!,
+          journalId: firestoreJournalId,
+          voucherNo: (record['voucher_no'] ?? '').toString(),
+          voucherType: (record['voucher_type'] ?? '').toString(),
+          description: (record['description'] ?? '').toString(),
+          dueDate: dueDate,
+          paymentStatus: status,
+          remainingAmount: remainingAmount,
+          imageUrl: record['image_url']?.toString(),
+          date: (record['date'] ?? '').toString(),
+        );
+
+        if (linkedTransactionId != null) {
+          final linkedTransaction = await DatabaseHelper.instance.getTransactionById(linkedTransactionId);
+          final transactionFirestoreId = await DatabaseHelper.instance.getTransactionFirestoreId(linkedTransactionId);
+          if (transactionFirestoreId != null && linkedTransaction != null) {
+            final accountId = linkedTransaction.accountId;
+            final toAccountId = linkedTransaction.toAccountId;
+            final account = accountId == null ? null : await DatabaseHelper.instance.getAccountById(accountId);
+            final toAccount = toAccountId == null ? null : await DatabaseHelper.instance.getAccountById(toAccountId);
+            final accountFirestoreId = accountId == null ? null : await DatabaseHelper.instance.getAccountFirestoreId(accountId);
+            final toAccountFirestoreId = toAccountId == null ? null : await DatabaseHelper.instance.getAccountFirestoreId(toAccountId);
+
+            await DatabaseHelper.instance.updateTransaction(
+              TransactionModel(
+                transactionId: linkedTransaction.transactionId,
+                businessId: linkedTransaction.businessId,
+                accountId: linkedTransaction.accountId,
+                toAccountId: linkedTransaction.toAccountId,
+                amount: linkedTransaction.amount,
+                type: linkedTransaction.type,
+                note: linkedTransaction.note,
+                paymentMethod: linkedTransaction.paymentMethod,
+                dueDate: dueDate,
+                paymentStatus: status,
+                remainingAmount: remainingAmount,
+                imageUrl: linkedTransaction.imageUrl,
+                date: linkedTransaction.date,
+                createdAt: linkedTransaction.createdAt,
+              ),
+            );
+
+            await _firestoreService.updateTransaction(
+              businessId: business.firestoreId!,
+              transactionId: transactionFirestoreId,
+              amount: linkedTransaction.amount,
+              type: linkedTransaction.type,
+              note: linkedTransaction.note,
+              paymentMethod: linkedTransaction.paymentMethod,
+              dueDate: dueDate,
+              paymentStatus: status,
+              remainingAmount: remainingAmount,
+              imageUrl: linkedTransaction.imageUrl,
+              date: linkedTransaction.date,
+              accountId: accountId,
+              accountFirestoreId: accountFirestoreId,
+              accountName: account?.name,
+              toAccountId: toAccountId,
+              toAccountFirestoreId: toAccountFirestoreId,
+              toAccountName: toAccount?.name,
+            );
+          }
+        }
+      },
+      operationName: 'Update Payment Status',
+      surfaceFirestoreFailure: true,
+    );
   }
 
   // =====================================================

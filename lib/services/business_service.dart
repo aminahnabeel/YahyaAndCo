@@ -42,6 +42,8 @@ class BusinessService {
 
           await DatabaseHelper.instance.updateBusiness(updatedBusiness);
           print('✅ Firestore ID stored in SQLite: $firestoreDocId');
+
+          await _syncDefaultAccountsToFirestore(updatedBusiness);
         }
       } catch (e) {
         print('⚠️  Business created in SQLite, Firestore sync failed: $e');
@@ -49,6 +51,56 @@ class BusinessService {
     }
 
     return businessId;
+  }
+
+  Future<void> _syncDefaultAccountsToFirestore(BusinessModel business) async {
+    if (business.firestoreId == null) return;
+
+    final firestoreAccounts = await _firestoreService.getAccountsByBusiness(
+      business.firestoreId!,
+    );
+    final existingNames = firestoreAccounts
+        .map((account) => (account['name'] ?? '').toString().trim().toLowerCase())
+        .toSet();
+
+    final localAccounts = await DatabaseHelper.instance.getAccountsByBusiness(
+      business.businessId!,
+    );
+
+    for (final account in localAccounts) {
+      final normalizedName = account.name.trim().toLowerCase();
+      if (existingNames.contains(normalizedName)) {
+        final matched = firestoreAccounts.firstWhere(
+          (item) => (item['name'] ?? '').toString().trim().toLowerCase() == normalizedName,
+          orElse: () => <String, dynamic>{},
+        );
+        final firestoreId = matched['id']?.toString();
+        if (firestoreId != null && firestoreId.isNotEmpty && account.accountId != null) {
+          await DatabaseHelper.instance.updateAccountFirestoreId(
+            account.accountId!,
+            firestoreId,
+          );
+        }
+        continue;
+      }
+
+      final firestoreId = await _firestoreService.createAccount(
+        businessId: business.firestoreId!,
+        name: account.name,
+        type: account.type,
+        phone: account.phone,
+        address: account.address,
+        openingBalance: account.openingBalance,
+        createdAt: account.createdAt,
+      );
+
+      if (account.accountId != null) {
+        await DatabaseHelper.instance.updateAccountFirestoreId(
+          account.accountId!,
+          firestoreId,
+        );
+      }
+    }
   }
 
   // =========================

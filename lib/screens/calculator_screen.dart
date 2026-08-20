@@ -210,7 +210,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Calculator')),
+      //appBar: AppBar(title: const Text('Calculator')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Column(
