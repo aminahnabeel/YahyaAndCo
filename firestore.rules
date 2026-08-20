@@ -32,6 +32,11 @@ service cloud.firestore {
         }
       }
 
+      // ==================== REMINDERS SUBCOLLECTION ====================
+      match /reminders/{reminderId} {
+        allow read, write, create: if request.auth != null && request.auth.uid == userId;
+      }
+
       // ==================== EXPENSE CATEGORIES SUBCOLLECTION ====================
       match /expense_categories/{categoryId} {
         allow read, write, create: if request.auth != null && request.auth.uid == userId;

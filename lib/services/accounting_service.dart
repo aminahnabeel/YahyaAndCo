@@ -4,11 +4,13 @@ import '../models/journal_entry_model.dart';
 import '../models/journal_line_model.dart';
 import '../models/account_model.dart';
 import 'firestore_service.dart';
+import 'reminder_service.dart';
 import 'sync_service.dart';
 
 class AccountingService {
   final FirestoreService _firestoreService = FirestoreService();
   final SyncService _syncService = SyncService();
+  final ReminderService _reminderService = ReminderService();
   // =====================================================
   // HELPER: Convert value to double safely
   // =====================================================
@@ -454,6 +456,18 @@ class AccountingService {
       where: '$idColumn = ?',
       whereArgs: [id],
     );
+
+    final sourceRows = await db.query(
+      tableName,
+      columns: ['business_id'],
+      where: '$idColumn = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (sourceRows.isNotEmpty) {
+      final businessId = (sourceRows.first['business_id'] as num).toInt();
+      await _reminderService.refreshReminders(businessId);
+    }
   }
 
   // =====================================================

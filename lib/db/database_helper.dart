@@ -8,6 +8,7 @@ import '../models/expense_category_model.dart';
 import '../models/journal_entry_model.dart';
 import '../models/journal_line_model.dart';
 import '../models/note_model.dart';
+import '../models/reminder_model.dart';
 import '../models/transaction_model.dart';
 import '../models/user_model.dart';
 
@@ -33,7 +34,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 6,
+      version: 7,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -69,6 +70,10 @@ class DatabaseHelper {
       // Add Firestore ID column to business table
       await _addColumnIfMissing(db, 'business', 'firestore_id', 'TEXT');
     }
+
+    if (oldVersion < 7) {
+      await _createRemindersTable(db);
+    }
   }
 
   Future<void> _addColumnIfMissing(
@@ -84,6 +89,39 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE $tableName ADD COLUMN $columnName $columnDefinition');
     }
   }
+
+  Future<void> _createRemindersTable(Database db) async {
+    await db.execute('''
+    CREATE TABLE IF NOT EXISTS reminders(
+      reminder_id TEXT PRIMARY KEY,
+      business_id INTEGER NOT NULL,
+      record_type TEXT NOT NULL,
+      record_id INTEGER NOT NULL,
+      account_id INTEGER,
+      voucher_no TEXT,
+      payment_method TEXT,
+      voucher_type TEXT,
+      account_name TEXT,
+      date TEXT,
+      transaction_id INTEGER,
+      journal_id INTEGER,
+      amount REAL NOT NULL DEFAULT 0,
+      remaining_amount REAL NOT NULL DEFAULT 0,
+      due_date TEXT,
+      payment_status TEXT NOT NULL,
+      description TEXT,
+      source_table TEXT NOT NULL,
+      created_at TEXT,
+      updated_at TEXT NOT NULL,
+      UNIQUE(business_id, record_type, record_id),
+      FOREIGN KEY(business_id) REFERENCES business(business_id) ON DELETE CASCADE
+    )
+    ''');
+  }
+  // ======================================================
+  // REMINDER METHODS
+  // ======================================================
+
 
   Future onCreate(Database db, int version) async {
     // =========================
@@ -312,6 +350,97 @@ class DatabaseHelper {
       created_at TEXT
     )
     ''');
+
+    await _createRemindersTable(db);
+  }
+
+  // ======================================================
+  // REMINDER METHODS
+  // ======================================================
+
+  Future<List<Map<String, dynamic>>> getReminderSourceRows(int businessId) async {
+    final db = await database;
+
+    return await db.rawQuery('''
+      SELECT * FROM (
+        SELECT
+          'Transaction' AS record_type,
+          t.transaction_id AS record_id,
+          t.transaction_id AS transaction_id,
+          NULL AS journal_id,
+          t.account_id AS account_id,
+          COALESCE(je.voucher_no, 'TX-' || t.transaction_id) AS voucher_no,
+          t.amount AS amount,
+          t.remaining_amount AS remaining_amount,
+          t.due_date AS due_date,
+          t.payment_status AS payment_status,
+          t.payment_method AS payment_method,
+          t.type AS voucher_type,
+          t.note AS description,
+          a.name AS account_name,
+          t.date AS date,
+          t.created_at AS created_at,
+          'transactions' AS source_table
+        FROM transactions t
+        INNER JOIN accounts a ON a.account_id = t.account_id
+        LEFT JOIN journal_entry je ON je.transaction_id = t.transaction_id
+        WHERE t.business_id = ?
+        UNION ALL
+        SELECT
+          'Journal' AS record_type,
+          je.journal_id AS record_id,
+          NULL AS transaction_id,
+          je.journal_id AS journal_id,
+          MIN(jl.account_id) AS account_id,
+          je.voucher_no AS voucher_no,
+          je.remaining_amount AS amount,
+          je.remaining_amount AS remaining_amount,
+          je.due_date AS due_date,
+          je.payment_status AS payment_status,
+          NULL AS payment_method,
+          je.voucher_type AS voucher_type,
+          je.description AS description,
+          COALESCE(MIN(a.name), 'Journal Entry') AS account_name,
+          je.date AS date,
+          je.created_at AS created_at,
+          'journal_entry' AS source_table
+        FROM journal_entry je
+        LEFT JOIN journal_lines jl ON jl.journal_id = je.journal_id
+        LEFT JOIN accounts a ON a.account_id = jl.account_id
+        WHERE je.business_id = ?
+        GROUP BY je.journal_id
+      )
+      ORDER BY COALESCE(due_date, date) DESC, record_type ASC, record_id DESC
+      ''', [businessId, businessId]);
+  }
+
+  Future<void> upsertReminder(ReminderModel reminder) async {
+    final db = await database;
+    await db.insert(
+      'reminders',
+      reminder.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<ReminderModel>> getRemindersByBusiness(int businessId) async {
+    final db = await database;
+    final maps = await db.query(
+      'reminders',
+      where: 'business_id = ?',
+      whereArgs: [businessId],
+      orderBy: 'due_date DESC, updated_at DESC, record_id DESC',
+    );
+    return maps.map(ReminderModel.fromMap).toList();
+  }
+
+  Future<void> deleteReminder(String reminderId, int businessId) async {
+    final db = await database;
+    await db.delete(
+      'reminders',
+      where: 'reminder_id = ? AND business_id = ?',
+      whereArgs: [reminderId, businessId],
+    );
   }
 
   // ======================================================

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../models/account_model.dart';
-import '../../models/journal_entry_model.dart';
-import '../../models/journal_line_model.dart';
 import '../../models/transaction_model.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/account_service.dart';
@@ -396,8 +394,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         await _transactionService.updateTransaction(transaction);
       } else {
         // CREATE NEW TRANSACTION
-        String voucherNo = await _accountingService.generateCashVoucher();
-
         TransactionModel transaction = TransactionModel(
           businessId: widget.businessId,
           accountId: selectedFromAccount!.accountId!,
@@ -417,75 +413,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           createdAt: DateTime.now().toIso8601String(),
         );
 
-        int transactionId = await _transactionService.createTransaction(transaction);
-
-        JournalEntryModel journalEntry = JournalEntryModel(
-          businessId: widget.businessId,
-          transactionId: transactionId,
-          voucherNo: voucherNo,
-          voucherType: 'CP',
-          description: noteController.text,
-          dueDate: _dueDate?.toIso8601String().split('T').first,
-          remainingAmount: _dueDate == null ? 0 : amount,
-          paymentStatus: _accountingService.calculatePaymentStatus(
-            amount: amount,
-            remainingAmount: _dueDate == null ? 0 : amount,
-            dueDate: _dueDate?.toIso8601String(),
-          ),
-          imageUrl: _imageUrl,
-          date: _selectedDate.toIso8601String(),
-          createdAt: DateTime.now().toIso8601String(),
-        );
-
-        List<JournalLineModel> journalLines = [];
-
-        int fromAccountId = selectedFromAccount!.accountId!;
-        int cashId = cashAccountId!;
-
-        // Debit (Money Out) = FromAccount gets DEBIT (decreases)
-        // Credit (Money In) = FromAccount gets CREDIT (increases)
-        if (side == 'Debit') {
-          // Money OUT: debit selected account, credit cash account
-          journalLines.add(
-            JournalLineModel(
-              journalId: 0,
-              accountId: fromAccountId,
-              debit: amount,
-              credit: 0,
-            ),
-          );
-          journalLines.add(
-            JournalLineModel(
-              journalId: 0,
-              accountId: cashId,
-              debit: 0,
-              credit: amount,
-            ),
-          );
-        } else {
-          // Money IN: credit selected account, debit cash account
-          journalLines.add(
-            JournalLineModel(
-              journalId: 0,
-              accountId: fromAccountId,
-              debit: 0,
-              credit: amount,
-            ),
-          );
-          journalLines.add(
-            JournalLineModel(
-              journalId: 0,
-              accountId: cashId,
-              debit: amount,
-              credit: 0,
-            ),
-          );
-        }
-
-        await _accountingService.createCompleteJournal(
-          journalEntry: journalEntry,
-          journalLines: journalLines,
-        );
+        await _transactionService.createTransaction(transaction);
       }
 
       setState(() => isLoading = false);

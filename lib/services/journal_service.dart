@@ -3,10 +3,12 @@ import '../models/business_model.dart';
 import '../models/journal_entry_model.dart';
 import '../models/journal_line_model.dart';
 import 'firestore_service.dart';
+import 'reminder_service.dart';
 import 'sync_service.dart';
 
 class JournalService {
   final FirestoreService _firestoreService = FirestoreService();
+  final ReminderService _reminderService = ReminderService();
   final SyncService _syncService = SyncService();
 
   // =========================
@@ -46,7 +48,7 @@ class JournalService {
       print('✅ Firestore Business ID: ${business!.firestoreId}');
     }
 
-    return await _syncService.syncOperation<int>(
+    final journalId = await _syncService.syncOperation<int>(
       sqliteOperation: () async {
         print('💾 Saving journal to SQLite...');
         return await DatabaseHelper.instance.insertJournalEntry(journal);
@@ -75,6 +77,9 @@ class JournalService {
       },
       operationName: 'Create Journal Entry',
     );
+
+    await _reminderService.refreshReminders(businessId);
+    return journalId;
   }
 
   // =========================
@@ -93,7 +98,7 @@ class JournalService {
       business = null;
     }
 
-    return await _syncService.syncOperation<void>(
+    await _syncService.syncOperation<void>(
       sqliteOperation: () async {
         await DatabaseHelper.instance.updateJournalEntry(journal);
       },
@@ -122,6 +127,8 @@ class JournalService {
       },
       operationName: 'Update Journal Entry',
     );
+
+    await _reminderService.refreshReminders(journal.businessId);
   }
 
   // =========================

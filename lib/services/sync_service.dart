@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import '../db/database_helper.dart';
 import 'firestore_service.dart';
+import 'reminder_service.dart';
 
 class SyncService {
   static final SyncService _instance = SyncService._internal();
   final FirestoreService _firestoreService = FirestoreService();
+  final ReminderService _reminderService = ReminderService();
   final Connectivity _connectivity = Connectivity();
 
   bool _isConnected = false;
@@ -90,8 +93,13 @@ class SyncService {
     try {
       print('🔄 Starting full sync...');
       
-      // Sync happens when individual operations are performed
-      // This is a placeholder for any batch sync operations
+      final businesses = await DatabaseHelper.instance.getBusinesses();
+      for (final business in businesses) {
+        final businessId = business.businessId;
+        if (businessId != null) {
+          await _reminderService.refreshReminders(businessId);
+        }
+      }
       
       print('✅ Full sync completed');
     } catch (e) {

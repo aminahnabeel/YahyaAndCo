@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../models/reminder_model.dart';
+
 class FirestoreService {
   static final FirestoreService _instance = FirestoreService._internal();
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -423,6 +425,37 @@ class FirestoreService {
           .delete();
     } catch (e) {
       print('Error deleting journal entry: $e');
+      rethrow;
+    }
+  }
+
+  // ==================== REMINDERS COLLECTION ====================
+
+  Future<void> upsertReminder({
+    required String businessId,
+    required ReminderModel reminder,
+  }) async {
+    try {
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      await businessRef
+          .collection('reminders')
+          .doc(reminder.reminderId)
+          .set(reminder.toFirestoreMap(), SetOptions(merge: true));
+    } catch (e) {
+      print('Error syncing reminder: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteReminder({
+    required String businessId,
+    required String reminderId,
+  }) async {
+    try {
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      await businessRef.collection('reminders').doc(reminderId).delete();
+    } catch (e) {
+      print('Error deleting reminder: $e');
       rethrow;
     }
   }

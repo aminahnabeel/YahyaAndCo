@@ -2,10 +2,12 @@ import '../db/database_helper.dart';
 import '../models/business_model.dart';
 import '../models/transaction_model.dart';
 import 'firestore_service.dart';
+import 'reminder_service.dart';
 import 'sync_service.dart';
 
 class TransactionService {
   final FirestoreService _firestoreService = FirestoreService();
+  final ReminderService _reminderService = ReminderService();
   final SyncService _syncService = SyncService();
 
   // =========================
@@ -33,7 +35,7 @@ class TransactionService {
       print('✅ Firestore Business ID: ${business!.firestoreId}');
     }
 
-    return await _syncService.syncOperation<int>(
+    final transactionId = await _syncService.syncOperation<int>(
       sqliteOperation: () async {
         print('💾 Saving to SQLite...');
         return await DatabaseHelper.instance.insertTransaction(transaction);
@@ -64,6 +66,9 @@ class TransactionService {
       },
       operationName: 'Create Transaction',
     );
+
+    await _reminderService.refreshReminders(transaction.businessId);
+    return transactionId;
   }
 
   // =========================
@@ -102,7 +107,7 @@ class TransactionService {
       business = null;
     }
 
-    return await _syncService.syncOperation<void>(
+    await _syncService.syncOperation<void>(
       sqliteOperation: () async {
         await DatabaseHelper.instance.updateTransaction(transaction);
       },
@@ -132,6 +137,8 @@ class TransactionService {
       },
       operationName: 'Update Transaction',
     );
+
+    await _reminderService.refreshReminders(transaction.businessId);
   }
 
   // =========================

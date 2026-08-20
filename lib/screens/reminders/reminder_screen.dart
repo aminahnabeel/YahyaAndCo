@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../services/accounting_service.dart';
 import '../../services/journal_service.dart';
+import '../../services/reminder_service.dart';
 import '../../theme.dart';
 
 class ReminderScreen extends StatefulWidget {
@@ -14,7 +14,7 @@ class ReminderScreen extends StatefulWidget {
 }
 
 class _ReminderScreenState extends State<ReminderScreen> {
-  final AccountingService _accountingService = AccountingService();
+  final ReminderService _reminderService = ReminderService();
   final JournalService _journalService = JournalService();
   final TextEditingController _searchController = TextEditingController();
 
@@ -48,7 +48,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    _entries = await _accountingService.getReminderEntries(widget.businessId);
+    _entries = await _reminderService.loadReminders(widget.businessId);
     if (mounted) {
       setState(() => _loading = false);
     }
@@ -181,16 +181,9 @@ class _ReminderScreenState extends State<ReminderScreen> {
     final id = (item['record_id'] as num?)?.toInt();
     if (id == null) return;
 
-    final amount = ((item['amount'] ?? item['remaining_amount'] ?? 0) as num).toDouble();
-    final dueDate = (item['due_date'] ?? '').toString();
-    final tableName = recordType.toLowerCase() == 'transaction' ? 'transactions' : 'journal_entry';
-
-    await _accountingService.updatePaymentStatus(
-      tableName: tableName,
-      id: id,
-      amount: amount,
-      remainingAmount: 0,
-      dueDate: dueDate.isEmpty ? null : dueDate,
+    await _reminderService.markAsPaid(
+      sourceTable: item['source_table'].toString(),
+      recordId: id,
     );
 
     await _load();
