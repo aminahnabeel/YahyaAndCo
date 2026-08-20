@@ -83,19 +83,12 @@ class TransactionService {
         } else {
           throw Exception('Firestore business ID not found');
         }
-<<<<<<< HEAD
-      },
-      operationName: 'Create Transaction',
-    );
-
-    await _reminderService.refreshReminders(transaction.businessId);
-=======
       } catch (e) {
         print('⚠️  Transaction created in SQLite, Firestore sync failed: $e');
       }
     }
 
->>>>>>> 8c487b1 (Sync Firestore writes and restore flow)
+    await _reminderService.refreshReminders(transaction.businessId);
     return transactionId;
   }
 

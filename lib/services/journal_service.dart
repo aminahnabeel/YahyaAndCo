@@ -76,19 +76,12 @@ class JournalService {
         } else {
           throw Exception('Firestore business ID not found');
         }
-<<<<<<< HEAD
-      },
-      operationName: 'Create Journal Entry',
-    );
-
-    await _reminderService.refreshReminders(businessId);
-=======
       } catch (e) {
         print('⚠️  Journal saved to SQLite, Firestore sync failed: $e');
       }
     }
 
->>>>>>> 8c487b1 (Sync Firestore writes and restore flow)
+    await _reminderService.refreshReminders(businessId);
     return journalId;
   }
 
