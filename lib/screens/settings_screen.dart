@@ -1,7 +1,35 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'auth_screen.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  Future<void> _handleSignOut() async {
+    try {
+      // Sign out from Firebase
+      await FirebaseAuth.instance.signOut();
+      
+      // Navigate to AuthScreen and clear navigation stack
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const AuthScreen()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sign out failed: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +79,7 @@ class SettingsScreen extends StatelessWidget {
                   title: 'Sign Out',
                   subtitle: 'Log out of your account',
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () {},
+                  onTap: _handleSignOut,
                 ),
               ],
             ),
@@ -85,7 +113,7 @@ class SettingsScreen extends StatelessWidget {
                   subtitle: 'Alerts for due payments',
                   trailing: Switch(
                     value: true,
-                    activeColor: const Color(0xFF0A2342),
+                    activeThumbColor: const Color(0xFF0A2342),
                     onChanged: (_) {},
                   ),
                   onTap: () {},
