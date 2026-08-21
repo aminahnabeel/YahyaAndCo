@@ -16,6 +16,7 @@ import '../reminders/reminder_screen.dart';
 import '../business_switch_screen.dart';
 import '../transactions/add_transaction_screen.dart';
 import '../transactions/transaction_list_screen.dart';
+import '../settings_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final int businessId;
@@ -169,47 +170,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _money(double value) => value.toStringAsFixed(2);
 
   void _openSettingsSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return SafeArea(
-          child: Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Settings',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Settings screen will be added here.',
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 16),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.business_outlined),
-                  title: const Text('Business details'),
-                  subtitle: const Text('Manage business information'),
-                  onTap: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SettingsScreen(),
+      ),
     );
   }
 
