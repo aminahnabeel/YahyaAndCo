@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../services/localization_service.dart';
 import '../theme.dart';
 import 'email_verification_pending_screen.dart';
+import 'forgot_password_screen.dart';
 import 'startup_gate.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -212,6 +213,22 @@ class _AuthScreenState extends State<AuthScreen> {
                             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                           ),
                   ),
+                  if (!_isSignUp)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _loading
+                            ? null
+                            : () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => const ForgotPasswordScreen(),
+                                  ),
+                                );
+                              },
+                        child: Text(localization.t('forgot_password')),
+                      ),
+                    ),
                   const SizedBox(height: 14),
                   TextButton(
                     onPressed: _loading
