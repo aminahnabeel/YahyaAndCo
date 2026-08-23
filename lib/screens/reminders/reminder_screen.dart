@@ -63,29 +63,47 @@ class _ReminderScreenState extends State<ReminderScreen> {
     final voucher = (item['voucher_no'] ?? '').toString().toLowerCase();
     final account = (item['account_name'] ?? '').toString().toLowerCase();
     final description = (item['description'] ?? '').toString().toLowerCase();
-    final paymentMethod = (item['payment_method'] ?? '').toString().toLowerCase();
+    final paymentMethod = (item['payment_method'] ?? '')
+        .toString()
+        .toLowerCase();
     final voucherType = (item['voucher_type'] ?? '').toString().toLowerCase();
     final status = _normalizeStatus(item['payment_status']);
     final recordType = (item['record_type'] ?? '').toString();
     final dueDate = DateTime.tryParse((item['due_date'] ?? '').toString());
     final date = DateTime.tryParse((item['date'] ?? '').toString());
 
-    final searchMatch = query.isEmpty ||
+    final searchMatch =
+        query.isEmpty ||
         voucher.contains(query) ||
         account.contains(query) ||
         description.contains(query) ||
         paymentMethod.contains(query) ||
         voucherType.contains(query);
 
-    final statusMatch = _statusFilter == 'All' || status.toLowerCase() == _statusFilter.toLowerCase();
-    final typeMatch = _typeFilter == 'All' || recordType.toLowerCase() == _typeFilter.toLowerCase();
+    final statusMatch =
+        _statusFilter == 'All' ||
+        status.toLowerCase() == _statusFilter.toLowerCase();
+    final typeMatch =
+        _typeFilter == 'All' ||
+        recordType.toLowerCase() == _typeFilter.toLowerCase();
 
     bool dateMatch = true;
     if (_dateRange != null) {
       final compareDate = dueDate ?? date;
       if (compareDate != null) {
-        final start = DateTime(_dateRange!.start.year, _dateRange!.start.month, _dateRange!.start.day);
-        final end = DateTime(_dateRange!.end.year, _dateRange!.end.month, _dateRange!.end.day, 23, 59, 59);
+        final start = DateTime(
+          _dateRange!.start.year,
+          _dateRange!.start.month,
+          _dateRange!.start.day,
+        );
+        final end = DateTime(
+          _dateRange!.end.year,
+          _dateRange!.end.month,
+          _dateRange!.end.day,
+          23,
+          59,
+          59,
+        );
         dateMatch = !compareDate.isBefore(start) && !compareDate.isAfter(end);
       }
     }
@@ -93,7 +111,19 @@ class _ReminderScreenState extends State<ReminderScreen> {
     return searchMatch && statusMatch && typeMatch && dateMatch;
   }
 
-  List<Map<String, dynamic>> get _filteredEntries => _entries.where(_matches).toList();
+  List<Map<String, dynamic>> get _filteredEntries {
+    final uniqueEntries = <String, Map<String, dynamic>>{};
+    for (final entry in _entries.where(_matches)) {
+      final recordType = (entry['record_type'] ?? '').toString().toLowerCase();
+      final recordId = entry['record_id']?.toString() ?? '';
+      final voucherNo = (entry['voucher_no'] ?? '').toString().trim();
+      final key = recordId.isNotEmpty
+          ? '$recordType:$recordId'
+          : '$recordType:$voucherNo';
+      uniqueEntries.putIfAbsent(key, () => entry);
+    }
+    return uniqueEntries.values.toList();
+  }
 
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
@@ -110,8 +140,18 @@ class _ReminderScreenState extends State<ReminderScreen> {
     final color = _statusColor(status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(999)),
-      child: Text(status, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700)),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 
@@ -160,7 +200,11 @@ class _ReminderScreenState extends State<ReminderScreen> {
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
               ),
             ],
           ),
@@ -193,21 +237,28 @@ class _ReminderScreenState extends State<ReminderScreen> {
     final recordType = (item['record_type'] ?? '').toString();
     final status = _normalizeStatus(item['payment_status']);
     final journalId = (item['journal_id'] as num?)?.toInt();
-    final journalLinesFuture = journalId == null ? Future.value(<Map<String, dynamic>>[]) : _journalService.getJournalLines(journalId);
+    final journalLinesFuture = journalId == null
+        ? Future.value(<Map<String, dynamic>>[])
+        : _journalService.getJournalLines(journalId);
 
     if (!mounted) return;
 
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (sheetContext) {
         return FutureBuilder<List<Map<String, dynamic>>>(
           future: journalLinesFuture,
           builder: (context, snapshot) {
             final lines = snapshot.data ?? <Map<String, dynamic>>[];
-            final amount = ((item['amount'] ?? item['remaining_amount'] ?? 0) as num).toDouble();
-            final remaining = ((item['remaining_amount'] ?? 0) as num).toDouble();
+            final amount =
+                ((item['amount'] ?? item['remaining_amount'] ?? 0) as num)
+                    .toDouble();
+            final remaining = ((item['remaining_amount'] ?? 0) as num)
+                .toDouble();
             final dueDate = (item['due_date'] ?? '').toString();
             final date = (item['date'] ?? '').toString();
             final description = (item['description'] ?? '').toString();
@@ -218,7 +269,12 @@ class _ReminderScreenState extends State<ReminderScreen> {
 
             return SafeArea(
               child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(sheetContext).viewInsets.bottom),
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  16,
+                  16,
+                  16 + MediaQuery.of(sheetContext).viewInsets.bottom,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -231,10 +287,19 @@ class _ReminderScreenState extends State<ReminderScreen> {
                             children: [
                               Text(
                                 (item['voucher_no'] ?? '').toString(),
-                                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
                               const SizedBox(height: 4),
-                              Text(recordType, style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+                              Text(
+                                recordType,
+                                style: TextStyle(
+                                  color: Colors.grey.shade700,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -264,9 +329,15 @@ class _ReminderScreenState extends State<ReminderScreen> {
                           const SizedBox(height: 8),
                           _metaRow('Amount', '₹${amount.toStringAsFixed(2)}'),
                           const SizedBox(height: 8),
-                          _metaRow('Remaining', '₹${remaining.toStringAsFixed(2)}'),
+                          _metaRow(
+                            'Remaining',
+                            '₹${remaining.toStringAsFixed(2)}',
+                          ),
                           const SizedBox(height: 8),
-                          _metaRow('Date', date.isEmpty ? '-' : date.split('T').first),
+                          _metaRow(
+                            'Date',
+                            date.isEmpty ? '-' : date.split('T').first,
+                          ),
                           const SizedBox(height: 8),
                           _metaRow('Due Date', dueDate.isEmpty ? '-' : dueDate),
                           const SizedBox(height: 8),
@@ -274,25 +345,43 @@ class _ReminderScreenState extends State<ReminderScreen> {
                           const SizedBox(height: 8),
                           _metaRow('Voucher Type', voucherType),
                           const SizedBox(height: 8),
-                          Text(description.isEmpty ? 'No description' : description),
+                          Text(
+                            description.isEmpty
+                                ? 'No description'
+                                : description,
+                          ),
                         ],
                       ),
                     ),
-                    if (recordType.toLowerCase() == 'journal' && snapshot.connectionState == ConnectionState.waiting) ...[
+                    if (recordType.toLowerCase() == 'journal' &&
+                        snapshot.connectionState ==
+                            ConnectionState.waiting) ...[
                       const SizedBox(height: 16),
                       const Center(child: CircularProgressIndicator()),
                     ],
-                    if (recordType.toLowerCase() == 'journal' && lines.isNotEmpty) ...[
+                    if (recordType.toLowerCase() == 'journal' &&
+                        lines.isNotEmpty) ...[
                       const SizedBox(height: 16),
-                      const Text('Journal Lines', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                      const Text(
+                        'Journal Lines',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       ...lines.map((line) {
                         final debit = ((line['debit'] ?? 0) as num).toDouble();
-                        final credit = ((line['credit'] ?? 0) as num).toDouble();
+                        final credit = ((line['credit'] ?? 0) as num)
+                            .toDouble();
                         return Card(
                           child: ListTile(
-                            title: Text((line['account_name'] ?? 'Account').toString()),
-                            subtitle: Text('Debit: ${debit.toStringAsFixed(2)}  |  Credit: ${credit.toStringAsFixed(2)}'),
+                            title: Text(
+                              (line['account_name'] ?? 'Account').toString(),
+                            ),
+                            subtitle: Text(
+                              'Debit: ${debit.toStringAsFixed(2)}  |  Credit: ${credit.toStringAsFixed(2)}',
+                            ),
                           ),
                         );
                       }),
@@ -342,9 +431,20 @@ class _ReminderScreenState extends State<ReminderScreen> {
       children: [
         SizedBox(
           width: 110,
-          child: Text(label, style: const TextStyle(color: Colors.black54, fontWeight: FontWeight.w600)),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.black54,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
-        Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w700))),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
       ],
     );
   }
@@ -406,40 +506,73 @@ class _ReminderScreenState extends State<ReminderScreen> {
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
             return Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                16 + MediaQuery.of(context).viewInsets.bottom,
+              ),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Filters', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Text(
+                      'Filters',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       value: tempStatus,
-                      decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(
+                        labelText: 'Status',
+                        border: OutlineInputBorder(),
+                      ),
                       items: const [
                         DropdownMenuItem(value: 'All', child: Text('All')),
                         DropdownMenuItem(value: 'Paid', child: Text('Paid')),
-                        DropdownMenuItem(value: 'Pending', child: Text('Pending')),
-                        DropdownMenuItem(value: 'Overdue', child: Text('Overdue')),
+                        DropdownMenuItem(
+                          value: 'Pending',
+                          child: Text('Pending'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Overdue',
+                          child: Text('Overdue'),
+                        ),
                       ],
-                      onChanged: (value) => setModalState(() => tempStatus = value ?? 'All'),
+                      onChanged: (value) =>
+                          setModalState(() => tempStatus = value ?? 'All'),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: tempType,
-                      decoration: const InputDecoration(labelText: 'Type', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(
+                        labelText: 'Type',
+                        border: OutlineInputBorder(),
+                      ),
                       items: const [
                         DropdownMenuItem(value: 'All', child: Text('All')),
-                        DropdownMenuItem(value: 'Transaction', child: Text('Transaction')),
-                        DropdownMenuItem(value: 'Journal', child: Text('Journal')),
+                        DropdownMenuItem(
+                          value: 'Transaction',
+                          child: Text('Transaction'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Journal',
+                          child: Text('Journal'),
+                        ),
                       ],
-                      onChanged: (value) => setModalState(() => tempType = value ?? 'All'),
+                      onChanged: (value) =>
+                          setModalState(() => tempType = value ?? 'All'),
                     ),
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
@@ -512,7 +645,10 @@ class _ReminderScreenState extends State<ReminderScreen> {
         title: const Text('Reminders'),
         backgroundColor: AppColors.primary,
         actions: [
-          IconButton(onPressed: _openFilters, icon: const Icon(Icons.filter_list)),
+          IconButton(
+            onPressed: _openFilters,
+            icon: const Icon(Icons.filter_list),
+          ),
         ],
       ),
       body: _loading
@@ -537,7 +673,9 @@ class _ReminderScreenState extends State<ReminderScreen> {
                                 setState(() => _searchQuery = '');
                               },
                             ),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -547,20 +685,30 @@ class _ReminderScreenState extends State<ReminderScreen> {
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(14)),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                       child: const Text('No records found'),
                     )
                   else
                     ...entries.map((item) {
                       final status = _normalizeStatus(item['payment_status']);
-                      final amount = ((item['amount'] ?? item['remaining_amount'] ?? 0) as num).toDouble();
-                      final remaining = ((item['remaining_amount'] ?? 0) as num).toDouble();
+                      final amount =
+                          ((item['amount'] ?? item['remaining_amount'] ?? 0)
+                                  as num)
+                              .toDouble();
+                      final remaining = ((item['remaining_amount'] ?? 0) as num)
+                          .toDouble();
                       final dueDate = (item['due_date'] ?? '').toString();
                       final date = (item['date'] ?? '').toString();
                       final recordType = (item['record_type'] ?? '').toString();
-                      final voucherType = (item['voucher_type'] ?? '').toString();
-                      final accountName = (item['account_name'] ?? 'Unknown').toString();
-                      final description = (item['description'] ?? '').toString();
+                      final voucherType = (item['voucher_type'] ?? '')
+                          .toString();
+                      final accountName = (item['account_name'] ?? 'Unknown')
+                          .toString();
+                      final description = (item['description'] ?? '')
+                          .toString();
 
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -572,7 +720,9 @@ class _ReminderScreenState extends State<ReminderScreen> {
                               Expanded(
                                 child: Text(
                                   (item['voucher_no'] ?? '').toString(),
-                                  style: const TextStyle(fontWeight: FontWeight.w700),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                               _statusChip(status),
@@ -582,19 +732,37 @@ class _ReminderScreenState extends State<ReminderScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const SizedBox(height: 6),
-                              Text('$recordType • $accountName', style: TextStyle(color: Colors.grey.shade700)),
+                              Text(
+                                '$recordType • $accountName',
+                                style: TextStyle(color: Colors.grey.shade700),
+                              ),
                               const SizedBox(height: 4),
-                              Text(description.isEmpty ? 'No description' : description, maxLines: 2, overflow: TextOverflow.ellipsis),
+                              Text(
+                                description.isEmpty
+                                    ? 'No description'
+                                    : description,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                               const SizedBox(height: 8),
                               Wrap(
                                 spacing: 8,
                                 runSpacing: 8,
                                 children: [
-                                  _chip('Amount: ₹${amount.toStringAsFixed(2)}'),
-                                  _chip('Remaining: ₹${remaining.toStringAsFixed(2)}'),
-                                  _chip('Date: ${date.isEmpty ? '-' : date.split('T').first}'),
-                                  _chip('Due: ${dueDate.isEmpty ? '-' : dueDate}'),
-                                  if (voucherType.isNotEmpty) _chip('Type: $voucherType'),
+                                  _chip(
+                                    'Amount: ₹${amount.toStringAsFixed(2)}',
+                                  ),
+                                  _chip(
+                                    'Remaining: ₹${remaining.toStringAsFixed(2)}',
+                                  ),
+                                  _chip(
+                                    'Date: ${date.isEmpty ? '-' : date.split('T').first}',
+                                  ),
+                                  _chip(
+                                    'Due: ${dueDate.isEmpty ? '-' : dueDate}',
+                                  ),
+                                  if (voucherType.isNotEmpty)
+                                    _chip('Type: $voucherType'),
                                 ],
                               ),
                             ],
@@ -603,7 +771,10 @@ class _ReminderScreenState extends State<ReminderScreen> {
                       );
                     }),
                   const SizedBox(height: 12),
-                  Text('Visible Records: $visibleCount', style: TextStyle(color: Colors.grey.shade700)),
+                  Text(
+                    'Visible Records: $visibleCount',
+                    style: TextStyle(color: Colors.grey.shade700),
+                  ),
                 ],
               ),
             ),

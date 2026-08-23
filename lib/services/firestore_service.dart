@@ -132,14 +132,14 @@ class FirestoreService {
 
       final businessRef = _businessDocRefForCurrentUser(businessId);
       final docRef = await businessRef.collection('accounts').add({
-            'name': name,
-            'type': type,
-            'phone': phone,
-            'address': address,
-            'opening_balance': openingBalance,
-            'created_at': createdAt,
-            'updated_at': DateTime.now().toIso8601String(),
-          });
+        'name': name,
+        'type': type,
+        'phone': phone,
+        'address': address,
+        'opening_balance': openingBalance,
+        'created_at': createdAt,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
 
       print('✅ Account created: ${docRef.id}');
       return docRef.id;
@@ -160,17 +160,14 @@ class FirestoreService {
   }) async {
     try {
       final businessRef = _businessDocRefForCurrentUser(businessId);
-      await businessRef
-          .collection('accounts')
-          .doc(accountId)
-          .update({
-            'name': name,
-            'type': type,
-            'phone': phone,
-            'address': address,
-            'opening_balance': openingBalance,
-            'updated_at': DateTime.now().toIso8601String(),
-          });
+      await businessRef.collection('accounts').doc(accountId).update({
+        'name': name,
+        'type': type,
+        'phone': phone,
+        'address': address,
+        'opening_balance': openingBalance,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
     } catch (e) {
       print('Error updating account: $e');
       rethrow;
@@ -195,10 +192,7 @@ class FirestoreService {
   Future<void> deleteAccount(String businessId, String accountId) async {
     try {
       final businessRef = _businessDocRefForCurrentUser(businessId);
-      await businessRef
-          .collection('accounts')
-          .doc(accountId)
-          .delete();
+      await businessRef.collection('accounts').doc(accountId).delete();
     } catch (e) {
       print('Error deleting account: $e');
       rethrow;
@@ -233,24 +227,24 @@ class FirestoreService {
 
       final businessRef = _businessDocRefForCurrentUser(businessId);
       final docRef = await businessRef.collection('transactions').add({
-            'account_id': accountId,
+        'account_id': accountId,
         'account_firestore_id': accountFirestoreId,
         'account_name': accountName,
-            'to_account_id': toAccountId,
+        'to_account_id': toAccountId,
         'to_account_firestore_id': toAccountFirestoreId,
         'to_account_name': toAccountName,
-            'amount': amount,
-            'type': type,
-            'note': note,
-            'payment_method': paymentMethod,
-            'due_date': dueDate,
-            'payment_status': paymentStatus,
-            'remaining_amount': remainingAmount,
-            'image_url': imageUrl,
-            'date': date,
-            'created_at': createdAt,
-            'updated_at': DateTime.now().toIso8601String(),
-          });
+        'amount': amount,
+        'type': type,
+        'note': note,
+        'payment_method': paymentMethod,
+        'due_date': dueDate,
+        'payment_status': paymentStatus,
+        'remaining_amount': remainingAmount,
+        'image_url': imageUrl,
+        'date': date,
+        'created_at': createdAt,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
 
       print('✅ Transaction created: ${docRef.id}');
       return docRef.id;
@@ -281,31 +275,42 @@ class FirestoreService {
   }) async {
     try {
       final businessRef = _businessDocRefForCurrentUser(businessId);
-      await businessRef
-          .collection('transactions')
-          .doc(transactionId)
-          .update({
-            'account_id': accountId,
-            'account_firestore_id': accountFirestoreId,
-            'account_name': accountName,
-            'to_account_id': toAccountId,
-            'to_account_firestore_id': toAccountFirestoreId,
-            'to_account_name': toAccountName,
-            'amount': amount,
-            'type': type,
-            'note': note,
-            'payment_method': paymentMethod,
-            'due_date': dueDate,
-            'payment_status': paymentStatus,
-            'remaining_amount': remainingAmount,
-            'image_url': imageUrl,
-            'date': date,
-            'updated_at': DateTime.now().toIso8601String(),
-          });
+      await businessRef.collection('transactions').doc(transactionId).update({
+        'account_id': accountId,
+        'account_firestore_id': accountFirestoreId,
+        'account_name': accountName,
+        'to_account_id': toAccountId,
+        'to_account_firestore_id': toAccountFirestoreId,
+        'to_account_name': toAccountName,
+        'amount': amount,
+        'type': type,
+        'note': note,
+        'payment_method': paymentMethod,
+        'due_date': dueDate,
+        'payment_status': paymentStatus,
+        'remaining_amount': remainingAmount,
+        'image_url': imageUrl,
+        'date': date,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
     } catch (e) {
       print('Error updating transaction: $e');
       rethrow;
     }
+  }
+
+  Future<void> updateTransactionPaymentStatus({
+    required String businessId,
+    required String transactionId,
+    required String paymentStatus,
+    required double remainingAmount,
+  }) async {
+    final businessRef = _businessDocRefForCurrentUser(businessId);
+    await businessRef.collection('transactions').doc(transactionId).update({
+      'payment_status': paymentStatus,
+      'remaining_amount': remainingAmount,
+      'updated_at': DateTime.now().toIso8601String(),
+    });
   }
 
   Future<List<Map<String, dynamic>>> getTransactionsByBusiness(
@@ -332,10 +337,7 @@ class FirestoreService {
   ) async {
     try {
       final businessRef = _businessDocRefForCurrentUser(businessId);
-      await businessRef
-          .collection('transactions')
-          .doc(transactionId)
-          .delete();
+      await businessRef.collection('transactions').doc(transactionId).delete();
     } catch (e) {
       print('Error deleting transaction: $e');
       rethrow;
@@ -364,18 +366,18 @@ class FirestoreService {
 
       final businessRef = _businessDocRefForCurrentUser(businessId);
       final docRef = await businessRef.collection('journal_entries').add({
-            'transaction_id': transactionId,
-            'voucher_no': voucherNo,
-            'voucher_type': voucherType,
-            'description': description,
-            'due_date': dueDate,
-            'payment_status': paymentStatus,
-            'remaining_amount': remainingAmount,
-            'image_url': imageUrl,
-            'date': date,
-            'created_at': createdAt,
-            'updated_at': DateTime.now().toIso8601String(),
-          });
+        'transaction_id': transactionId,
+        'voucher_no': voucherNo,
+        'voucher_type': voucherType,
+        'description': description,
+        'due_date': dueDate,
+        'payment_status': paymentStatus,
+        'remaining_amount': remainingAmount,
+        'image_url': imageUrl,
+        'date': date,
+        'created_at': createdAt,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
 
       print('✅ Journal entry created: ${docRef.id}');
       return docRef.id;
@@ -399,24 +401,35 @@ class FirestoreService {
   }) async {
     try {
       final businessRef = _businessDocRefForCurrentUser(businessId);
-      await businessRef
-          .collection('journal_entries')
-          .doc(journalId)
-          .update({
-            'voucher_no': voucherNo,
-            'voucher_type': voucherType,
-            'description': description,
-            'due_date': dueDate,
-            'payment_status': paymentStatus,
-            'remaining_amount': remainingAmount,
-            'image_url': imageUrl,
-            'date': date,
-            'updated_at': DateTime.now().toIso8601String(),
-          });
+      await businessRef.collection('journal_entries').doc(journalId).update({
+        'voucher_no': voucherNo,
+        'voucher_type': voucherType,
+        'description': description,
+        'due_date': dueDate,
+        'payment_status': paymentStatus,
+        'remaining_amount': remainingAmount,
+        'image_url': imageUrl,
+        'date': date,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
     } catch (e) {
       print('Error updating journal entry: $e');
       rethrow;
     }
+  }
+
+  Future<void> updateJournalPaymentStatus({
+    required String businessId,
+    required String journalId,
+    required String paymentStatus,
+    required double remainingAmount,
+  }) async {
+    final businessRef = _businessDocRefForCurrentUser(businessId);
+    await businessRef.collection('journal_entries').doc(journalId).update({
+      'payment_status': paymentStatus,
+      'remaining_amount': remainingAmount,
+      'updated_at': DateTime.now().toIso8601String(),
+    });
   }
 
   Future<List<Map<String, dynamic>>> getJournalEntriesByBusiness(
@@ -440,10 +453,7 @@ class FirestoreService {
   Future<void> deleteJournalEntry(String businessId, String journalId) async {
     try {
       final businessRef = _businessDocRefForCurrentUser(businessId);
-      await businessRef
-          .collection('journal_entries')
-          .doc(journalId)
-          .delete();
+      await businessRef.collection('journal_entries').doc(journalId).delete();
     } catch (e) {
       print('Error deleting journal entry: $e');
       rethrow;
@@ -489,9 +499,10 @@ class FirestoreService {
   }) async {
     try {
       final businessRef = _businessDocRefForCurrentUser(businessId);
-      final docRef = await businessRef
-          .collection('expense_categories')
-          .add({'name': name, 'created_at': DateTime.now().toIso8601String()});
+      final docRef = await businessRef.collection('expense_categories').add({
+        'name': name,
+        'created_at': DateTime.now().toIso8601String(),
+      });
       return docRef.id;
     } catch (e) {
       print('Error creating expense category: $e');
@@ -506,13 +517,9 @@ class FirestoreService {
   }) async {
     try {
       final businessRef = _businessDocRefForCurrentUser(businessId);
-      await businessRef
-          .collection('expense_categories')
-          .doc(categoryId)
-          .update({
-            'name': name,
-            'updated_at': DateTime.now().toIso8601String(),
-          });
+      await businessRef.collection('expense_categories').doc(categoryId).update(
+        {'name': name, 'updated_at': DateTime.now().toIso8601String()},
+      );
     } catch (e) {
       print('Error updating expense category: $e');
       rethrow;
@@ -524,9 +531,7 @@ class FirestoreService {
   ) async {
     try {
       final businessRef = _businessDocRefForCurrentUser(businessId);
-      final snapshot = await businessRef
-          .collection('expense_categories')
-          .get();
+      final snapshot = await businessRef.collection('expense_categories').get();
       return snapshot.docs.map((doc) {
         return {'id': doc.id, ...doc.data()};
       }).toList();
@@ -563,11 +568,11 @@ class FirestoreService {
     try {
       final businessRef = _businessDocRefForCurrentUser(businessId);
       final docRef = await businessRef.collection('notes').add({
-            'title': title,
-            'description': description,
-            'created_at': createdAt,
-            'updated_at': DateTime.now().toIso8601String(),
-          });
+        'title': title,
+        'description': description,
+        'created_at': createdAt,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
       return docRef.id;
     } catch (e) {
       print('Error creating note: $e');
@@ -583,14 +588,11 @@ class FirestoreService {
   }) async {
     try {
       final businessRef = _businessDocRefForCurrentUser(businessId);
-      await businessRef
-          .collection('notes')
-          .doc(noteId)
-          .update({
-            'title': title,
-            'description': description,
-            'updated_at': DateTime.now().toIso8601String(),
-          });
+      await businessRef.collection('notes').doc(noteId).update({
+        'title': title,
+        'description': description,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
     } catch (e) {
       print('Error updating note: $e');
       rethrow;
@@ -618,10 +620,7 @@ class FirestoreService {
   Future<void> deleteNote(String businessId, String noteId) async {
     try {
       final businessRef = _businessDocRefForCurrentUser(businessId);
-      await businessRef
-          .collection('notes')
-          .doc(noteId)
-          .delete();
+      await businessRef.collection('notes').doc(noteId).delete();
     } catch (e) {
       print('Error deleting note: $e');
       rethrow;
@@ -697,18 +696,20 @@ class FirestoreService {
     return _auth.currentUser != null;
   }
 
-  CollectionReference<Map<String, dynamic>> _businessesCollection(
-      String uid) {
+  CollectionReference<Map<String, dynamic>> _businessesCollection(String uid) {
     return _db.collection('users').doc(uid).collection('businesses');
   }
 
-  DocumentReference<Map<String, dynamic>> _businessDocRef(
-      {required String uid, required String businessId}) {
+  DocumentReference<Map<String, dynamic>> _businessDocRef({
+    required String uid,
+    required String businessId,
+  }) {
     return _businessesCollection(uid).doc(businessId);
   }
 
   DocumentReference<Map<String, dynamic>> _businessDocRefForCurrentUser(
-      String businessId) {
+    String businessId,
+  ) {
     final uid = getCurrentUserUid();
     if (uid == null) {
       throw Exception('User not logged in');

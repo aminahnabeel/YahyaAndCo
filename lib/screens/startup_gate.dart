@@ -22,6 +22,23 @@ class _StartupGateState extends State<StartupGate> {
   Future<List<BusinessModel>>? _businessesFuture;
   String? _businessesUserId;
 
+  Future<bool> _restoreWithRetry() async {
+    final restoreService = RestoreService();
+
+    for (var attempt = 1; attempt <= 3; attempt++) {
+      final restored = await restoreService.restoreUserDataOnLogin();
+      if (restored) {
+        return true;
+      }
+
+      if (attempt < 3) {
+        await Future<void>.delayed(const Duration(milliseconds: 800));
+      }
+    }
+
+    return false;
+  }
+
   Future<List<BusinessModel>> _loadBusinessesAfterLogin() async {
     final localBusinesses = await DatabaseHelper.instance.getBusinesses();
     print('StartupGate: local businesses count = ${localBusinesses.length}');
@@ -33,8 +50,7 @@ class _StartupGateState extends State<StartupGate> {
     }
 
     print('StartupGate: user UID = ${user.uid}; attempting Firestore restore');
-    final restoreService = RestoreService();
-    final restoreFuture = restoreService.restoreUserDataOnLogin();
+    final restoreFuture = _restoreWithRetry();
     await Future.wait<void>([
       restoreFuture,
       Future<void>.delayed(const Duration(seconds: 4)),
@@ -58,12 +74,6 @@ class _StartupGateState extends State<StartupGate> {
       _businessesFuture = _loadBusinessesAfterLogin();
     }
     return _businessesFuture ??= _loadBusinessesAfterLogin();
-  }
-
-  void _retryBusinessLoad() {
-    setState(() {
-      _businessesFuture = _loadBusinessesAfterLogin();
-    });
   }
 
   @override
@@ -98,22 +108,7 @@ class _StartupGateState extends State<StartupGate> {
             }
 
             if (businessSnapshot.hasError) {
-              return Scaffold(
-                body: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const CircularProgressIndicator(),
-                      const SizedBox(height: 16),
-                      const Text('Loading your data...'),
-                      TextButton(
-                        onPressed: _retryBusinessLoad,
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
+              return const BusinessDetailsScreen();
             }
 
             final businesses = businessSnapshot.data ?? const <BusinessModel>[];

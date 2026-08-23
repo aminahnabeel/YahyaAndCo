@@ -61,23 +61,45 @@ class _JournalListScreenState extends State<JournalListScreen> {
     final voucherType = (row['voucher_type'] ?? '').toString().toLowerCase();
     final dueText = (row['due_date'] ?? '').toString();
     final dateText = (row['date'] ?? '').toString();
-    final compareDate = DateTime.tryParse(dueText.isNotEmpty ? dueText : dateText);
+    final compareDate = DateTime.tryParse(
+      dueText.isNotEmpty ? dueText : dateText,
+    );
 
-    final searchMatch = query.isEmpty || voucherNo.contains(query) || accountName.contains(query) || description.contains(query);
-    final statusMatch = _statusFilter == 'All' || status.toLowerCase() == _statusFilter.toLowerCase();
-    final voucherTypeMatch = _voucherTypeFilter == 'All' || voucherType.contains(_voucherTypeFilter.toLowerCase());
+    final searchMatch =
+        query.isEmpty ||
+        voucherNo.contains(query) ||
+        accountName.contains(query) ||
+        description.contains(query);
+    final statusMatch =
+        _statusFilter == 'All' ||
+        status.toLowerCase() == _statusFilter.toLowerCase();
+    final voucherTypeMatch =
+        _voucherTypeFilter == 'All' ||
+        voucherType.contains(_voucherTypeFilter.toLowerCase());
 
     bool dateMatch = true;
     if (_dateRange != null && compareDate != null) {
-      final start = DateTime(_dateRange!.start.year, _dateRange!.start.month, _dateRange!.start.day);
-      final end = DateTime(_dateRange!.end.year, _dateRange!.end.month, _dateRange!.end.day, 23, 59, 59);
+      final start = DateTime(
+        _dateRange!.start.year,
+        _dateRange!.start.month,
+        _dateRange!.start.day,
+      );
+      final end = DateTime(
+        _dateRange!.end.year,
+        _dateRange!.end.month,
+        _dateRange!.end.day,
+        23,
+        59,
+        59,
+      );
       dateMatch = !compareDate.isBefore(start) && !compareDate.isAfter(end);
     }
 
     return searchMatch && statusMatch && voucherTypeMatch && dateMatch;
   }
 
-  List<Map<String, dynamic>> get _filteredRows => _rows.where(_matches).toList();
+  List<Map<String, dynamic>> get _filteredRows =>
+      _rows.where(_matches).toList();
 
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
@@ -98,40 +120,67 @@ class _JournalListScreenState extends State<JournalListScreen> {
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
             return Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                16 + MediaQuery.of(context).viewInsets.bottom,
+              ),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Filters', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Text(
+                      'Filters',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       value: tempStatus,
-                      decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(
+                        labelText: 'Status',
+                        border: OutlineInputBorder(),
+                      ),
                       items: const [
                         DropdownMenuItem(value: 'All', child: Text('All')),
                         DropdownMenuItem(value: 'Paid', child: Text('Paid')),
-                        DropdownMenuItem(value: 'Pending', child: Text('Pending')),
-                        DropdownMenuItem(value: 'Overdue', child: Text('Overdue')),
+                        DropdownMenuItem(
+                          value: 'Pending',
+                          child: Text('Pending'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Overdue',
+                          child: Text('Overdue'),
+                        ),
                       ],
-                      onChanged: (value) => setModalState(() => tempStatus = value ?? 'All'),
+                      onChanged: (value) =>
+                          setModalState(() => tempStatus = value ?? 'All'),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: tempVoucherType,
-                      decoration: const InputDecoration(labelText: 'Voucher Type', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(
+                        labelText: 'Voucher Type',
+                        border: OutlineInputBorder(),
+                      ),
                       items: const [
                         DropdownMenuItem(value: 'All', child: Text('All')),
                         DropdownMenuItem(value: 'JV', child: Text('JV')),
                         DropdownMenuItem(value: 'CP', child: Text('CP')),
                       ],
-                      onChanged: (value) => setModalState(() => tempVoucherType = value ?? 'All'),
+                      onChanged: (value) =>
+                          setModalState(() => tempVoucherType = value ?? 'All'),
                     ),
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
@@ -147,9 +196,11 @@ class _JournalListScreenState extends State<JournalListScreen> {
                         }
                       },
                       icon: const Icon(Icons.date_range),
-                      label: Text(tempRange == null
-                          ? 'Date Range'
-                          : '${tempRange!.start.toIso8601String().split('T').first} - ${tempRange!.end.toIso8601String().split('T').first}'),
+                      label: Text(
+                        tempRange == null
+                            ? 'Date Range'
+                            : '${tempRange!.start.toIso8601String().split('T').first} - ${tempRange!.end.toIso8601String().split('T').first}',
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -214,7 +265,8 @@ class _JournalListScreenState extends State<JournalListScreen> {
     final dueDate = (row['due_date'] ?? '').toString();
     final journalId = row['journal_id'] as int?;
 
-    final hasImage = row['image_url'] != null && (row['image_url'] as String).isNotEmpty;
+    final hasImage =
+        row['image_url'] != null && (row['image_url'] as String).isNotEmpty;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
@@ -243,14 +295,26 @@ class _JournalListScreenState extends State<JournalListScreen> {
             : null,
         title: Row(
           children: [
-            Expanded(child: Text(voucherNo, style: const TextStyle(fontWeight: FontWeight.w700))),
+            Expanded(
+              child: Text(
+                voucherNo,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: _statusColor(status).withOpacity(0.15),
                 borderRadius: BorderRadius.circular(999),
               ),
-              child: Text(status, style: TextStyle(color: _statusColor(status), fontWeight: FontWeight.w700, fontSize: 12)),
+              child: Text(
+                status,
+                style: TextStyle(
+                  color: _statusColor(status),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
             ),
           ],
         ),
@@ -260,7 +324,11 @@ class _JournalListScreenState extends State<JournalListScreen> {
             const SizedBox(height: 6),
             Text(accountName, style: TextStyle(color: Colors.grey.shade700)),
             const SizedBox(height: 4),
-            Text(description.isEmpty ? 'No description' : description, maxLines: 2, overflow: TextOverflow.ellipsis),
+            Text(
+              description.isEmpty ? 'No description' : description,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -287,7 +355,12 @@ class _JournalListScreenState extends State<JournalListScreen> {
               onTap: () async {
                 await Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => JournalCreateScreen(businessId: widget.businessId, journalId: journalId)),
+                  MaterialPageRoute(
+                    builder: (_) => JournalCreateScreen(
+                      businessId: widget.businessId,
+                      journalId: journalId,
+                    ),
+                  ),
                 );
                 _load();
               },
@@ -313,7 +386,14 @@ class _JournalListScreenState extends State<JournalListScreen> {
         onTap: journalId == null
             ? null
             : () async {
-                await Navigator.push(context, MaterialPageRoute(builder: (_) => JournalDetailScreen(journal: JournalEntryModel.fromMap(row))));
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => JournalDetailScreen(
+                      journal: JournalEntryModel.fromMap(row),
+                    ),
+                  ),
+                );
                 _load();
               },
       ),
@@ -339,7 +419,10 @@ class _JournalListScreenState extends State<JournalListScreen> {
                     return Container(
                       color: Colors.black,
                       child: const Center(
-                        child: Text('Failed to load image', style: TextStyle(color: Colors.white)),
+                        child: Text(
+                          'Failed to load image',
+                          style: TextStyle(color: Colors.white),
+                        ),
                       ),
                     );
                   },
@@ -370,6 +453,7 @@ class _JournalListScreenState extends State<JournalListScreen> {
       ),
     );
   }
+
   Widget _summaryBox(String label, String value, Color color) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -381,9 +465,19 @@ class _JournalListScreenState extends State<JournalListScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(color: Colors.grey.shade700, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 6),
-          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.w800)),
+          Text(
+            value,
+            style: TextStyle(color: color, fontWeight: FontWeight.w800),
+          ),
         ],
       ),
     );
@@ -392,21 +486,42 @@ class _JournalListScreenState extends State<JournalListScreen> {
   @override
   Widget build(BuildContext context) {
     final rows = _filteredRows;
-    final total = rows.fold<double>(0, (sum, row) => sum + ((row['remaining_amount'] ?? 0) as num).toDouble());
+    final totalsByJournal = <String, double>{};
+    for (final row in rows) {
+      final journalId = row['journal_id']?.toString();
+      if (journalId == null || totalsByJournal.containsKey(journalId)) {
+        continue;
+      }
+      totalsByJournal[journalId] = ((row['remaining_amount'] ?? 0) as num)
+          .toDouble();
+    }
+    final total = totalsByJournal.values.fold<double>(
+      0,
+      (sum, amount) => sum + amount,
+    );
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Journal Vouchers'),
         backgroundColor: AppColors.primary,
         actions: [
-          IconButton(onPressed: _openFilters, icon: const Icon(Icons.filter_list)),
+          IconButton(
+            onPressed: _openFilters,
+            icon: const Icon(Icons.filter_list),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         onPressed: () async {
-          await Navigator.push(context, MaterialPageRoute(builder: (_) => JournalCreateScreen(businessId: widget.businessId)));
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  JournalCreateScreen(businessId: widget.businessId),
+            ),
+          );
           _load();
         },
         child: const Icon(Icons.add),
@@ -432,7 +547,9 @@ class _JournalListScreenState extends State<JournalListScreen> {
                                 setState(() => _searchQuery = '');
                               },
                             ),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                 ),
@@ -440,9 +557,21 @@ class _JournalListScreenState extends State<JournalListScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Row(
                     children: [
-                      Expanded(child: _summaryBox('Rows', rows.length.toString(), Colors.blue)),
+                      Expanded(
+                        child: _summaryBox(
+                          'Rows',
+                          rows.length.toString(),
+                          Colors.blue,
+                        ),
+                      ),
                       const SizedBox(width: 8),
-                      Expanded(child: _summaryBox('Remaining', '₹${total.toStringAsFixed(2)}', Colors.green)),
+                      Expanded(
+                        child: _summaryBox(
+                          'Remaining',
+                          '₹${total.toStringAsFixed(2)}',
+                          Colors.green,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -455,7 +584,8 @@ class _JournalListScreenState extends State<JournalListScreen> {
                           child: ListView.builder(
                             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                             itemCount: rows.length,
-                            itemBuilder: (context, index) => _buildRow(rows[index]),
+                            itemBuilder: (context, index) =>
+                                _buildRow(rows[index]),
                           ),
                         ),
                 ),

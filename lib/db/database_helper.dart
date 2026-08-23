@@ -1086,6 +1086,11 @@ class DatabaseHelper {
         transactions.transaction_id,
         transactions.business_id,
         transactions.account_id,
+        (SELECT voucher_no FROM journal_entry
+         WHERE journal_entry.transaction_id = transactions.transaction_id
+           AND UPPER(journal_entry.voucher_type) = 'CP'
+         LIMIT 1) AS voucher_no,
+        'CP' AS voucher_type,
         transactions.amount,
         transactions.type,
         transactions.note,
@@ -1098,8 +1103,13 @@ class DatabaseHelper {
         transactions.created_at,
         accounts.name AS account_name
       FROM transactions
-      INNER JOIN accounts ON accounts.account_id = transactions.account_id
+      LEFT JOIN accounts ON accounts.account_id = transactions.account_id
       WHERE transactions.business_id = ?
+        AND EXISTS (
+          SELECT 1 FROM journal_entry
+          WHERE journal_entry.transaction_id = transactions.transaction_id
+            AND UPPER(journal_entry.voucher_type) = 'CP'
+        )
       ORDER BY transactions.transaction_id DESC
       ''',
       [businessId],

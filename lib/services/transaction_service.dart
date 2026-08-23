@@ -43,6 +43,44 @@ class TransactionService {
       transaction,
     );
 
+    final cashAccountId = await _accountingService.getCashAccountId(
+      transaction.businessId,
+    );
+    if (cashAccountId == null) {
+      throw Exception('Cash account not found for transaction');
+    }
+
+    final isDebitSide = transaction.type.toLowerCase() == 'debit';
+    await _accountingService.createCompleteJournal(
+      journalEntry: JournalEntryModel(
+        businessId: transaction.businessId,
+        transactionId: transactionId,
+        voucherNo: await _accountingService.generateCashVoucher(),
+        voucherType: 'CP',
+        description: transaction.note,
+        dueDate: transaction.dueDate,
+        paymentStatus: transaction.paymentStatus,
+        remainingAmount: transaction.remainingAmount,
+        imageUrl: transaction.imageUrl,
+        date: transaction.date,
+        createdAt: transaction.createdAt,
+      ),
+      journalLines: [
+        JournalLineModel(
+          journalId: 0,
+          accountId: transaction.accountId,
+          debit: isDebitSide ? transaction.amount : 0,
+          credit: isDebitSide ? 0 : transaction.amount,
+        ),
+        JournalLineModel(
+          journalId: 0,
+          accountId: cashAccountId,
+          debit: isDebitSide ? 0 : transaction.amount,
+          credit: isDebitSide ? transaction.amount : 0,
+        ),
+      ],
+    );
+
     if (_syncService.isConnected && _firestoreService.isUserLoggedIn()) {
       try {
         if (business != null && business.firestoreId != null) {

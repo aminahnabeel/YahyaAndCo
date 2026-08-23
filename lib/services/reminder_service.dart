@@ -14,7 +14,9 @@ class ReminderService {
   }
 
   Future<void> refreshReminders(int businessId) async {
-    final sourceRows = await _database.getReminderSourceRows(businessId);
+    final sourceRows = _deduplicateSourceRows(
+      await _database.getReminderSourceRows(businessId),
+    );
     final existing = await _database.getRemindersByBusiness(businessId);
     final activeIds = <String>{};
 
@@ -60,12 +62,30 @@ class ReminderService {
     }
   }
 
+  List<Map<String, dynamic>> _deduplicateSourceRows(
+    List<Map<String, dynamic>> rows,
+  ) {
+    final uniqueRows = <String, Map<String, dynamic>>{};
+    for (final row in rows) {
+      final recordType = (row['record_type'] ?? '').toString().toLowerCase();
+      final recordId = row['record_id']?.toString() ?? '';
+      final voucherNo = (row['voucher_no'] ?? '').toString().trim();
+      final key = recordId.isNotEmpty
+          ? '$recordType:$recordId'
+          : '$recordType:$voucherNo';
+      uniqueRows.putIfAbsent(key, () => row);
+    }
+    return uniqueRows.values.toList();
+  }
+
   Future<void> markAsPaid({
     required String sourceTable,
     required int recordId,
   }) async {
     final db = await _database.database;
-    final table = sourceTable == 'transactions' ? 'transactions' : 'journal_entry';
+    final table = sourceTable == 'transactions'
+        ? 'transactions'
+        : 'journal_entry';
     final idColumn = table == 'transactions' ? 'transaction_id' : 'journal_id';
     final rows = await db.query(
       table,
@@ -79,10 +99,7 @@ class ReminderService {
     final businessId = (rows.first['business_id'] as num).toInt();
     await db.update(
       table,
-      {
-        'payment_status': 'Paid',
-        'remaining_amount': 0,
-      },
+      {'payment_status': 'Paid', 'remaining_amount': 0},
       where: '$idColumn = ?',
       whereArgs: [recordId],
     );
@@ -106,6 +123,66 @@ class ReminderService {
       }
     }
 
+    final business = await _getBusiness(businessId);
+    final firestoreBusinessId = business?.firestoreId;
+    if (firestoreBusinessId != null && _firestoreService.isUserLoggedIn()) {
+      if (table == 'transactions') {
+        final firestoreTransactionId = await _database
+            .getTransactionFirestoreId(recordId);
+        if (firestoreTransactionId != null) {
+          await _firestoreService.updateTransactionPaymentStatus(
+            businessId: firestoreBusinessId,
+            transactionId: firestoreTransactionId,
+            paymentStatus: 'Paid',
+            remainingAmount: 0,
+          );
+        }
+
+        final linkedJournal = await _database.getJournalEntryByTransactionId(
+          recordId,
+        );
+        if (linkedJournal?.journalId != null) {
+          final firestoreJournalId = await _database.getJournalFirestoreId(
+            linkedJournal!.journalId!,
+          );
+          if (firestoreJournalId != null) {
+            await _firestoreService.updateJournalPaymentStatus(
+              businessId: firestoreBusinessId,
+              journalId: firestoreJournalId,
+              paymentStatus: 'Paid',
+              remainingAmount: 0,
+            );
+          }
+        }
+      } else {
+        final firestoreJournalId = await _database.getJournalFirestoreId(
+          recordId,
+        );
+        if (firestoreJournalId != null) {
+          await _firestoreService.updateJournalPaymentStatus(
+            businessId: firestoreBusinessId,
+            journalId: firestoreJournalId,
+            paymentStatus: 'Paid',
+            remainingAmount: 0,
+          );
+        }
+
+        final transactionId = (rows.first['transaction_id'] as num?)?.toInt();
+        if (transactionId != null) {
+          final firestoreTransactionId = await _database
+              .getTransactionFirestoreId(transactionId);
+          if (firestoreTransactionId != null) {
+            await _firestoreService.updateTransactionPaymentStatus(
+              businessId: firestoreBusinessId,
+              transactionId: firestoreTransactionId,
+              paymentStatus: 'Paid',
+              remainingAmount: 0,
+            );
+          }
+        }
+      }
+    }
+
     await refreshReminders(businessId);
   }
 
@@ -117,8 +194,8 @@ class ReminderService {
     final status = remaining <= 0
         ? 'Paid'
         : _isOverdue(dueDate)
-            ? 'Overdue'
-            : 'Pending';
+        ? 'Overdue'
+        : 'Pending';
     final updatedAt = DateTime.now().toIso8601String();
 
     return ReminderModel(
