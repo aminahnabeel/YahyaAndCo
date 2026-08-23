@@ -108,7 +108,9 @@ class JournalService {
       firestoreOperation: () async {
         final firestoreJournalId = journal.journalId == null
             ? null
-            : await DatabaseHelper.instance.getJournalFirestoreId(journal.journalId!);
+            : await DatabaseHelper.instance.getJournalFirestoreId(
+                journal.journalId!,
+              );
 
         if (firestoreJournalId != null &&
             business != null &&
@@ -156,22 +158,27 @@ class JournalService {
         business = null;
       }
 
+      final firestoreJournalId = await DatabaseHelper.instance
+          .getJournalFirestoreId(journalId);
+
       return await _syncService.syncOperation<void>(
         sqliteOperation: () async {
           await DatabaseHelper.instance.deleteJournalEntry(journalId);
         },
         firestoreOperation: () async {
-            final firestoreJournalId = journal.journalId == null
-                ? null
-                : await DatabaseHelper.instance.getJournalFirestoreId(journal.journalId!);
-
-            if (business != null && business.firestoreId != null && firestoreJournalId != null) {
+          if (business != null &&
+              business.firestoreId != null &&
+              firestoreJournalId != null) {
             print(
-                '🔄 Deleting journal entry from Firestore: businesses/${business.firestoreId}/journal_entries/$firestoreJournalId',
+              '🔄 Deleting journal entry from Firestore: businesses/${business.firestoreId}/journal_entries/$firestoreJournalId',
+            );
+            await _firestoreService.deleteJournalLines(
+              businessId: business.firestoreId!,
+              journalId: firestoreJournalId,
             );
             await _firestoreService.deleteJournalEntry(
               business.firestoreId!, // ✅ Use Firestore ID
-                firestoreJournalId,
+              firestoreJournalId,
             );
           } else {
             print('⚠️  Firestore ID not found - delete skipped');
@@ -218,13 +225,19 @@ class JournalService {
             business = null;
           }
 
-          final firestoreJournalId = await DatabaseHelper.instance.getJournalFirestoreId(journalId);
-          if (business != null && business.firestoreId != null && firestoreJournalId != null) {
+          final firestoreJournalId = await DatabaseHelper.instance
+              .getJournalFirestoreId(journalId);
+          if (business != null &&
+              business.firestoreId != null &&
+              firestoreJournalId != null) {
             final journalLinesData = [
               {
                 'account_id': accountId,
-                'account_name': (await DatabaseHelper.instance.getAccountById(accountId))?.name,
-                'account_firestore_id': await DatabaseHelper.instance.getAccountFirestoreId(accountId),
+                'account_name': (await DatabaseHelper.instance.getAccountById(
+                  accountId,
+                ))?.name,
+                'account_firestore_id': await DatabaseHelper.instance
+                    .getAccountFirestoreId(accountId),
                 'debit': debit,
                 'credit': credit,
               },

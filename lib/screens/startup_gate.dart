@@ -11,15 +11,20 @@ import 'dashboard/dashboard_screen.dart';
 import 'email_verification_pending_screen.dart';
 import 'enter_pin_screen.dart';
 
-class StartupGate extends StatelessWidget {
+class StartupGate extends StatefulWidget {
   const StartupGate({super.key});
+
+  @override
+  State<StartupGate> createState() => _StartupGateState();
+}
+
+class _StartupGateState extends State<StartupGate> {
+  Future<List<BusinessModel>>? _businessesFuture;
+  String? _businessesUserId;
 
   Future<List<BusinessModel>> _loadBusinessesAfterLogin() async {
     final localBusinesses = await DatabaseHelper.instance.getBusinesses();
     print('StartupGate: local businesses count = ${localBusinesses.length}');
-    if (localBusinesses.isNotEmpty) {
-      return localBusinesses;
-    }
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -32,12 +37,28 @@ class StartupGate extends StatelessWidget {
     final restored = await restoreService.restoreUserDataOnLogin();
     if (!restored) {
       print('StartupGate: Firestore restore returned false');
-      return const [];
+      return localBusinesses;
     }
 
     final restoredBusinesses = await DatabaseHelper.instance.getBusinesses();
-    print('StartupGate: restored businesses count = ${restoredBusinesses.length}');
+    print(
+      'StartupGate: restored businesses count = ${restoredBusinesses.length}',
+    );
     return restoredBusinesses;
+  }
+
+  Future<List<BusinessModel>> _getBusinessesFuture(String userId) {
+    if (_businessesUserId != userId) {
+      _businessesUserId = userId;
+      _businessesFuture = _loadBusinessesAfterLogin();
+    }
+    return _businessesFuture ??= _loadBusinessesAfterLogin();
+  }
+
+  void _retryBusinessLoad() {
+    setState(() {
+      _businessesFuture = _loadBusinessesAfterLogin();
+    });
   }
 
   @override
@@ -61,11 +82,30 @@ class StartupGate extends StatelessWidget {
         }
 
         return FutureBuilder<List<BusinessModel>>(
-          future: _loadBusinessesAfterLogin(),
+          future: _getBusinessesFuture(user.uid),
           builder: (context, businessSnapshot) {
             if (businessSnapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(
                 body: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            if (businessSnapshot.hasError) {
+              return Scaffold(
+                body: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 16),
+                      const Text('Loading your data...'),
+                      TextButton(
+                        onPressed: _retryBusinessLoad,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
               );
             }
 

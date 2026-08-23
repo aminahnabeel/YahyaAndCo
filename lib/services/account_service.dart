@@ -127,7 +127,9 @@ class AccountService {
       firestoreOperation: () async {
         final firestoreAccountId = account.accountId == null
             ? null
-            : await DatabaseHelper.instance.getAccountFirestoreId(account.accountId!);
+            : await DatabaseHelper.instance.getAccountFirestoreId(
+                account.accountId!,
+              );
 
         if (business != null &&
             business.firestoreId != null &&
@@ -153,15 +155,16 @@ class AccountService {
 
   Future<void> updateOpeningBalance(
     int accountId,
-    double newOpeningBalance, {bool surfaceFirestoreFailure = false}
-  ) async {
+    double newOpeningBalance, {
+    bool surfaceFirestoreFailure = false,
+  }) async {
     final account = await getAccountById(accountId);
     if (account == null) {
       throw Exception('Account not found');
     }
 
     final journalOpeningTotal = await DatabaseHelper.instance
-      .getOpeningBalanceJournalTotal(accountId);
+        .getOpeningBalanceJournalTotal(accountId);
     final currentOpeningBalance = journalOpeningTotal + account.openingBalance;
 
     final businesses = await DatabaseHelper.instance.getBusinesses();
@@ -251,15 +254,15 @@ class AccountService {
     }
 
     final migratedAccount = AccountModel(
-        accountId: account.accountId,
-        businessId: account.businessId,
-        name: account.name,
-        type: account.type,
-        phone: account.phone,
-        address: account.address,
-        openingBalance: 0,
-        createdAt: account.createdAt,
-      );
+      accountId: account.accountId,
+      businessId: account.businessId,
+      name: account.name,
+      type: account.type,
+      phone: account.phone,
+      address: account.address,
+      openingBalance: 0,
+      createdAt: account.createdAt,
+    );
     await DatabaseHelper.instance.updateAccount(migratedAccount);
   }
 
@@ -269,7 +272,9 @@ class AccountService {
   ) async {
     final localFirestoreId = account.accountId == null
         ? null
-        : await DatabaseHelper.instance.getAccountFirestoreId(account.accountId!);
+        : await DatabaseHelper.instance.getAccountFirestoreId(
+            account.accountId!,
+          );
     if (localFirestoreId != null && localFirestoreId.isNotEmpty) {
       return localFirestoreId;
     }
@@ -279,7 +284,9 @@ class AccountService {
     );
     final normalizedName = account.name.trim().toLowerCase();
     final existing = firestoreAccounts.firstWhere(
-      (item) => (item['name'] ?? '').toString().trim().toLowerCase() == normalizedName,
+      (item) =>
+          (item['name'] ?? '').toString().trim().toLowerCase() ==
+          normalizedName,
       orElse: () => <String, dynamic>{},
     );
 
@@ -322,7 +329,8 @@ class AccountService {
       businessId,
     );
     final localEquity = localAccounts.firstWhere(
-      (account) => account.name.trim().toLowerCase() == 'opening balance equity',
+      (account) =>
+          account.name.trim().toLowerCase() == 'opening balance equity',
       orElse: () => AccountModel(
         businessId: businessId,
         name: 'Opening Balance Equity',
@@ -336,7 +344,9 @@ class AccountService {
       firestoreBusinessId,
     );
     final existing = firestoreAccounts.firstWhere(
-      (item) => (item['name'] ?? '').toString().trim().toLowerCase() == 'opening balance equity',
+      (item) =>
+          (item['name'] ?? '').toString().trim().toLowerCase() ==
+          'opening balance equity',
       orElse: () => <String, dynamic>{},
     );
 
@@ -401,22 +411,23 @@ class AccountService {
         business = null;
       }
 
+      final firestoreAccountId = await DatabaseHelper.instance
+          .getAccountFirestoreId(accountId);
+
       await _syncService.syncOperation<void>(
         sqliteOperation: () async {
           await DatabaseHelper.instance.deleteAccount(accountId);
         },
         firestoreOperation: () async {
-            final firestoreAccountId = account.accountId == null
-                ? null
-                : await DatabaseHelper.instance.getAccountFirestoreId(account.accountId!);
-
-            if (business != null && business.firestoreId != null && firestoreAccountId != null) {
+          if (business != null &&
+              business.firestoreId != null &&
+              firestoreAccountId != null) {
             print(
-                '🔄 Deleting account from Firestore: businesses/${business.firestoreId}/accounts/$firestoreAccountId',
+              '🔄 Deleting account from Firestore: businesses/${business.firestoreId}/accounts/$firestoreAccountId',
             );
             await _firestoreService.deleteAccount(
               business.firestoreId!, // ✅ Use Firestore ID
-                firestoreAccountId,
+              firestoreAccountId,
             );
           }
         },

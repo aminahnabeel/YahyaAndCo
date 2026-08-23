@@ -39,43 +39,54 @@ class TransactionService {
       print('✅ Firestore Business ID: ${business!.firestoreId}');
     }
 
-    final transactionId = await DatabaseHelper.instance.insertTransaction(transaction);
+    final transactionId = await DatabaseHelper.instance.insertTransaction(
+      transaction,
+    );
 
     if (_syncService.isConnected && _firestoreService.isUserLoggedIn()) {
       try {
         if (business != null && business.firestoreId != null) {
-          final account = await DatabaseHelper.instance.getAccountById(transaction.accountId);
+          final account = await DatabaseHelper.instance.getAccountById(
+            transaction.accountId,
+          );
           final accountFirestoreId = account == null
               ? null
-              : await DatabaseHelper.instance.getAccountFirestoreId(transaction.accountId);
+              : await DatabaseHelper.instance.getAccountFirestoreId(
+                  transaction.accountId,
+                );
           final toAccount = transaction.toAccountId == null
               ? null
-              : await DatabaseHelper.instance.getAccountById(transaction.toAccountId!);
+              : await DatabaseHelper.instance.getAccountById(
+                  transaction.toAccountId!,
+                );
           final toAccountFirestoreId = transaction.toAccountId == null
               ? null
-              : await DatabaseHelper.instance.getAccountFirestoreId(transaction.toAccountId!);
+              : await DatabaseHelper.instance.getAccountFirestoreId(
+                  transaction.toAccountId!,
+                );
           print(
             '🔥 Syncing to Firestore at path: businesses/${business.firestoreId}/transactions/',
           );
-          final firestoreTransactionId = await _firestoreService.createTransaction(
-            businessId: business.firestoreId!,
-            accountId: transaction.accountId,
-            toAccountId: transaction.toAccountId,
-            accountFirestoreId: accountFirestoreId,
-            accountName: account?.name,
-            toAccountFirestoreId: toAccountFirestoreId,
-            toAccountName: toAccount?.name,
-            amount: transaction.amount,
-            type: transaction.type,
-            note: transaction.note,
-            paymentMethod: transaction.paymentMethod,
-            dueDate: transaction.dueDate,
-            paymentStatus: transaction.paymentStatus,
-            remainingAmount: transaction.remainingAmount,
-            imageUrl: transaction.imageUrl,
-            date: transaction.date,
-            createdAt: transaction.createdAt,
-          );
+          final firestoreTransactionId = await _firestoreService
+              .createTransaction(
+                businessId: business.firestoreId!,
+                accountId: transaction.accountId,
+                toAccountId: transaction.toAccountId,
+                accountFirestoreId: accountFirestoreId,
+                accountName: account?.name,
+                toAccountFirestoreId: toAccountFirestoreId,
+                toAccountName: toAccount?.name,
+                amount: transaction.amount,
+                type: transaction.type,
+                note: transaction.note,
+                paymentMethod: transaction.paymentMethod,
+                dueDate: transaction.dueDate,
+                paymentStatus: transaction.paymentStatus,
+                remainingAmount: transaction.remainingAmount,
+                imageUrl: transaction.imageUrl,
+                date: transaction.date,
+                createdAt: transaction.createdAt,
+              );
           await DatabaseHelper.instance.updateTransactionFirestoreId(
             transactionId,
             firestoreTransactionId,
@@ -132,16 +143,19 @@ class TransactionService {
       sqliteOperation: () async {
         await DatabaseHelper.instance.updateTransaction(transaction);
 
-        final linkedJournal = await DatabaseHelper.instance.getJournalEntryByTransactionId(
-          transaction.transactionId!,
-        );
+        final linkedJournal = await DatabaseHelper.instance
+            .getJournalEntryByTransactionId(transaction.transactionId!);
         if (linkedJournal != null) {
-          final cashAccountId = await _accountingService.getCashAccountId(transaction.businessId);
+          final cashAccountId = await _accountingService.getCashAccountId(
+            transaction.businessId,
+          );
           if (cashAccountId == null) {
             throw Exception('Cash account not found for transaction update');
           }
 
-          await DatabaseHelper.instance.deleteJournalLines(linkedJournal.journalId!);
+          await DatabaseHelper.instance.deleteJournalLines(
+            linkedJournal.journalId!,
+          );
 
           final isDebitSide = transaction.type.toLowerCase() == 'debit';
           final journalLines = <JournalLineModel>[
@@ -183,19 +197,28 @@ class TransactionService {
       firestoreOperation: () async {
         final firestoreTransactionId = transaction.transactionId == null
             ? null
-            : await DatabaseHelper.instance.getTransactionFirestoreId(transaction.transactionId!);
+            : await DatabaseHelper.instance.getTransactionFirestoreId(
+                transaction.transactionId!,
+              );
 
         if (firestoreTransactionId != null &&
             business != null &&
             business.firestoreId != null) {
-          final account = await DatabaseHelper.instance.getAccountById(transaction.accountId);
-          final accountFirestoreId = await DatabaseHelper.instance.getAccountFirestoreId(transaction.accountId);
+          final account = await DatabaseHelper.instance.getAccountById(
+            transaction.accountId,
+          );
+          final accountFirestoreId = await DatabaseHelper.instance
+              .getAccountFirestoreId(transaction.accountId);
           final toAccount = transaction.toAccountId == null
               ? null
-              : await DatabaseHelper.instance.getAccountById(transaction.toAccountId!);
+              : await DatabaseHelper.instance.getAccountById(
+                  transaction.toAccountId!,
+                );
           final toAccountFirestoreId = transaction.toAccountId == null
               ? null
-              : await DatabaseHelper.instance.getAccountFirestoreId(transaction.toAccountId!);
+              : await DatabaseHelper.instance.getAccountFirestoreId(
+                  transaction.toAccountId!,
+                );
           print(
             '🔄 Updating transaction in Firestore: businesses/${business.firestoreId}/transactions/$firestoreTransactionId',
           );
@@ -221,20 +244,33 @@ class TransactionService {
 
           final linkedJournal = transaction.transactionId == null
               ? null
-              : await DatabaseHelper.instance.getJournalEntryByTransactionId(transaction.transactionId!);
+              : await DatabaseHelper.instance.getJournalEntryByTransactionId(
+                  transaction.transactionId!,
+                );
           if (linkedJournal != null) {
-            final firestoreJournalId = await DatabaseHelper.instance.getJournalFirestoreId(linkedJournal.journalId!);
+            final firestoreJournalId = await DatabaseHelper.instance
+                .getJournalFirestoreId(linkedJournal.journalId!);
             if (firestoreJournalId != null) {
-              final cashAccountId = await _accountingService.getCashAccountId(transaction.businessId);
+              final cashAccountId = await _accountingService.getCashAccountId(
+                transaction.businessId,
+              );
               if (cashAccountId == null) {
-                throw Exception('Cash account not found for transaction update');
+                throw Exception(
+                  'Cash account not found for transaction update',
+                );
               }
 
               final isDebitSide = transaction.type.toLowerCase() == 'debit';
-              final account = await DatabaseHelper.instance.getAccountById(transaction.accountId);
-              final cashAccount = await DatabaseHelper.instance.getAccountById(cashAccountId);
-              final accountFirestoreId = await DatabaseHelper.instance.getAccountFirestoreId(transaction.accountId);
-              final cashAccountFirestoreId = await DatabaseHelper.instance.getAccountFirestoreId(cashAccountId);
+              final account = await DatabaseHelper.instance.getAccountById(
+                transaction.accountId,
+              );
+              final cashAccount = await DatabaseHelper.instance.getAccountById(
+                cashAccountId,
+              );
+              final accountFirestoreId = await DatabaseHelper.instance
+                  .getAccountFirestoreId(transaction.accountId);
+              final cashAccountFirestoreId = await DatabaseHelper.instance
+                  .getAccountFirestoreId(cashAccountId);
 
               await _firestoreService.deleteJournalLines(
                 businessId: business.firestoreId!,
@@ -306,24 +342,41 @@ class TransactionService {
         business = null;
       }
 
+      final firestoreTransactionId = await DatabaseHelper.instance
+          .getTransactionFirestoreId(transactionId);
+      final linkedJournal = await DatabaseHelper.instance
+          .getJournalEntryByTransactionId(transactionId);
+      final firestoreJournalId = linkedJournal?.journalId == null
+          ? null
+          : await DatabaseHelper.instance.getJournalFirestoreId(
+              linkedJournal!.journalId!,
+            );
+
       return await _syncService.syncOperation<void>(
         sqliteOperation: () async {
           await DatabaseHelper.instance.deleteTransaction(transactionId);
         },
         firestoreOperation: () async {
-            final firestoreTransactionId = transaction.transactionId == null
-                ? null
-                : await DatabaseHelper.instance.getTransactionFirestoreId(transaction.transactionId!);
-
-            if (business != null && business.firestoreId != null && firestoreTransactionId != null) {
+          if (business != null &&
+              business.firestoreId != null &&
+              firestoreTransactionId != null) {
             print(
-                '🔄 Deleting transaction from Firestore: businesses/${business.firestoreId}/transactions/$firestoreTransactionId',
+              '🔄 Deleting transaction from Firestore: businesses/${business.firestoreId}/transactions/$firestoreTransactionId',
             );
             await _firestoreService.deleteTransaction(
               business.firestoreId!, // ✅ Use Firestore ID
-                firestoreTransactionId,
+              firestoreTransactionId,
             );
-          } else {
+          }
+
+          if (business != null &&
+              business.firestoreId != null &&
+              firestoreJournalId != null) {
+            await _firestoreService.deleteJournalEntry(
+              business.firestoreId!,
+              firestoreJournalId,
+            );
+          } else if (firestoreTransactionId == null) {
             print('⚠️  Firestore ID not found - delete skipped');
           }
         },

@@ -7,9 +7,8 @@ import '../models/business_model.dart';
 class RestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _getBusinessDocsForUser(
-    User user,
-  ) async {
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+  _getBusinessDocsForUser(User user) async {
     final nestedDocs = await _firestore
         .collection('users')
         .doc(user.uid)
@@ -49,9 +48,13 @@ class RestoreService {
     }
 
     try {
-      print('RestoreService: checking Firestore businesses for user ${user.uid}');
+      print(
+        'RestoreService: checking Firestore businesses for user ${user.uid}',
+      );
       final businessesDocs = await _getBusinessDocsForUser(user);
-      print('RestoreService: found ${businessesDocs.length} business documents');
+      print(
+        'RestoreService: found ${businessesDocs.length} business documents',
+      );
       if (businessesDocs.isEmpty) {
         return false;
       }
@@ -70,24 +73,31 @@ class RestoreService {
             name: businessData['name'] ?? 'Business',
             type: businessData['type'] ?? 'General',
             pin: businessData['pin'],
-            createdAt: businessData['created_at'] ?? DateTime.now().toIso8601String(),
+            createdAt:
+                businessData['created_at'] ?? DateTime.now().toIso8601String(),
           ),
         );
 
         final businessRef = businessDoc.reference;
-        final journalEntriesSnapshot = await businessRef.collection('journal_entries').get();
+        final journalEntriesSnapshot = await businessRef
+            .collection('journal_entries')
+            .get();
         final obAccountFirestoreIds = <String>{};
 
         for (final journalDoc in journalEntriesSnapshot.docs) {
           final journalData = journalDoc.data();
-          if ((journalData['voucher_type'] ?? '').toString().toUpperCase() != 'OB') {
+          if ((journalData['voucher_type'] ?? '').toString().toUpperCase() !=
+              'OB') {
             continue;
           }
 
-          final linesSnapshot = await journalDoc.reference.collection('journal_lines').get();
+          final linesSnapshot = await journalDoc.reference
+              .collection('journal_lines')
+              .get();
           for (final lineDoc in linesSnapshot.docs) {
             final lineData = lineDoc.data();
-            final lineAccountFirestoreId = (lineData['account_firestore_id'] ?? '').toString();
+            final lineAccountFirestoreId =
+                (lineData['account_firestore_id'] ?? '').toString();
             if (lineAccountFirestoreId.isNotEmpty) {
               obAccountFirestoreIds.add(lineAccountFirestoreId);
             }
@@ -115,12 +125,19 @@ class RestoreService {
             'opening_balance': obAccountFirestoreIds.contains(accountDoc.id)
                 ? 0.0
                 : (accountData['opening_balance'] as num?)?.toDouble() ?? 0.0,
-            'created_at': accountData['created_at'] ?? DateTime.now().toIso8601String(),
+            'created_at':
+                accountData['created_at'] ?? DateTime.now().toIso8601String(),
           };
 
-          final localAccountId = await DatabaseHelper.instance.upsertAccount(normalizedAccount);
+          final localAccountId = await DatabaseHelper.instance.upsertAccount(
+            normalizedAccount,
+          );
           accountIdByFirestoreId[accountDoc.id] = localAccountId;
-          accountIdByName[(accountData['name'] ?? '').toString().trim().toLowerCase()] = localAccountId;
+          accountIdByName[(accountData['name'] ?? '')
+                  .toString()
+                  .trim()
+                  .toLowerCase()] =
+              localAccountId;
           restoredAccountIdsInOrder.add(localAccountId);
         }
 
@@ -129,34 +146,49 @@ class RestoreService {
           final normalizedJournal = {
             'journal_id': null,
             'business_id': localBusinessId,
-            'transaction_id': journalData['transaction_id'],
+            'transaction_id': (journalData['transaction_id'] as num?)?.toInt(),
             'firestore_id': journalDoc.id,
             'description': journalData['description'] ?? '',
             'image_url': journalData['image_url'],
-            'date': journalData['date'] ?? DateTime.now().toIso8601String().split('T').first,
+            'date':
+                journalData['date'] ??
+                DateTime.now().toIso8601String().split('T').first,
             'voucher_no': journalData['voucher_no'] ?? '',
             'voucher_type': journalData['voucher_type'] ?? 'JV',
             'due_date': journalData['due_date'],
             'payment_status': journalData['payment_status'] ?? 'Paid',
-            'remaining_amount': (journalData['remaining_amount'] as num?)?.toDouble() ?? 0.0,
-            'created_at': journalData['created_at'] ?? DateTime.now().toIso8601String(),
+            'remaining_amount':
+                (journalData['remaining_amount'] as num?)?.toDouble() ?? 0.0,
+            'created_at':
+                journalData['created_at'] ?? DateTime.now().toIso8601String(),
           };
 
-          final localJournalId = await DatabaseHelper.instance.upsertJournalEntry(normalizedJournal);
+          final localJournalId = await DatabaseHelper.instance
+              .upsertJournalEntry(normalizedJournal);
 
-          final linesSnapshot = await journalDoc.reference.collection('journal_lines').get();
+          final linesSnapshot = await journalDoc.reference
+              .collection('journal_lines')
+              .get();
 
           for (final lineDoc in linesSnapshot.docs) {
             final lineData = lineDoc.data();
-            final lineAccountFirestoreId = (lineData['account_firestore_id'] ?? '').toString();
-            final lineAccountName = (lineData['account_name'] ?? '').toString().trim().toLowerCase();
+            final lineAccountFirestoreId =
+                (lineData['account_firestore_id'] ?? '').toString();
+            final lineAccountName = (lineData['account_name'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
             final legacyAccountId = (lineData['account_id'] as num?)?.toInt();
 
-            int? resolvedAccountId = accountIdByFirestoreId[lineAccountFirestoreId];
+            int? resolvedAccountId =
+                accountIdByFirestoreId[lineAccountFirestoreId];
             resolvedAccountId ??= accountIdByName[lineAccountName];
-            if (resolvedAccountId == null && legacyAccountId != null && legacyAccountId > 0) {
+            if (resolvedAccountId == null &&
+                legacyAccountId != null &&
+                legacyAccountId > 0) {
               final legacyIndex = legacyAccountId - 1;
-              if (legacyIndex >= 0 && legacyIndex < restoredAccountIdsInOrder.length) {
+              if (legacyIndex >= 0 &&
+                  legacyIndex < restoredAccountIdsInOrder.length) {
                 resolvedAccountId = restoredAccountIdsInOrder[legacyIndex];
               }
             }
@@ -166,7 +198,9 @@ class RestoreService {
               'journal_id': localJournalId,
               'account_id': resolvedAccountId,
               'firestore_id': lineDoc.id,
-              'account_firestore_id': lineAccountFirestoreId.isEmpty ? null : lineAccountFirestoreId,
+              'account_firestore_id': lineAccountFirestoreId.isEmpty
+                  ? null
+                  : lineAccountFirestoreId,
               'account_name': lineAccountName.isEmpty ? null : lineAccountName,
               'debit': (lineData['debit'] as num?)?.toDouble() ?? 0.0,
               'credit': (lineData['credit'] as num?)?.toDouble() ?? 0.0,
@@ -176,31 +210,55 @@ class RestoreService {
           }
         }
 
-        final transactionsSnapshot = await businessRef.collection('transactions').get();
+        final transactionsSnapshot = await businessRef
+            .collection('transactions')
+            .get();
+        final localTransactionIdsByRemoteId = <String, int>{};
 
         for (final transactionDoc in transactionsSnapshot.docs) {
           final transactionData = transactionDoc.data();
-          final transactionAccountFirestoreId = (transactionData['account_firestore_id'] ?? '').toString();
-          final transactionAccountName = (transactionData['account_name'] ?? '').toString().trim().toLowerCase();
-          final transactionLegacyAccountId = (transactionData['account_id'] as num?)?.toInt();
-          final transactionToAccountFirestoreId = (transactionData['to_account_firestore_id'] ?? '').toString();
-          final transactionToAccountName = (transactionData['to_account_name'] ?? '').toString().trim().toLowerCase();
-          final transactionLegacyToAccountId = (transactionData['to_account_id'] as num?)?.toInt();
+          final transactionAccountFirestoreId =
+              (transactionData['account_firestore_id'] ?? '').toString();
+          final transactionAccountName = (transactionData['account_name'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase();
+          final transactionLegacyAccountId =
+              (transactionData['account_id'] as num?)?.toInt();
+          final transactionToAccountFirestoreId =
+              (transactionData['to_account_firestore_id'] ?? '').toString();
+          final transactionToAccountName =
+              (transactionData['to_account_name'] ?? '')
+                  .toString()
+                  .trim()
+                  .toLowerCase();
+          final transactionLegacyToAccountId =
+              (transactionData['to_account_id'] as num?)?.toInt();
 
-          int? resolvedTransactionAccountId = accountIdByFirestoreId[transactionAccountFirestoreId];
-          resolvedTransactionAccountId ??= accountIdByName[transactionAccountName];
-          if (resolvedTransactionAccountId == null && transactionLegacyAccountId != null && transactionLegacyAccountId > 0) {
+          int? resolvedTransactionAccountId =
+              accountIdByFirestoreId[transactionAccountFirestoreId];
+          resolvedTransactionAccountId ??=
+              accountIdByName[transactionAccountName];
+          if (resolvedTransactionAccountId == null &&
+              transactionLegacyAccountId != null &&
+              transactionLegacyAccountId > 0) {
             final legacyIndex = transactionLegacyAccountId - 1;
-            if (legacyIndex >= 0 && legacyIndex < restoredAccountIdsInOrder.length) {
-              resolvedTransactionAccountId = restoredAccountIdsInOrder[legacyIndex];
+            if (legacyIndex >= 0 &&
+                legacyIndex < restoredAccountIdsInOrder.length) {
+              resolvedTransactionAccountId =
+                  restoredAccountIdsInOrder[legacyIndex];
             }
           }
 
-          int? resolvedToAccountId = accountIdByFirestoreId[transactionToAccountFirestoreId];
+          int? resolvedToAccountId =
+              accountIdByFirestoreId[transactionToAccountFirestoreId];
           resolvedToAccountId ??= accountIdByName[transactionToAccountName];
-          if (resolvedToAccountId == null && transactionLegacyToAccountId != null && transactionLegacyToAccountId > 0) {
+          if (resolvedToAccountId == null &&
+              transactionLegacyToAccountId != null &&
+              transactionLegacyToAccountId > 0) {
             final legacyIndex = transactionLegacyToAccountId - 1;
-            if (legacyIndex >= 0 && legacyIndex < restoredAccountIdsInOrder.length) {
+            if (legacyIndex >= 0 &&
+                legacyIndex < restoredAccountIdsInOrder.length) {
               resolvedToAccountId = restoredAccountIdsInOrder[legacyIndex];
             }
           }
@@ -211,30 +269,70 @@ class RestoreService {
             'account_id': resolvedTransactionAccountId ?? 0,
             'to_account_id': resolvedToAccountId,
             'firestore_id': transactionDoc.id,
-            'account_firestore_id': transactionAccountFirestoreId.isEmpty ? null : transactionAccountFirestoreId,
-            'account_name': transactionAccountName.isEmpty ? null : transactionAccountName,
-            'to_account_firestore_id': transactionToAccountFirestoreId.isEmpty ? null : transactionToAccountFirestoreId,
-            'to_account_name': transactionToAccountName.isEmpty ? null : transactionToAccountName,
+            'account_firestore_id': transactionAccountFirestoreId.isEmpty
+                ? null
+                : transactionAccountFirestoreId,
+            'account_name': transactionAccountName.isEmpty
+                ? null
+                : transactionAccountName,
+            'to_account_firestore_id': transactionToAccountFirestoreId.isEmpty
+                ? null
+                : transactionToAccountFirestoreId,
+            'to_account_name': transactionToAccountName.isEmpty
+                ? null
+                : transactionToAccountName,
             'amount': (transactionData['amount'] as num?)?.toDouble() ?? 0.0,
             'type': transactionData['type'] ?? 'Expense',
             'note': transactionData['note'] ?? '',
             'payment_method': transactionData['payment_method'] ?? 'Cash',
             'due_date': transactionData['due_date'],
             'payment_status': transactionData['payment_status'] ?? 'Paid',
-            'remaining_amount': (transactionData['remaining_amount'] as num?)?.toDouble() ?? 0.0,
+            'remaining_amount':
+                (transactionData['remaining_amount'] as num?)?.toDouble() ??
+                0.0,
             'image_url': transactionData['image_url'],
-            'date': transactionData['date'] ?? DateTime.now().toIso8601String().split('T').first,
-            'created_at': transactionData['created_at'] ?? DateTime.now().toIso8601String(),
+            'date':
+                transactionData['date'] ??
+                DateTime.now().toIso8601String().split('T').first,
+            'created_at':
+                transactionData['created_at'] ??
+                DateTime.now().toIso8601String(),
           };
 
-          await DatabaseHelper.instance.upsertTransaction(normalizedTransaction);
+          final localTransactionId = await DatabaseHelper.instance
+              .upsertTransaction(normalizedTransaction);
+          localTransactionIdsByRemoteId[transactionDoc.id] = localTransactionId;
+          final legacyTransactionId = transactionData['transaction_id'];
+          if (legacyTransactionId is num) {
+            localTransactionIdsByRemoteId[legacyTransactionId
+                    .toInt()
+                    .toString()] =
+                localTransactionId;
+          }
+        }
+
+        for (final journalDoc in journalEntriesSnapshot.docs) {
+          final journalData = journalDoc.data();
+          final remoteTransactionId = journalData['transaction_id']?.toString();
+          final localJournalId = await DatabaseHelper.instance
+              .getJournalEntryByFirestoreId(journalDoc.id);
+          final localTransactionId = remoteTransactionId == null
+              ? null
+              : localTransactionIdsByRemoteId[remoteTransactionId];
+
+          if (localJournalId != null && localTransactionId != null) {
+            await DatabaseHelper.instance.updateJournalTransactionId(
+              localJournalId,
+              localTransactionId,
+            );
+          }
         }
       }
 
       return true;
     } catch (e) {
       print('RestoreService error: $e');
-      return false;
+      rethrow;
     }
   }
 }

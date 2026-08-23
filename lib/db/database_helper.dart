@@ -56,10 +56,20 @@ class DatabaseHelper {
     if (oldVersion < 4) {
       await _addColumnIfMissing(db, 'transactions', 'due_date', 'TEXT');
       await _addColumnIfMissing(db, 'transactions', 'payment_status', 'TEXT');
-      await _addColumnIfMissing(db, 'transactions', 'remaining_amount', 'REAL DEFAULT 0');
+      await _addColumnIfMissing(
+        db,
+        'transactions',
+        'remaining_amount',
+        'REAL DEFAULT 0',
+      );
       await _addColumnIfMissing(db, 'journal_entry', 'due_date', 'TEXT');
       await _addColumnIfMissing(db, 'journal_entry', 'payment_status', 'TEXT');
-      await _addColumnIfMissing(db, 'journal_entry', 'remaining_amount', 'REAL DEFAULT 0');
+      await _addColumnIfMissing(
+        db,
+        'journal_entry',
+        'remaining_amount',
+        'REAL DEFAULT 0',
+      );
     }
 
     if (oldVersion < 5) {
@@ -79,11 +89,21 @@ class DatabaseHelper {
       await _addColumnIfMissing(db, 'journal_lines', 'firestore_id', 'TEXT');
 
       // Create indexes to speed up lookups by Firestore ID
-      await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_business_firestore_id ON business(firestore_id);');
-      await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_firestore_id ON accounts(firestore_id);');
-      await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_firestore_id ON transactions(firestore_id);');
-      await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_journal_entry_firestore_id ON journal_entry(firestore_id);');
-      await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_journal_lines_firestore_id ON journal_lines(firestore_id);');
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_business_firestore_id ON business(firestore_id);',
+      );
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_firestore_id ON accounts(firestore_id);',
+      );
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_firestore_id ON transactions(firestore_id);',
+      );
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_journal_entry_firestore_id ON journal_entry(firestore_id);',
+      );
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_journal_lines_firestore_id ON journal_lines(firestore_id);',
+      );
 
       // Ensure reminders table exists for older DB versions
       await _createRemindersTable(db);
@@ -100,7 +120,9 @@ class DatabaseHelper {
     final hasColumn = columns.any((column) => column['name'] == columnName);
 
     if (!hasColumn) {
-      await db.execute('ALTER TABLE $tableName ADD COLUMN $columnName $columnDefinition');
+      await db.execute(
+        'ALTER TABLE $tableName ADD COLUMN $columnName $columnDefinition',
+      );
     }
   }
 
@@ -135,7 +157,6 @@ class DatabaseHelper {
   // ======================================================
   // REMINDER METHODS
   // ======================================================
-
 
   Future onCreate(Database db, int version) async {
     // =========================
@@ -380,10 +401,13 @@ class DatabaseHelper {
   // REMINDER METHODS
   // ======================================================
 
-  Future<List<Map<String, dynamic>>> getReminderSourceRows(int businessId) async {
+  Future<List<Map<String, dynamic>>> getReminderSourceRows(
+    int businessId,
+  ) async {
     final db = await database;
 
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT * FROM (
         SELECT
           'Transaction' AS record_type,
@@ -433,7 +457,9 @@ class DatabaseHelper {
         GROUP BY je.journal_id
       )
       ORDER BY COALESCE(due_date, date) DESC, record_type ASC, record_id DESC
-      ''', [businessId, businessId]);
+      ''',
+      [businessId, businessId],
+    );
   }
 
   Future<void> upsertReminder(ReminderModel reminder) async {
@@ -569,7 +595,11 @@ class DatabaseHelper {
 
     final map = business.toMap();
     if (business.firestoreId == null || business.firestoreId!.trim().isEmpty) {
-      return await db.insert('business', map, conflictAlgorithm: ConflictAlgorithm.replace);
+      return await db.insert(
+        'business',
+        map,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     }
 
     final existing = await db.query(
@@ -590,7 +620,11 @@ class DatabaseHelper {
       return localBusinessId;
     }
 
-    return await db.insert('business', map, conflictAlgorithm: ConflictAlgorithm.replace);
+    return await db.insert(
+      'business',
+      map,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<BusinessModel>> getBusinesses() async {
@@ -672,7 +706,10 @@ class DatabaseHelper {
     return await db.insert('accounts', account.toMap());
   }
 
-  Future<void> updateAccountFirestoreId(int accountId, String firestoreId) async {
+  Future<void> updateAccountFirestoreId(
+    int accountId,
+    String firestoreId,
+  ) async {
     final db = await database;
 
     await db.update(
@@ -703,7 +740,11 @@ class DatabaseHelper {
     final firestoreId = account['firestore_id'];
 
     if (firestoreId == null || firestoreId.toString().trim().isEmpty) {
-      return await db.insert('accounts', account, conflictAlgorithm: ConflictAlgorithm.replace);
+      return await db.insert(
+        'accounts',
+        account,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     }
 
     final existing = await db.query(
@@ -724,7 +765,11 @@ class DatabaseHelper {
       return localAccountId;
     }
 
-    return await db.insert('accounts', account, conflictAlgorithm: ConflictAlgorithm.replace);
+    return await db.insert(
+      'accounts',
+      account,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<AccountModel>> getAccountsByBusiness(int businessId) async {
@@ -792,14 +837,17 @@ class DatabaseHelper {
 
   Future<int> insertTransaction(TransactionModel transaction) async {
     final db = await database;
-    
+
     // Ensure to_account_id column exists
     await _addColumnIfMissing(db, 'transactions', 'to_account_id', 'INTEGER');
 
     return await db.insert('transactions', transaction.toMap());
   }
 
-  Future<void> updateTransactionFirestoreId(int transactionId, String firestoreId) async {
+  Future<void> updateTransactionFirestoreId(
+    int transactionId,
+    String firestoreId,
+  ) async {
     final db = await database;
 
     await db.update(
@@ -847,7 +895,11 @@ class DatabaseHelper {
     };
 
     if (firestoreId == null || firestoreId.toString().trim().isEmpty) {
-      return await db.insert('transactions', sanitizedTransaction, conflictAlgorithm: ConflictAlgorithm.replace);
+      return await db.insert(
+        'transactions',
+        sanitizedTransaction,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     }
 
     final existing = await db.query(
@@ -868,7 +920,11 @@ class DatabaseHelper {
       return localTransactionId;
     }
 
-    return await db.insert('transactions', sanitizedTransaction, conflictAlgorithm: ConflictAlgorithm.replace);
+    return await db.insert(
+      'transactions',
+      sanitizedTransaction,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<TransactionModel>> getTransactionsByBusiness(
@@ -910,7 +966,11 @@ class DatabaseHelper {
     final firestoreId = journalEntry['firestore_id'];
 
     if (firestoreId == null || firestoreId.toString().trim().isEmpty) {
-      return await db.insert('journal_entry', journalEntry, conflictAlgorithm: ConflictAlgorithm.replace);
+      return await db.insert(
+        'journal_entry',
+        journalEntry,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     }
 
     final existing = await db.query(
@@ -931,10 +991,17 @@ class DatabaseHelper {
       return localJournalId;
     }
 
-    return await db.insert('journal_entry', journalEntry, conflictAlgorithm: ConflictAlgorithm.replace);
+    return await db.insert(
+      'journal_entry',
+      journalEntry,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
-  Future<void> updateJournalFirestoreId(int journalId, String firestoreId) async {
+  Future<void> updateJournalFirestoreId(
+    int journalId,
+    String firestoreId,
+  ) async {
     final db = await database;
 
     await db.update(
@@ -972,7 +1039,11 @@ class DatabaseHelper {
     };
 
     if (firestoreId == null || firestoreId.toString().trim().isEmpty) {
-      return await db.insert('journal_lines', sanitizedLine, conflictAlgorithm: ConflictAlgorithm.replace);
+      return await db.insert(
+        'journal_lines',
+        sanitizedLine,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     }
 
     final existing = await db.query(
@@ -993,13 +1064,20 @@ class DatabaseHelper {
       return localLineId;
     }
 
-    return await db.insert('journal_lines', sanitizedLine, conflictAlgorithm: ConflictAlgorithm.replace);
+    return await db.insert(
+      'journal_lines',
+      sanitizedLine,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
-  Future<List<Map<String, dynamic>>> getTransactionLedgerRows(int businessId) async {
+  Future<List<Map<String, dynamic>>> getTransactionLedgerRows(
+    int businessId,
+  ) async {
     final db = await database;
 
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT
         transactions.transaction_id,
         transactions.business_id,
@@ -1019,12 +1097,14 @@ class DatabaseHelper {
       INNER JOIN accounts ON accounts.account_id = transactions.account_id
       WHERE transactions.business_id = ?
       ORDER BY transactions.transaction_id DESC
-      ''', [businessId]);
+      ''',
+      [businessId],
+    );
   }
 
   Future updateTransaction(TransactionModel transaction) async {
     final db = await database;
-    
+
     // Ensure to_account_id column exists
     await _addColumnIfMissing(db, 'transactions', 'to_account_id', 'INTEGER');
 
@@ -1091,10 +1171,13 @@ class DatabaseHelper {
     return JournalEntryModel.fromMap(maps.first);
   }
 
-  Future<List<Map<String, dynamic>>> getJournalLedgerRows(int businessId) async {
+  Future<List<Map<String, dynamic>>> getJournalLedgerRows(
+    int businessId,
+  ) async {
     final db = await database;
 
-    return await db.rawQuery('''
+    return await db.rawQuery(
+      '''
       SELECT
         journal_entry.journal_id,
         journal_entry.business_id,
@@ -1117,10 +1200,14 @@ class DatabaseHelper {
       INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
       WHERE journal_entry.business_id = ?
       ORDER BY journal_entry.journal_id DESC, journal_lines.line_id ASC
-      ''', [businessId]);
+      ''',
+      [businessId],
+    );
   }
 
-  Future<JournalEntryModel?> getJournalEntryByTransactionId(int transactionId) async {
+  Future<JournalEntryModel?> getJournalEntryByTransactionId(
+    int transactionId,
+  ) async {
     final db = await database;
 
     final List<Map<String, dynamic>> maps = await db.query(
@@ -1135,6 +1222,21 @@ class DatabaseHelper {
     return JournalEntryModel.fromMap(maps.first);
   }
 
+  Future<int?> getJournalEntryByFirestoreId(String firestoreId) async {
+    final db = await database;
+
+    final maps = await db.query(
+      'journal_entry',
+      columns: ['journal_id'],
+      where: 'firestore_id = ?',
+      whereArgs: [firestoreId],
+      limit: 1,
+    );
+
+    if (maps.isEmpty) return null;
+    return maps.first['journal_id'] as int?;
+  }
+
   Future updateJournalEntry(JournalEntryModel journal) async {
     final db = await database;
 
@@ -1143,6 +1245,20 @@ class DatabaseHelper {
       journal.toMap(),
       where: 'journal_id = ?',
       whereArgs: [journal.journalId],
+    );
+  }
+
+  Future<void> updateJournalTransactionId(
+    int journalId,
+    int? transactionId,
+  ) async {
+    final db = await database;
+
+    await db.update(
+      'journal_entry',
+      {'transaction_id': transactionId},
+      where: 'journal_id = ?',
+      whereArgs: [journalId],
     );
   }
 
@@ -1312,7 +1428,9 @@ class DatabaseHelper {
   // ACCOUNT BALANCE METHODS
   // ======================================================
 
-  Future<List<TransactionModel>> getTransactionsByAccountId(int accountId) async {
+  Future<List<TransactionModel>> getTransactionsByAccountId(
+    int accountId,
+  ) async {
     final db = await database;
 
     final List<Map<String, dynamic>> maps = await db.query(
@@ -1327,7 +1445,9 @@ class DatabaseHelper {
     });
   }
 
-  Future<List<JournalLineModel>> getJournalLinesByAccountId(int accountId) async {
+  Future<List<JournalLineModel>> getJournalLinesByAccountId(
+    int accountId,
+  ) async {
     final db = await database;
 
     final List<Map<String, dynamic>> maps = await db.query(
@@ -1390,7 +1510,9 @@ class DatabaseHelper {
     );
 
     final journalId = await insertJournalEntry(journalEntry);
-    final equityAccountId = await getOrCreateOpeningBalanceEquityAccount(businessId);
+    final equityAccountId = await getOrCreateOpeningBalanceEquityAccount(
+      businessId,
+    );
 
     final accountLine = JournalLineModel(
       journalId: journalId,
@@ -1427,7 +1549,8 @@ class DatabaseHelper {
       [accountId],
     );
 
-    final totalCredit = (result.first['totalCredit'] as num?)?.toDouble() ?? 0.0;
+    final totalCredit =
+        (result.first['totalCredit'] as num?)?.toDouble() ?? 0.0;
     final totalDebit = (result.first['totalDebit'] as num?)?.toDouble() ?? 0.0;
     return totalCredit - totalDebit;
   }
@@ -1441,8 +1564,8 @@ class DatabaseHelper {
     // Get all journal lines for this account (source of truth)
     final journalLines = await getJournalLinesByAccountId(accountId);
     for (var line in journalLines) {
-      balance -= line.debit;    // Debit = Money OUT (decreases balance)
-      balance += line.credit;   // Credit = Money IN (increases balance)
+      balance -= line.debit; // Debit = Money OUT (decreases balance)
+      balance += line.credit; // Credit = Money IN (increases balance)
     }
 
     return balance;

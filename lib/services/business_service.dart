@@ -60,7 +60,9 @@ class BusinessService {
       business.firestoreId!,
     );
     final existingNames = firestoreAccounts
-        .map((account) => (account['name'] ?? '').toString().trim().toLowerCase())
+        .map(
+          (account) => (account['name'] ?? '').toString().trim().toLowerCase(),
+        )
         .toSet();
 
     final localAccounts = await DatabaseHelper.instance.getAccountsByBusiness(
@@ -71,11 +73,15 @@ class BusinessService {
       final normalizedName = account.name.trim().toLowerCase();
       if (existingNames.contains(normalizedName)) {
         final matched = firestoreAccounts.firstWhere(
-          (item) => (item['name'] ?? '').toString().trim().toLowerCase() == normalizedName,
+          (item) =>
+              (item['name'] ?? '').toString().trim().toLowerCase() ==
+              normalizedName,
           orElse: () => <String, dynamic>{},
         );
         final firestoreId = matched['id']?.toString();
-        if (firestoreId != null && firestoreId.isNotEmpty && account.accountId != null) {
+        if (firestoreId != null &&
+            firestoreId.isNotEmpty &&
+            account.accountId != null) {
           await DatabaseHelper.instance.updateAccountFirestoreId(
             account.accountId!,
             firestoreId,
@@ -149,6 +155,7 @@ class BusinessService {
       (b) => b.businessId == businessId,
       orElse: () => BusinessModel(name: '', type: '', createdAt: ''),
     );
+    final firestoreBusinessId = business.firestoreId;
 
     return await _syncService.syncOperation<void>(
       sqliteOperation: () async {
@@ -156,9 +163,9 @@ class BusinessService {
       },
       firestoreOperation: () async {
         // ✅ Use firestoreId instead of businessId
-        if (business.firestoreId != null) {
-          print('🔄 Deleting business from Firestore: ${business.firestoreId}');
-          await _firestoreService.deleteBusiness(business.firestoreId!);
+        if (firestoreBusinessId != null) {
+          print('🔄 Deleting business from Firestore: $firestoreBusinessId');
+          await _firestoreService.deleteBusiness(firestoreBusinessId);
         } else {
           print('⚠️  Firestore ID not found - Firestore delete skipped');
         }
