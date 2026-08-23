@@ -593,7 +593,7 @@ class DatabaseHelper {
   Future<int> upsertBusiness(BusinessModel business) async {
     final db = await database;
 
-    final map = business.toMap();
+    final map = business.toMap()..remove('business_id');
     if (business.firestoreId == null || business.firestoreId!.trim().isEmpty) {
       return await db.insert(
         'business',
@@ -739,10 +739,12 @@ class DatabaseHelper {
     final db = await database;
     final firestoreId = account['firestore_id'];
 
+    final accountMap = Map<String, dynamic>.from(account)..remove('account_id');
+
     if (firestoreId == null || firestoreId.toString().trim().isEmpty) {
       return await db.insert(
         'accounts',
-        account,
+        accountMap,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }
@@ -758,7 +760,7 @@ class DatabaseHelper {
       final localAccountId = existing.first['account_id'] as int;
       await db.update(
         'accounts',
-        account,
+        accountMap,
         where: 'account_id = ?',
         whereArgs: [localAccountId],
       );
@@ -767,7 +769,7 @@ class DatabaseHelper {
 
     return await db.insert(
       'accounts',
-      account,
+      accountMap,
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
@@ -877,7 +879,6 @@ class DatabaseHelper {
     final db = await database;
     final firestoreId = transaction['firestore_id'];
     final sanitizedTransaction = <String, dynamic>{
-      'transaction_id': transaction['transaction_id'],
       'business_id': transaction['business_id'],
       'account_id': transaction['account_id'],
       'to_account_id': transaction['to_account_id'],
@@ -964,11 +965,13 @@ class DatabaseHelper {
   Future<int> upsertJournalEntry(Map<String, dynamic> journalEntry) async {
     final db = await database;
     final firestoreId = journalEntry['firestore_id'];
+    final journalMap = Map<String, dynamic>.from(journalEntry)
+      ..remove('journal_id');
 
     if (firestoreId == null || firestoreId.toString().trim().isEmpty) {
       return await db.insert(
         'journal_entry',
-        journalEntry,
+        journalMap,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }
@@ -984,7 +987,7 @@ class DatabaseHelper {
       final localJournalId = existing.first['journal_id'] as int;
       await db.update(
         'journal_entry',
-        journalEntry,
+        journalMap,
         where: 'journal_id = ?',
         whereArgs: [localJournalId],
       );
@@ -993,7 +996,7 @@ class DatabaseHelper {
 
     return await db.insert(
       'journal_entry',
-      journalEntry,
+      journalMap,
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
@@ -1037,6 +1040,7 @@ class DatabaseHelper {
       'debit': journalLine['debit'],
       'credit': journalLine['credit'],
     };
+    sanitizedLine.remove('line_id');
 
     if (firestoreId == null || firestoreId.toString().trim().isEmpty) {
       return await db.insert(

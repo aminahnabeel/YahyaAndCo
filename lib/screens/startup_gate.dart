@@ -34,10 +34,15 @@ class _StartupGateState extends State<StartupGate> {
 
     print('StartupGate: user UID = ${user.uid}; attempting Firestore restore');
     final restoreService = RestoreService();
-    final restored = await restoreService.restoreUserDataOnLogin();
+    final restoreFuture = restoreService.restoreUserDataOnLogin();
+    await Future.wait<void>([
+      restoreFuture,
+      Future<void>.delayed(const Duration(seconds: 4)),
+    ]);
+    final restored = await restoreFuture;
     if (!restored) {
       print('StartupGate: Firestore restore returned false');
-      return localBusinesses;
+      return const [];
     }
 
     final restoredBusinesses = await DatabaseHelper.instance.getBusinesses();
@@ -74,6 +79,8 @@ class _StartupGateState extends State<StartupGate> {
 
         final user = authSnapshot.data;
         if (user == null) {
+          _businessesFuture = null;
+          _businessesUserId = null;
           return const AuthScreen();
         }
 

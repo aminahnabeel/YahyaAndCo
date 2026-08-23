@@ -146,7 +146,9 @@ class RestoreService {
           final normalizedJournal = {
             'journal_id': null,
             'business_id': localBusinessId,
-            'transaction_id': (journalData['transaction_id'] as num?)?.toInt(),
+            // Remote transaction IDs are not local SQLite IDs. The link is
+            // restored after all transactions have been inserted.
+            'transaction_id': null,
             'firestore_id': journalDoc.id,
             'description': journalData['description'] ?? '',
             'image_url': journalData['image_url'],
