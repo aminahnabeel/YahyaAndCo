@@ -104,25 +104,60 @@ class _EnterEmailScreenState extends State<EnterEmailScreen> {
               builder: (context, constraints) {
                 return Stack(
                   children: [
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: 282,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.primary,
+                              AppColors.primary.withOpacity(0.88),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: const BorderRadius.only(
+                            bottomLeft: Radius.circular(42),
+                            bottomRight: Radius.circular(42),
+                          ),
+                        ),
+                      ),
+                    ),
                     SingleChildScrollView(
                       child: ConstrainedBox(
                         constraints: BoxConstraints(minHeight: constraints.maxHeight),
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 30, 24, 26),
+                          padding: const EdgeInsets.fromLTRB(24, 42, 24, 30),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             mainAxisAlignment: MainAxisAlignment.start,
                             children: [
-                              const SizedBox(height: 40),
+                              const SizedBox(height: 26),
                               Center(
-                                child: Image.asset(
-                                  'assets/1.jpg',
-                                  width: 110,
-                                  height: 110,
-                                  fit: BoxFit.contain,
+                                child: Container(
+                                  width: 132,
+                                  height: 132,
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(30),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.65),
+                                    ),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(22),
+                                    child: Image.asset(
+                                      'assets/1.jpg',
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 40),
+                              const SizedBox(height: 26),
                               Center(
                                 child: FittedBox(
                                   fit: BoxFit.scaleDown,
@@ -132,35 +167,41 @@ class _EnterEmailScreenState extends State<EnterEmailScreen> {
                                     maxLines: 1,
                                     softWrap: false,
                                     style: TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.grey.shade900,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.onPrimary,
                                     ),
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 80),
+                              const SizedBox(height: 34),
                               Container(
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.shade50,
+                                  color: const Color(0xFFF7F8FA),
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: Colors.grey.shade200, width: 1),
+                                  border: Border.all(
+                                    color: const Color(0xFFE1E6ED),
+                                  ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.04),
-                                      blurRadius: 12,
-                                      offset: const Offset(0, 4),
+                                      color: AppColors.primary.withOpacity(0.06),
+                                      blurRadius: 18,
+                                      offset: const Offset(0, 7),
                                     ),
                                   ],
                                 ),
-                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
                                 child: TextField(
                                   controller: _emailController,
                                   keyboardType: TextInputType.emailAddress,
                                   decoration: InputDecoration(
+                                    icon: const Icon(
+                                      Icons.alternate_email_rounded,
+                                      color: AppColors.primary,
+                                    ),
                                     hintText: LocalizationService.instance.t('email_hint'),
                                     hintStyle: TextStyle(
-                                      color: Colors.grey.shade400,
+                                      color: Colors.grey.shade500,
                                       fontSize: 15,
                                       fontWeight: FontWeight.w400,
                                     ),
@@ -169,25 +210,20 @@ class _EnterEmailScreenState extends State<EnterEmailScreen> {
                                     focusedBorder: InputBorder.none,
                                     contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 16),
                                   ),
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black87,
-                                    letterSpacing: 0.3,
-                                  ),
+                                  style: const TextStyle(fontSize: 16, color: Colors.black87),
                                   cursorColor: AppColors.primary,
                                   cursorWidth: 2,
                                 ),
                               ),
-                              const SizedBox(height: 100),
+                              const SizedBox(height: 62),
                               Center(
                                 child: CustomButton(
                                   text: LocalizationService.instance.t('verify_email'),
                                   onPressed: _onSendOTP,
                                   isLoading: _loading,
-                                  width: 180,
-                                  height: 54,
-                                  borderRadius: 6,
+                                  width: 220,
+                                  height: 56,
+                                  borderRadius: 14,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,
                                   backgroundColor: AppColors.primary,

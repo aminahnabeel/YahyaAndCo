@@ -81,8 +81,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         return Scaffold(
           backgroundColor: AppColors.scaffoldBackground,
           appBar: AppBar(
-            backgroundColor: AppColors.scaffoldBackground,
-            foregroundColor: Colors.black,
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.onPrimary,
             elevation: 0,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back),
@@ -90,108 +90,99 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ),
             title: Text(
               localization.t('forgot_password'),
-              style: const TextStyle(
-                color: Colors.black,
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
           ),
           body: SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 34, 24, 26),
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Center(
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
                     child: Container(
-                      width: 140,
-                      height: 140,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.08),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.mail_outline,
-                        size: 76,
-                        color: AppColors.primary,
+                      color: const Color(0xFFFFF8EC),
+                      constraints: const BoxConstraints(maxHeight: 250),
+                      child: Image.asset(
+                        'assets/forgot_password.jpg',
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 64),
+                  const SizedBox(height: 28),
                   Text(
                     _sent
                         ? localization.t('password_reset_title')
                         : localization.t('reset_password'),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.grey,
-                    ),
+                    style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: AppColors.primary),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 12),
                   Text(
                     _sent
                         ? localization.t('password_reset_sent')
                         : localization.t('password_reset_description'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 18,
-                      height: 1.45,
-                      color: Colors.grey.shade600,
+                      fontSize: 16,
+                      height: 1.5,
+                      color: AppColors.muted,
                     ),
                   ),
                   if (_sent) ...[
-                    const SizedBox(height: 28),
-                    Text(
-                      _emailController.text.trim(),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primary,
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.12)),
+                      ),
+                      child: Text(
+                        _emailController.text.trim(),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                        ),
                       ),
                     ),
                   ] else ...[
-                    const SizedBox(height: 64),
-                    Text(
-                      localization.t('email_address'),
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 52),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey.shade200),
+                        color: const Color(0xFFF7F8FA),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFE4E8EE)),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                       child: TextField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
-                          icon: Icon(Icons.email_outlined, color: Colors.grey.shade600),
+                          icon: const Icon(Icons.email_outlined, color: AppColors.primary),
                           hintText: localization.t('email_hint'),
+                          hintStyle: TextStyle(color: Colors.grey.shade500),
                           border: InputBorder.none,
                         ),
+                        cursorColor: AppColors.primary,
                       ),
                     ),
-                    const SizedBox(height: 48),
+                    const SizedBox(height: 42),
                     SizedBox(
-                      height: 54,
+                      height: 56,
                       child: ElevatedButton(
                         onPressed: _loading ? null : _sendResetLink,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(14),
                           ),
+                          elevation: 3,
+                          shadowColor: AppColors.primary.withValues(alpha: 0.28),
                         ),
                         child: _loading
                             ? const SizedBox(
