@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../models/journal_entry_model.dart';
 import '../../screens/journal/journal_detail_screen.dart';
 import '../../services/accounting_service.dart';
+import '../../services/pdf_download_service.dart';
 import '../../widgets/date_filter_dialog.dart';
 
 class CashBookScreen extends StatefulWidget {
@@ -204,15 +203,15 @@ class _CashBookScreenState extends State<CashBookScreen> {
                           ),
                           pw.Padding(
                             padding: const pw.EdgeInsets.all(8),
-                            child: pw.Text(_formatCurrency(debit)),
+                            child: pw.Text(_formatPdfCurrency(debit)),
                           ),
                           pw.Padding(
                             padding: const pw.EdgeInsets.all(8),
-                            child: pw.Text(_formatCurrency(credit)),
+                            child: pw.Text(_formatPdfCurrency(credit)),
                           ),
                           pw.Padding(
                             padding: const pw.EdgeInsets.all(8),
-                            child: pw.Text(_formatCurrency(credit - debit)),
+                            child: pw.Text(_formatPdfCurrency(credit - debit)),
                           ),
                         ],
                       );
@@ -225,14 +224,16 @@ class _CashBookScreenState extends State<CashBookScreen> {
         ),
       );
 
-      final output = await getApplicationDocumentsDirectory();
-      final file = File('${output.path}/CashBook_${monthName}_$year.pdf');
-      await file.writeAsBytes(await pdf.save());
+      final fileName = 'CashBook_${monthName}_$year.pdf';
+      final filePath = await PdfDownloadService.savePdfToDownloads(
+        pdfBytes: await pdf.save(),
+        fileName: fileName,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('PDF saved: ${file.path}'),
+            content: Text('PDF saved: $filePath'),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -249,6 +250,10 @@ class _CashBookScreenState extends State<CashBookScreen> {
   String _formatCurrency(double value) {
     if (value == 0) return '₹0';
     return '₹${value.toStringAsFixed(2)}';
+  }
+
+  String _formatPdfCurrency(double value) {
+    return _formatCurrency(value).replaceFirst('₹', '');
   }
 
   @override
@@ -333,18 +338,27 @@ class _CashBookScreenState extends State<CashBookScreen> {
                       '${item['account_name'] ?? 'Cash'} • ${item['date']} • $status',
                     ),
                     trailing: Column(
+                      mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.end,
-
                       children: [
-                        Text('Receipt: $debit'),
-                        Text('Payment: $credit'),
-                        Text('Balance: $runningBalance'),
+                        _cashAmountText('Receipt', debit),
+                        _cashAmountText('Payment', credit),
+                        _cashAmountText('Balance', runningBalance),
                       ],
                     ),
                   ),
                 );
               },
             ),
+    );
+  }
+
+  Widget _cashAmountText(String label, double amount) {
+    return Text(
+      '$label: ${_formatCurrency(amount)}',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(fontSize: 11, height: 1.15),
     );
   }
 }

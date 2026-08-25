@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../theme.dart';
 import '../../services/accounting_service.dart';
+import '../../services/pdf_download_service.dart';
 import '../../widgets/date_filter_dialog.dart';
 
 class TrialBalanceScreen extends StatefulWidget {
@@ -36,21 +35,20 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
   }
 
   Future<void> loadTrialBalance() async {
-    trialBalance = await _accountingService.getTrialBalanceForBusiness(
+    final rows = await _accountingService.getTrialBalanceForBusiness(
       widget.businessId,
       year: selectedYear,
       month: selectedMonth,
     );
-    totalDebit = 0;
-    totalCredit = 0;
-    for (var item in trialBalance) {
-      totalDebit += (item['total_debit'] == null
-          ? 0
-          : (item['total_debit'] as num).toDouble());
-      totalCredit += (item['total_credit'] == null
-          ? 0
-          : (item['total_credit'] as num).toDouble());
-    }
+    final totalRow = rows.cast<Map<String, dynamic>?>().firstWhere(
+      (item) => item?['account_id'] == -1,
+      orElse: () => null,
+    );
+    trialBalance = rows
+        .where((item) => item['account_id'] != -1)
+        .toList();
+    totalDebit = (totalRow?['total_debit'] as num?)?.toDouble() ?? 0;
+    totalCredit = (totalRow?['total_credit'] as num?)?.toDouble() ?? 0;
     isBalanced = (totalDebit - totalCredit).abs() < 0.01;
     setState(() {
       isLoading = false;
@@ -66,6 +64,10 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
       return '₹${(amount / 100000).toStringAsFixed(2)}L';
     }
     return '₹${amount.toStringAsFixed(0)}';
+  }
+
+  String _formatPdfCurrency(dynamic value) {
+    return _formatCurrency(value).replaceFirst('₹', '');
   }
 
   // Smart grouping that derives group name from account name
@@ -264,13 +266,13 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
                           pw.Padding(
                             padding: const pw.EdgeInsets.all(8),
                             child: pw.Text(
-                              _formatCurrency(item['total_debit']),
+                              _formatPdfCurrency(item['total_debit']),
                             ),
                           ),
                           pw.Padding(
                             padding: const pw.EdgeInsets.all(8),
                             child: pw.Text(
-                              _formatCurrency(item['total_credit']),
+                              _formatPdfCurrency(item['total_credit']),
                             ),
                           ),
                         ],
@@ -288,14 +290,14 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
                         pw.Padding(
                           padding: const pw.EdgeInsets.all(8),
                           child: pw.Text(
-                            _formatCurrency(totalDebit),
+                            _formatPdfCurrency(totalDebit),
                             style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                           ),
                         ),
                         pw.Padding(
                           padding: const pw.EdgeInsets.all(8),
                           child: pw.Text(
-                            _formatCurrency(totalCredit),
+                            _formatPdfCurrency(totalCredit),
                             style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                           ),
                         ),
@@ -309,14 +311,16 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
         ),
       );
 
-      final output = await getApplicationDocumentsDirectory();
-      final file = File('${output.path}/TrialBalance_${monthName}_$year.pdf');
-      await file.writeAsBytes(await pdf.save());
+      final fileName = 'TrialBalance_${monthName}_$year.pdf';
+      final filePath = await PdfDownloadService.savePdfToDownloads(
+        pdfBytes: await pdf.save(),
+        fileName: fileName,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('PDF saved: ${file.path}'),
+            content: Text('PDF saved: $filePath'),
             duration: const Duration(seconds: 2),
           ),
         );

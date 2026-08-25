@@ -65,6 +65,10 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
     return '₹$reversedInteger.$decimalPart';
   }
 
+  String _formatPdfCurrency(double value) {
+    return _formatCurrency(value).replaceFirst('₹', '');
+  }
+
   void _onFilterPressed() {
     showDialog(
       context: context,
@@ -153,7 +157,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
                       children: [
                         pw.Text(item['name']?.toString() ?? ''),
                         pw.Text(
-                          _formatCurrency(_asDouble(item['total_credit'])),
+                          _formatPdfCurrency(_asDouble(item['total_credit'])),
                         ),
                       ],
                     ),
@@ -168,7 +172,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
                       style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                     ),
                     pw.Text(
-                      _formatCurrency(_asDouble(_data?['income'])),
+                      _formatPdfCurrency(_asDouble(_data?['income'])),
                       style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                     ),
                   ],
@@ -189,7 +193,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
                       children: [
                         pw.Text(item['name']?.toString() ?? ''),
                         pw.Text(
-                          _formatCurrency(_asDouble(item['total_debit'])),
+                          _formatPdfCurrency(_asDouble(item['total_debit'])),
                         ),
                       ],
                     ),
@@ -204,7 +208,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
                       style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                     ),
                     pw.Text(
-                      _formatCurrency(_asDouble(_data?['expense'])),
+                      _formatPdfCurrency(_asDouble(_data?['expense'])),
                       style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                     ),
                   ],
@@ -221,7 +225,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
                         style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                       ),
                       pw.Text(
-                        _formatCurrency(_asDouble(_data?['profit'])),
+                        _formatPdfCurrency(_asDouble(_data?['profit'])),
                         style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                       ),
                     ],

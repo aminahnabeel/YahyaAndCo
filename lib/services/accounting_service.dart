@@ -80,31 +80,8 @@ class AccountingService {
   // Pattern: JV-1, JV-2, JV-3, etc.
   // These are required for audit trail and accounting standards
 
-  Future<String> generateJournalVoucher() async {
-    final db = await DatabaseHelper.instance.database;
-
-    final List<Map<String, dynamic>> result = await db.rawQuery('''
-      SELECT voucher_no
-      FROM journal_entry
-
-      WHERE voucher_type = 'JV'
-
-      ORDER BY journal_id DESC
-
-      LIMIT 1
-      ''');
-
-    if (result.isEmpty) {
-      return 'JV-1';
-    }
-
-    String lastVoucher = result.first['voucher_no'];
-
-    int number = int.parse(lastVoucher.replaceAll('JV-', ''));
-
-    number++;
-
-    return 'JV-$number';
+  Future<String> generateJournalVoucher() {
+    return _generateNextVoucher('JV');
   }
 
   // =====================================================
@@ -113,31 +90,32 @@ class AccountingService {
   // Auto-generates sequential voucher numbers for cash transactions
   // Pattern: CP-1, CP-2, CP-3, etc. (CP = Cash Payment/Receipt)
 
-  Future<String> generateCashVoucher() async {
+  Future<String> generateCashVoucher() {
+    return _generateNextVoucher('CP');
+  }
+
+  Future<String> _generateNextVoucher(String voucherType) async {
     final db = await DatabaseHelper.instance.database;
+    final rows = await db.query(
+      'journal_entry',
+      columns: ['voucher_no'],
+      where: 'voucher_type = ?',
+      whereArgs: [voucherType],
+    );
 
-    final List<Map<String, dynamic>> result = await db.rawQuery('''
-      SELECT voucher_no
-      FROM journal_entry
+    var highestNumber = 0;
+    final prefix = '$voucherType-';
+    for (final row in rows) {
+      final voucherNo = row['voucher_no']?.toString() ?? '';
+      if (!voucherNo.startsWith(prefix)) continue;
 
-      WHERE voucher_type = 'CP'
-
-      ORDER BY journal_id DESC
-
-      LIMIT 1
-      ''');
-
-    if (result.isEmpty) {
-      return 'CP-1';
+      final number = int.tryParse(voucherNo.substring(prefix.length));
+      if (number != null && number > highestNumber) {
+        highestNumber = number;
+      }
     }
 
-    String lastVoucher = result.first['voucher_no'];
-
-    int number = int.parse(lastVoucher.replaceAll('CP-', ''));
-
-    number++;
-
-    return 'CP-$number';
+    return '$prefix${highestNumber + 1}';
   }
 
   // =====================================================
@@ -171,6 +149,28 @@ class AccountingService {
     // First, save to SQLite
     int journalId = 0;
     await db.transaction((txn) async {
+      var voucherNumber = journalEntry.voucherNo;
+      var suffix = int.tryParse(
+        voucherNumber.replaceFirst('${journalEntry.voucherType}-', ''),
+      );
+      final prefix = '${journalEntry.voucherType}-';
+
+      while (true) {
+        final existing = await txn.query(
+          'journal_entry',
+          columns: ['journal_id'],
+          where: 'voucher_type = ? AND voucher_no = ?',
+          whereArgs: [journalEntry.voucherType, voucherNumber],
+          limit: 1,
+        );
+        if (existing.isEmpty) break;
+
+        suffix = (suffix ?? 0) + 1;
+        voucherNumber = '$prefix$suffix';
+      }
+
+      journalEntry.voucherNo = voucherNumber;
+
       // INSERT JOURNAL ENTRY
       journalId = await txn.insert('journal_entry', journalEntry.toMap());
 

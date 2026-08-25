@@ -40,6 +40,10 @@ class DatabaseHelper {
       },
       onCreate: onCreate,
       onUpgrade: onUpgrade,
+      onOpen: (db) async {
+        // Repair columns that may be missing from databases created by older builds.
+        await _addColumnIfMissing(db, 'transactions', 'to_account_id', 'INTEGER');
+      },
     );
   }
 
@@ -1205,15 +1209,18 @@ class DatabaseHelper {
         journal_entry.image_url,
         journal_entry.date,
         journal_entry.created_at,
-        journal_lines.account_id,
-        journal_lines.debit,
-        journal_lines.credit,
-        accounts.name AS account_name
+        MIN(journal_lines.account_id) AS account_id,
+        MAX(journal_lines.debit) AS debit,
+        MAX(journal_lines.credit) AS credit,
+        MIN(accounts.name) AS account_name
       FROM journal_entry
       INNER JOIN journal_lines ON journal_lines.journal_id = journal_entry.journal_id
       INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
       WHERE journal_entry.business_id = ?
-      ORDER BY journal_entry.journal_id DESC, journal_lines.line_id ASC
+      GROUP BY journal_entry.journal_id
+      ORDER BY journal_entry.date DESC,
+        journal_entry.created_at DESC,
+        journal_entry.journal_id DESC
       ''',
       [businessId],
     );
@@ -1234,6 +1241,40 @@ class DatabaseHelper {
     if (maps.isEmpty) return null;
 
     return JournalEntryModel.fromMap(maps.first);
+  }
+
+  Future<List<Map<String, dynamic>>> getPayReceiveAccounts(
+    int businessId,
+  ) async {
+    final db = await database;
+
+    return await db.rawQuery(
+      '''
+      SELECT
+        MIN(jl.line_id) AS line_id,
+        jl.account_id,
+        a.name AS account_name,
+        a.type AS account_type,
+        je.journal_id,
+        je.voucher_no,
+        je.voucher_type,
+        je.date AS entry_date,
+        je.payment_status,
+        MAX(jl.debit) AS debit,
+        MAX(jl.credit) AS credit
+      FROM accounts a
+      INNER JOIN journal_lines jl ON jl.account_id = a.account_id
+      INNER JOIN journal_entry je ON je.journal_id = jl.journal_id
+      WHERE a.business_id = ?
+        AND LOWER(TRIM(COALESCE(a.type, ''))) IN
+          ('customer', 'supplier', 'expense', 'liability')
+        AND LOWER(TRIM(COALESCE(je.payment_status, ''))) IN ('pending', 'overdue')
+        AND (COALESCE(jl.debit, 0) > 0 OR COALESCE(jl.credit, 0) > 0)
+      GROUP BY je.journal_id, jl.account_id
+      ORDER BY je.date DESC, je.journal_id DESC, MIN(jl.line_id) ASC
+      ''',
+      [businessId],
+    );
   }
 
   Future<int?> getJournalEntryByFirestoreId(String firestoreId) async {

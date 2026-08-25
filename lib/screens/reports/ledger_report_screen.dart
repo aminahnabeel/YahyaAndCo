@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../services/accounting_service.dart';
+import '../../services/pdf_download_service.dart';
 import '../../theme.dart';
 
 class LedgerReportScreen extends StatefulWidget {
@@ -164,6 +163,8 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
       // Create PDF document
       final pdf = pw.Document();
       double finalBalance = openingBalance;
+      double totalDebit = 0;
+      double totalCredit = 0;
 
       // Calculate data for PDF
       final pdfRows = <Map<String, dynamic>>[];
@@ -179,6 +180,8 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
       for (var row in monthlyData) {
         final debit = (row['debit'] ?? 0) as num;
         final credit = (row['credit'] ?? 0) as num;
+        totalDebit += debit.toDouble();
+        totalCredit += credit.toDouble();
         finalBalance += credit.toDouble() - debit.toDouble();
         pdfRows.add({
           'date': row['date']?.toString() ?? '-',
@@ -332,6 +335,42 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
                       pw.Text(
+                        'Total Debit',
+                        style: const pw.TextStyle(fontSize: 11),
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        _formatCurrency(totalDebit),
+                        style: pw.TextStyle(
+                          fontSize: 14,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.red,
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'Total Credit',
+                        style: const pw.TextStyle(fontSize: 11),
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        _formatCurrency(totalCredit),
+                        style: pw.TextStyle(
+                          fontSize: 14,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
                         'Final Balance',
                         style: const pw.TextStyle(fontSize: 11),
                       ),
@@ -371,23 +410,19 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
         ),
       );
 
-      // Get downloads directory
-      final outputDir = await getDownloadsDirectory();
-      if (outputDir == null) throw Exception('Downloads directory not available');
-
       // Create filename
       final fileName =
           'Ledger_${widget.accountName}_${_selectedMonth!.year}_${_selectedMonth!.month.toString().padLeft(2, '0')}.pdf';
-      final file = await File('${outputDir.path}/$fileName').create(recursive: true);
-
-      // Save PDF
-      await file.writeAsBytes(await pdf.save());
+      final filePath = await PdfDownloadService.savePdfToDownloads(
+        pdfBytes: await pdf.save(),
+        fileName: fileName,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '✅ PDF Downloaded Successfully!\n\n📄 $fileName\n📊 ${pdfRows.length} Entries\n💰 Balance: ${_formatCurrency(finalBalance)}',
+              'PDF Downloaded Successfully!\n\n$filePath\n${pdfRows.length} Entries\nBalance: ${_formatCurrency(finalBalance)}',
             ),
             duration: const Duration(seconds: 4),
             backgroundColor: Colors.green,

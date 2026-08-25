@@ -27,13 +27,14 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
   }
 
   Future<void> loadTrialBalance() async {
-    trialBalance = await _accountingService.getTrialBalanceForBusiness(widget.businessId);
-    totalDebit = 0;
-    totalCredit = 0;
-    for (var item in trialBalance) {
-      totalDebit += (item['total_debit'] == null ? 0 : (item['total_debit'] as num).toDouble());
-      totalCredit += (item['total_credit'] == null ? 0 : (item['total_credit'] as num).toDouble());
-    }
+    final rows = await _accountingService.getTrialBalanceForBusiness(widget.businessId);
+    final totalRow = rows.cast<Map<String, dynamic>?>().firstWhere(
+      (item) => item?['account_id'] == -1,
+      orElse: () => null,
+    );
+    trialBalance = rows.where((item) => item['account_id'] != -1).toList();
+    totalDebit = (totalRow?['total_debit'] as num?)?.toDouble() ?? 0;
+    totalCredit = (totalRow?['total_credit'] as num?)?.toDouble() ?? 0;
     setState(() {
       isLoading = false;
     });

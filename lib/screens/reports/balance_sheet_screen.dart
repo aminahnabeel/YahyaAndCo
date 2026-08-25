@@ -66,6 +66,10 @@ class _BalanceSheetScreenState extends State<BalanceSheetScreen> {
     return '₹$reversedInteger.$decimalPart';
   }
 
+  String _formatPdfCurrency(double value) {
+    return _formatCurrency(value).replaceFirst('₹', '');
+  }
+
   void _onFilterPressed() {
     showDialog(
       context: context,
@@ -153,7 +157,7 @@ class _BalanceSheetScreenState extends State<BalanceSheetScreen> {
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
                         pw.Text(item['name']?.toString() ?? ''),
-                        pw.Text(_formatCurrency(_asDouble(item['balance']))),
+                        pw.Text(_formatPdfCurrency(_asDouble(item['balance']))),
                       ],
                     ),
                   );
@@ -173,7 +177,7 @@ class _BalanceSheetScreenState extends State<BalanceSheetScreen> {
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
                         pw.Text(item['name']?.toString() ?? ''),
-                        pw.Text(_formatCurrency(_asDouble(item['balance']))),
+                        pw.Text(_formatPdfCurrency(_asDouble(item['balance']))),
                       ],
                     ),
                   );
@@ -187,7 +191,7 @@ class _BalanceSheetScreenState extends State<BalanceSheetScreen> {
                       style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                     ),
                     pw.Text(
-                      _formatCurrency(_asDouble(_data?['totalAssets'])),
+                      _formatPdfCurrency(_asDouble(_data?['totalAssets'])),
                       style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                     ),
                   ],
@@ -200,7 +204,7 @@ class _BalanceSheetScreenState extends State<BalanceSheetScreen> {
                       style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                     ),
                     pw.Text(
-                      _formatCurrency(_asDouble(_data?['totalLiabilities'])),
+                      _formatPdfCurrency(_asDouble(_data?['totalLiabilities'])),
                       style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                     ),
                   ],

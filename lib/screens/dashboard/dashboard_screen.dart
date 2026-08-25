@@ -13,16 +13,20 @@ import '../journal/journal_list_screen.dart';
 import '../reports/ledger_screen.dart';
 import '../reports/reports_screen.dart';
 import '../reminders/reminder_screen.dart';
+import '../pay_receive_screen.dart';
 import '../business_switch_screen.dart';
 import '../transactions/add_transaction_screen.dart';
-import '../transactions/transaction_list_screen.dart';
 import '../settings_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final int businessId;
   final String businessName;
 
-  const DashboardScreen({super.key, required this.businessId, required this.businessName});
+  const DashboardScreen({
+    super.key,
+    required this.businessId,
+    required this.businessName,
+  });
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -34,6 +38,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   late final PageController _pageController;
   int _selectedIndex = 2;
   int _pressedIndex = -1;
+  int _payReceiveRefreshKey = 0;
   static const double _navHeight = 74.0;
 
   @override
@@ -41,7 +46,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _pageController = PageController(initialPage: _selectedIndex);
     _summaryFuture = _accountingService.getDashboardSummary(widget.businessId);
-    unawaited(PaymentReminderService.instance.syncDueReminders(widget.businessId));
+    unawaited(
+      PaymentReminderService.instance.syncDueReminders(widget.businessId),
+    );
   }
 
   @override
@@ -52,13 +59,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _refreshSummary() async {
     setState(() {
-      _summaryFuture = _accountingService.getDashboardSummary(widget.businessId);
+      _summaryFuture = _accountingService.getDashboardSummary(
+        widget.businessId,
+      );
     });
     await _summaryFuture;
   }
 
   Future<List<Map<String, dynamic>>> _getBankAccountsWithAmounts() async {
-    final accounts = await DatabaseHelper.instance.getAccountsByBusiness(widget.businessId);
+    final accounts = await DatabaseHelper.instance.getAccountsByBusiness(
+      widget.businessId,
+    );
     final bankAccounts = accounts.where((account) {
       final name = (account.name ?? '').toString().toLowerCase();
       final type = (account.type ?? '').toString().toLowerCase();
@@ -71,16 +82,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (accountId == null) continue;
 
       final amount = await _accountingService.getAccountBalance(accountId);
-      results.add({
-        'name': account.name,
-        'amount': amount,
-      });
+      results.add({'name': account.name, 'amount': amount});
     }
     return results;
   }
 
   Future<List<Map<String, dynamic>>> _getCashAndOwnerCapitalAccounts() async {
-    final accounts = await DatabaseHelper.instance.getAccountsByBusiness(widget.businessId);
+    final accounts = await DatabaseHelper.instance.getAccountsByBusiness(
+      widget.businessId,
+    );
     final targeted = accounts.where((account) {
       final name = (account.name ?? '').toString().trim().toLowerCase();
       final type = (account.type ?? '').toString().trim().toLowerCase();
@@ -98,10 +108,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (accountId == null) continue;
 
       final amount = await _accountingService.getAccountBalance(accountId);
-      results.add({
-        'name': account.name,
-        'amount': amount,
-      });
+      results.add({'name': account.name, 'amount': amount});
     }
     return results;
   }
@@ -110,7 +117,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required String title,
     required List<Map<String, dynamic>> rows,
   }) async {
-    final total = rows.fold<double>(0, (sum, row) => sum + (row['amount'] as num).toDouble());
+    final total = rows.fold<double>(
+      0,
+      (sum, row) => sum + (row['amount'] as num).toDouble(),
+    );
 
     await showDialog<void>(
       context: context,
@@ -124,29 +134,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 : Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      ...rows.map((row) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    (row['name'] ?? 'Account').toString(),
-                                    style: const TextStyle(fontWeight: FontWeight.w600),
+                      ...rows.map(
+                        (row) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  (row['name'] ?? 'Account').toString(),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                                Text(
-                                  _money((row['amount'] as num).toDouble()),
-                                  style: const TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                              Text(
+                                _money((row['amount'] as num).toDouble()),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
                                 ),
-                              ],
-                            ),
-                          )),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                       const Divider(),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Total', style: TextStyle(fontWeight: FontWeight.w700)),
+                          const Text(
+                            'Total',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
                           Text(
                             _money(total),
                             style: const TextStyle(fontWeight: FontWeight.w800),
@@ -172,9 +191,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _openSettingsSheet() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const SettingsScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const SettingsScreen()),
     );
   }
 
@@ -190,10 +207,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             backgroundImage: AssetImage('assets/logo.png'),
           ),
         ),
-        title: Text(
-          widget.businessName,
-          overflow: TextOverflow.ellipsis,
-        ),
+        title: Text(widget.businessName, overflow: TextOverflow.ellipsis),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -233,10 +247,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onPageChanged: (index) {
             setState(() {
               _selectedIndex = index;
+              if (index == 0) {
+                _payReceiveRefreshKey++;
+              }
             });
           },
           children: [
-            _buildTransactionTab(),
+            _buildPayReceiveTab(),
             _buildReportsTab(),
             _buildHomeTab(),
             _buildAccountsTab(),
@@ -255,7 +272,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               topRight: Radius.circular(24),
             ),
             boxShadow: [
-              BoxShadow(color: Colors.black12, blurRadius: 8, offset: const Offset(0, -2)),
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 8,
+                offset: const Offset(0, -2),
+              ),
             ],
           ),
           child: ClipRRect(
@@ -290,9 +311,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 },
                 items: [
                   BottomNavigationBarItem(
-                    icon: _navIcon(Icons.swap_horiz, 0),
-                    activeIcon: _navIcon(Icons.swap_horiz, 0, selected: true),
-                    label: 'Transactions',
+                    icon: _navIcon(Icons.swap_horizontal_circle, 0),
+                    activeIcon: _navIcon(
+                      Icons.swap_horizontal_circle,
+                      0,
+                      selected: true,
+                    ),
+                    label: 'Pay & Receive',
                   ),
                   BottomNavigationBarItem(
                     icon: _navIcon(Icons.assessment, 1),
@@ -306,7 +331,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   BottomNavigationBarItem(
                     icon: _navIcon(Icons.account_balance, 3),
-                    activeIcon: _navIcon(Icons.account_balance, 3, selected: true),
+                    activeIcon: _navIcon(
+                      Icons.account_balance,
+                      3,
+                      selected: true,
+                    ),
                     label: 'Accounts',
                   ),
                   BottomNavigationBarItem(
@@ -331,8 +360,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final double scale = isPressed
         ? 0.9
         : isActive
-            ? (isHomeIcon ? 1.08 : 1.0)
-            : 1.0;
+        ? (isHomeIcon ? 1.08 : 1.0)
+        : 1.0;
 
     if (!isHomeIcon) {
       return AnimatedScale(
@@ -348,7 +377,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       curve: Curves.easeOutBack,
       padding: isActive ? const EdgeInsets.all(2) : EdgeInsets.zero,
       decoration: BoxDecoration(
-        color: isActive ? AppColors.primary.withOpacity(0.14) : Colors.transparent,
+        color: isActive
+            ? AppColors.primary.withOpacity(0.14)
+            : Colors.transparent,
         shape: BoxShape.circle,
       ),
       child: AnimatedScale(
@@ -383,8 +414,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           future: _summaryFuture,
           builder: (context, snapshot) {
             final summary = snapshot.data ?? <String, double>{};
-            final totalBankBalance = summary['totalBankBalance'] ?? summary['totalBalance'] ?? 0;
-            final cashInHand = summary['cashInHand'] ?? summary['totalCash'] ?? 0;
+            final totalBankBalance =
+                summary['totalBankBalance'] ?? summary['totalBalance'] ?? 0;
+            final cashInHand =
+                summary['cashInHand'] ?? summary['totalCash'] ?? 0;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -405,7 +438,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onTap: () async {
                         final rows = await _getBankAccountsWithAmounts();
                         if (!mounted) return;
-                        await _showBreakdownDialog(title: 'Bank Accounts', rows: rows);
+                        await _showBreakdownDialog(
+                          title: 'Bank Accounts',
+                          rows: rows,
+                        );
                       },
                     ),
                     _financialCard(
@@ -416,7 +452,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onTap: () async {
                         final rows = await _getCashAndOwnerCapitalAccounts();
                         if (!mounted) return;
-                        await _showBreakdownDialog(title: 'Cash & Owner Capital', rows: rows);
+                        await _showBreakdownDialog(
+                          title: 'Cash & Owner Capital',
+                          rows: rows,
+                        );
                       },
                     ),
                     _financialCard(
@@ -461,7 +500,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       color: AppColors.primary,
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => AddTransactionScreen(businessId: widget.businessId)),
+                        MaterialPageRoute(
+                          builder: (_) => AddTransactionScreen(
+                            businessId: widget.businessId,
+                          ),
+                        ),
                       ),
                     ),
                     _quickActionCard(
@@ -470,7 +513,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       color: Colors.indigo,
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => JournalCreateScreen(businessId: widget.businessId)),
+                        MaterialPageRoute(
+                          builder: (_) => JournalCreateScreen(
+                            businessId: widget.businessId,
+                          ),
+                        ),
                       ),
                     ),
                     _quickActionCard(
@@ -479,7 +526,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       color: Colors.deepOrange,
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => JournalListScreen(businessId: widget.businessId)),
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              JournalListScreen(businessId: widget.businessId),
+                        ),
                       ),
                     ),
                     _quickActionCard(
@@ -488,7 +538,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       color: Colors.brown,
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => LedgerScreen(businessId: widget.businessId)),
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              LedgerScreen(businessId: widget.businessId),
+                        ),
                       ),
                     ),
                     _quickActionCard(
@@ -497,7 +550,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       color: Colors.teal,
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => ReminderScreen(businessId: widget.businessId)),
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              ReminderScreen(businessId: widget.businessId),
+                        ),
                       ),
                     ),
                     _quickActionCard(
@@ -506,7 +562,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       color: Colors.green,
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => AccountScreen(businessId: widget.businessId)),
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              AccountScreen(businessId: widget.businessId),
+                        ),
                       ),
                     ),
                   ],
@@ -675,8 +734,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return AccountScreen(businessId: widget.businessId);
   }
 
-  Widget _buildTransactionTab() {
-    return TransactionListScreen(businessId: widget.businessId);
+  Widget _buildPayReceiveTab() {
+    return PayReceiveScreen(
+      key: ValueKey(_payReceiveRefreshKey),
+      businessId: widget.businessId,
+    );
   }
 
   Widget _buildCalculatorTab() {

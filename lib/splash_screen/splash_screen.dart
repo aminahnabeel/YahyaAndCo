@@ -70,10 +70,10 @@ class IntroScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
                       const SizedBox(height: 5),
                       Text(
                         'Say goodbye to messy records.',
@@ -111,7 +111,8 @@ class IntroScreen extends StatelessWidget {
                           label: const Text('Continue'),
                         ),
                       ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

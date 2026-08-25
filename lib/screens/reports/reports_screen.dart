@@ -36,28 +36,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
     });
   }
 
-  String _formatCurrency(double value) {
-    if (value >= 1000000) {
-      return '\$${(value / 1000000).toStringAsFixed(2)}M';
-    } else if (value >= 1000) {
-      return '\$${(value / 1000).toStringAsFixed(2)}K';
-    }
-    return '\$${value.toStringAsFixed(0)}';
-  }
-
-  String _getTrialBalanceStatus(List<Map<String, dynamic>> trialBalance) {
-    bool isBalanced = true;
-    for (var row in trialBalance) {
-      final debit = (row['total_debit'] as num?)?.toDouble() ?? 0;
-      final credit = (row['total_credit'] as num?)?.toDouble() ?? 0;
-      if ((debit - credit).abs() > 0.01) {
-        isBalanced = false;
-        break;
-      }
-    }
-    return isBalanced ? 'Balanced' : 'Unbalanced';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -94,16 +72,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
             );
           }
 
-          final data = snapshot.data ?? {};
-          final trialBalance =
-              (data['trialBalance'] as List?)?.cast<Map<String, dynamic>>() ??
-              [];
-          final cashBalance = (data['cashBalance'] as num?)?.toDouble() ?? 0;
-          final profitMargin = (data['profitMargin'] as String?) ?? '0%';
-          final balanceSheetStatus =
-              (data['balanceSheetStatus'] as String?) ?? 'Healthy';
-          final trialBalanceStatus = _getTrialBalanceStatus(trialBalance);
-
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             child: ListView(
@@ -113,9 +81,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   icon: Icons.balance_outlined,
                   iconBgColor: const Color(0xFFFFA500),
                   title: 'Trial Balance',
-                  description: 'Baba debit and credit summary snapshot',
-                  badge: trialBalanceStatus,
-                  badgeColor: const Color(0xFFFFA500),
+                  description: 'debit and credit summary snapshot',
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -130,9 +96,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   icon: Icons.attach_money_outlined,
                   iconBgColor: const Color(0xFFFFA500),
                   title: 'Cash Book',
-                  description: 'Baba cash inflows and outflows',
-                  badge: _formatCurrency(cashBalance),
-                  badgeColor: const Color(0xFFFFA500),
+                  description: 'cash inflows and outflows',
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -147,9 +111,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   icon: Icons.trending_up_outlined,
                   iconBgColor: const Color(0xFF06B6D4),
                   title: 'Profit & Loss',
-                  description: 'Baba revenue versus expenses overview',
-                  badge: profitMargin,
-                  badgeColor: const Color(0xFF06B6D4),
+                  description: 'Revenue versus expenses overview',
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -164,9 +126,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   icon: Icons.grid_on_outlined,
                   iconBgColor: const Color(0xFF8B5CF6),
                   title: 'Balance Sheet',
-                  description: 'Baba assets, liabilities, and equity snapshot',
-                  badge: balanceSheetStatus,
-                  badgeColor: const Color(0xFF8B5CF6),
+                  description: 'Assets, liabilities, and equity snapshot',
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -189,8 +149,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
     required Color iconBgColor,
     required String title,
     required String description,
-    required String badge,
-    required Color badgeColor,
     required VoidCallback onTap,
   }) {
     return Material(
@@ -224,7 +182,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 child: Icon(icon, color: iconBgColor, size: 28),
               ),
               const SizedBox(width: 16),
-              // Title and description
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,28 +206,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Badge
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: badgeColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  badge,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: badgeColor,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
