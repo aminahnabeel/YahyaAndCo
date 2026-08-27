@@ -8,11 +8,13 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     super.key,
     this.titleKey = 'enter_phone',
     this.showLanguageSelector = true,
+    this.showBackButton = true,
     this.backAction,
   });
 
   final String titleKey;
   final bool showLanguageSelector;
+  final bool showBackButton;
   final VoidCallback? backAction;
 
   @override
@@ -29,18 +31,20 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
           elevation: 0,
           centerTitle: true,
           titleSpacing: 0,
-          leadingWidth: 52,
-          leading: IconButton(
-            onPressed: backAction ?? () => Navigator.of(context).maybePop(),
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            splashRadius: 22,
-          ),
+          leadingWidth: showBackButton ? 52 : 0,
+          leading: showBackButton
+              ? IconButton(
+                  onPressed: backAction ?? () => Navigator.of(context).maybePop(),
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  splashRadius: 22,
+                )
+              : null,
           title: Text(
             LocalizationService.instance.t(titleKey),
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 18,
+              fontSize: 24,
               fontWeight: FontWeight.w600,
             ),
           ),

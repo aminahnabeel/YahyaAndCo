@@ -49,6 +49,7 @@ dependencies:
   cloud_firestore: ^6.5.0
   connectivity_plus: ^5.0.0
   app_links: ^6.4.0
+  lottie: ^3.3.1
   
 dev_dependencies:
   flutter_test:
@@ -78,5 +79,7 @@ flutter:
    - assets/1.jpg
    - assets/1.jpeg
    - assets/forgot_password.jpg
+   - assets/Login.json
+   - assets/sign in.json
    
 
