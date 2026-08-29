@@ -1238,9 +1238,10 @@ class AccountingService {
     List<dynamic> params = [businessId, businessId];
 
     if (year != null && month != null) {
-      final endDate = DateTime(year, month + 1, 0).toIso8601String();
-      joinDateFilter = 'AND je.date <= ?';
-      params = [businessId, businessId, endDate];
+      final startDate = DateTime(year, month, 1).toIso8601String();
+      final endDate = DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String();
+      joinDateFilter = 'AND je.date >= ? AND je.date <= ?';
+      params = [businessId, startDate, endDate, businessId];
     }
 
     final rows = await db.rawQuery('''
