@@ -85,26 +85,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 16),
             _SectionCard(
-              title: 'Data & Sync',
-              items: [
-                _SettingsItem(
-                  icon: Icons.backup_outlined,
-                  title: 'Backup Data',
-                  subtitle: 'Create a secure backup',
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {},
-                ),
-                _SettingsItem(
-                  icon: Icons.restore_outlined,
-                  title: 'Restore Data',
-                  subtitle: 'Recover saved data',
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {},
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _SectionCard(
               title: 'Notifications',
               items: [
                 _SettingsItem(
@@ -145,20 +125,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {},
                 ),
-                _SettingsItem(
-                  icon: Icons.calendar_month_outlined,
-                  title: 'Date Format',
-                  subtitle: 'DD/MM/YYYY',
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {},
-                ),
-                _SettingsItem(
-                  icon: Icons.numbers_outlined,
-                  title: 'Number Format',
-                  subtitle: '2 decimal places',
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {},
-                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -185,15 +151,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: Icons.delete_outline,
                     title: 'Delete Business',
                     subtitle: 'Permanently remove this business',
-                    trailing: const Icon(Icons.chevron_right),
-                    textColor: Colors.red,
-                    iconColor: Colors.red,
-                    onTap: () {},
-                  ),
-                  _SettingsItem(
-                    icon: Icons.restart_alt_outlined,
-                    title: 'Reset App Data',
-                    subtitle: 'Clear local data and cache',
                     trailing: const Icon(Icons.chevron_right),
                     textColor: Colors.red,
                     iconColor: Colors.red,
