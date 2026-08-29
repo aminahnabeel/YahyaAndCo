@@ -35,35 +35,52 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
   }
 
   Future<void> loadTrialBalance() async {
-    final rows = await _accountingService.getTrialBalanceForBusiness(
-      widget.businessId,
-      year: selectedYear,
-      month: selectedMonth,
-    );
-    final totalRow = rows.cast<Map<String, dynamic>?>().firstWhere(
-      (item) => item?['account_id'] == -1,
-      orElse: () => null,
-    );
-    trialBalance = rows
-        .where((item) => item['account_id'] != -1)
-        .toList();
-    totalDebit = (totalRow?['total_debit'] as num?)?.toDouble() ?? 0;
-    totalCredit = (totalRow?['total_credit'] as num?)?.toDouble() ?? 0;
-    isBalanced = (totalDebit - totalCredit).abs() < 0.01;
-    setState(() {
-      isLoading = false;
-    });
+    if (!mounted) return;
+    setState(() => isLoading = true);
+
+    try {
+      final rows = await _accountingService.getTrialBalanceForBusiness(
+        widget.businessId,
+        year: selectedYear,
+        month: selectedMonth,
+      );
+      final totalRow = rows.cast<Map<String, dynamic>?>().firstWhere(
+        (item) => item?['account_id'] == -1,
+        orElse: () => null,
+      );
+      trialBalance = rows
+          .where((item) => item['account_id'] != -1)
+          .toList();
+      totalDebit = (totalRow?['total_debit'] as num?)?.toDouble() ?? 0;
+      totalCredit = (totalRow?['total_credit'] as num?)?.toDouble() ?? 0;
+      isBalanced = (totalDebit - totalCredit).abs() < 0.01;
+    } catch (e) {
+      trialBalance = [];
+      totalDebit = 0;
+      totalCredit = 0;
+      isBalanced = false;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to load Trial Balance: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
   }
 
   String _formatCurrency(dynamic value) {
-    if (value == null || value == 0) return '₹0';
+    if (value == null || value == 0) return '0';
     double amount = (value is num) ? value.toDouble().abs() : 0;
     if (amount >= 10000000) {
-      return '₹${(amount / 10000000).toStringAsFixed(2)}Cr';
+      return '${(amount / 10000000).toStringAsFixed(2)}Cr';
     } else if (amount >= 100000) {
-      return '₹${(amount / 100000).toStringAsFixed(2)}L';
+      return '${(amount / 100000).toStringAsFixed(2)}L';
     }
-    return '₹${amount.toStringAsFixed(0)}';
+    return '${amount.toStringAsFixed(0)}';
   }
 
   String _formatPdfCurrency(dynamic value) {
@@ -320,16 +337,27 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('PDF saved: $filePath'),
+            content: Text(
+              'PDF saved: $filePath',
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error generating PDF: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error generating PDF: $e',
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
       }
     }
   }
@@ -354,248 +382,251 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                // Status Banner
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 12,
-                    horizontal: 16,
-                  ),
-                  color: isBalanced
-                      ? const Color(0xFFE8F5E9)
-                      : const Color(0xFFFFEBEE),
-                  child: Row(
-                    children: [
-                      Icon(
-                        isBalanced ? Icons.check_circle : Icons.cancel,
-                        color: isBalanced
-                            ? const Color(0xFF4CAF50)
-                            : const Color(0xFFF44336),
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        isBalanced
-                            ? 'Trial Balance is Balanced'
-                            : 'Trial Balance Not Balanced',
-                        style: TextStyle(
+          : SafeArea(
+              child: Column(
+                children: [
+                  // Status Banner
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 16,
+                    ),
+                    color: isBalanced
+                        ? const Color(0xFFE8F5E9)
+                        : const Color(0xFFFFEBEE),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isBalanced ? Icons.check_circle : Icons.cancel,
                           color: isBalanced
                               ? const Color(0xFF4CAF50)
                               : const Color(0xFFF44336),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
+                          size: 18,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 8),
+                        Text(
+                          isBalanced
+                              ? 'Trial Balance is Balanced'
+                              : 'Trial Balance Not Balanced',
+                          style: TextStyle(
+                            color: isBalanced
+                                ? const Color(0xFF4CAF50)
+                                : const Color(0xFFF44336),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                // Table Header
-                Container(
-                  color: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 10,
-                    horizontal: 16,
+                  // Table Header
+                  Container(
+                    color: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 16,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 1,
+                          child: Text(
+                            'Code',
+                            style: TextStyle(
+                              color: AppColors.onPrimary,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            'Account',
+                            style: TextStyle(
+                              color: AppColors.onPrimary,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 1,
+                          child: Text(
+                            'Debit',
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              color: AppColors.onPrimary,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 1,
+                          child: Text(
+                            'Credit',
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              color: AppColors.onPrimary,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 1,
-                        child: Text(
-                          'Code',
-                          style: TextStyle(
-                            color: AppColors.onPrimary,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 12,
+                  // Table Content
+                  Expanded(
+                    child: trialBalance.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'No accounts found',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView(
+                            padding: EdgeInsets.zero,
+                            children: _buildGroupedTable(),
                           ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          'Account',
-                          style: TextStyle(
-                            color: AppColors.onPrimary,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 1,
-                        child: Text(
-                          'Debit',
-                          textAlign: TextAlign.right,
-                          style: TextStyle(
-                            color: AppColors.onPrimary,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 1,
-                        child: Text(
-                          'Credit',
-                          textAlign: TextAlign.right,
-                          style: TextStyle(
-                            color: AppColors.onPrimary,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
-                ),
-                // Table Content
-                Expanded(
-                  child: trialBalance.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'No accounts found',
+                  // Grand Total Footer
+                  Container(
+                    color: Colors.grey[100],
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                      horizontal: 16,
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                'Grand',
                                 style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: Colors.grey[800],
                                 ),
                               ),
-                            ],
-                          ),
-                        )
-                      : SingleChildScrollView(
-                          child: Column(children: _buildGroupedTable()),
+                            ),
+                            Expanded(
+                              flex: 1,
+                              child: Text(
+                                _formatCurrency(totalDebit),
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: Color(0xFFC41C3B),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 1,
+                              child: Text(
+                                _formatCurrency(totalCredit),
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: Color(0xFF4CAF50),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                ),
-                // Grand Total Footer
-                Container(
-                  color: Colors.grey[100],
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 14,
-                    horizontal: 16,
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                'Total',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: Colors.grey[800],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                'Total Debit',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 1,
+                              child: Text(
+                                _formatCurrency(totalDebit),
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            Expanded(flex: 1, child: Container()),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                'Total Credit',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            Expanded(flex: 1, child: Container()),
+                            Expanded(
+                              flex: 1,
+                              child: Text(
+                                _formatCurrency(totalCredit),
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: Text(
-                              'Grand',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                                color: Colors.grey[800],
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 1,
-                            child: Text(
-                              _formatCurrency(totalDebit),
-                              textAlign: TextAlign.right,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                                color: Color(0xFFC41C3B),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 1,
-                            child: Text(
-                              _formatCurrency(totalCredit),
-                              textAlign: TextAlign.right,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                                color: Color(0xFF4CAF50),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: Text(
-                              'Total',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                                color: Colors.grey[800],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: Text(
-                              'Total Debit',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 1,
-                            child: Text(
-                              _formatCurrency(totalDebit),
-                              textAlign: TextAlign.right,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          Expanded(flex: 1, child: Container()),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: Text(
-                              'Total Credit',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          Expanded(flex: 1, child: Container()),
-                          Expanded(
-                            flex: 1,
-                            child: Text(
-                              _formatCurrency(totalCredit),
-                              textAlign: TextAlign.right,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
     );
   }
