@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalizationService {
   LocalizationService._private();
@@ -8,6 +9,14 @@ class LocalizationService {
   final ValueNotifier<String> language = ValueNotifier<String>('en');
 
   static const supported = ['en', 'roman'];
+
+  Future<void> initialize() async {
+    final preferences = await SharedPreferences.getInstance();
+    final savedLanguage = preferences.getString('language');
+    if (savedLanguage != null && supported.contains(savedLanguage)) {
+      language.value = savedLanguage;
+    }
+  }
 
   final Map<String, Map<String, String>> _t = {
     'en': {
@@ -94,6 +103,63 @@ class LocalizationService {
       'forgot_pin': 'Forgot Pin?',
       'forgot_pin_contact_support': 'Please contact support to reset your PIN',
       'pin_verified_success': 'PIN verified successfully!',
+      'settings': 'Settings',
+      'business': 'Business',
+      'security': 'Security',
+      'notifications': 'Notifications',
+      'preferences': 'Preferences',
+      'change_pin': 'Change PIN',
+      'update_security_pin': 'Update app security PIN',
+      'sign_out': 'Sign Out',
+      'log_out_account': 'Log out of your account',
+      'payment_reminders': 'Payment Reminders',
+      'due_payment_alerts': 'Alerts for due payments',
+      'language': 'Language',
+      'danger_zone': 'Danger Zone',
+      'delete_business': 'Delete Business',
+      'permanently_remove_business': 'Permanently remove this business',
+      'switch_business': 'Switch Business',
+      'pay_receive': 'Pay & Receive',
+      'reports': 'Reports',
+      'home': 'Home',
+      'accounts': 'Accounts',
+      'calculator': 'Calculator',
+      'total_bank_balance': 'Total Bank Balance',
+      'cash_in_hand': 'Cash in Hand',
+      'debit': 'Debit',
+      'credit': 'Credit',
+      'quick_actions': 'Quick Actions',
+      'add_transaction': 'Add Transaction',
+      'add_journal': 'Add Journal',
+      'view_journals': 'View Journals',
+      'ledger': 'Ledger',
+      'reminders': 'Reminders',
+      'add_account': 'Add Account',
+      'update_pin': 'Update your PIN',
+      'change_pin_description': 'Enter your current PIN and choose a new 4-digit PIN.',
+      'current_pin': 'Current PIN',
+      'new_pin': 'New PIN',
+      'confirm_new_pin': 'Confirm New PIN',
+      'save_changes': 'Save Changes',
+      'all_pin_fields_required': 'Please enter all PIN fields',
+      'business_not_found': 'Business not found',
+      'current_pin_incorrect': 'Current PIN is incorrect',
+      'pin_changed_successfully': 'PIN changed successfully',
+      'update_business_info': 'Update your business info',
+      'edit_business_info_description': 'Edit the business name and choose the correct business type.',
+      'edit_business_info_descriptive': 'Edit the business name and choose the correct business type.',
+      'business_name_required': 'Business name is required',
+      'could_not_update_business': 'Could not update business details',
+      'error': 'Error',
+      'delete_business_warning': 'Are you sure you want to delete this business? This action cannot be undone.',
+      'cancel': 'Cancel',
+      'delete': 'Delete',
+      'business_deleted_successfully': 'Business deleted successfully',
+      'could_not_delete_business': 'Could not delete business',
+      'enter_pin_for_delete': 'Enter PIN for',
+      'to_delete_business': 'to delete this business.',
+      'business_pin': 'Business PIN',
+      'incorrect_pin': 'Incorrect PIN',
     },
     'roman': {
       'title': 'Yahya&Co',
@@ -182,16 +248,75 @@ class LocalizationService {
       'forgot_pin': 'PIN bhool gaye?',
       'forgot_pin_contact_support': 'Aapka PIN reset karne ke liye support se rabta karen',
       'pin_verified_success': 'PIN kamyabi se verify ho gya!',
+      'settings': 'Settings',
+      'business': 'Karobaar',
+      'security': 'Hifazat',
+      'notifications': 'Itlaain',
+      'preferences': 'Tarjeehat',
+      'change_pin': 'PIN Tabdeel Karen',
+      'update_security_pin': 'App ka security PIN update karen',
+      'sign_out': 'Sign Out',
+      'log_out_account': 'Apne account se bahar niklein',
+      'payment_reminders': 'Payment Yaad Dahaniyan',
+      'due_payment_alerts': 'Due payments ke alerts',
+      'language': 'Zuban',
+      'danger_zone': 'Khatre ka Hissa',
+      'delete_business': 'Karobaar Delete Karen',
+      'permanently_remove_business': 'Yeh karobaar hamesha ke liye hata dein',
+      'switch_business': 'Karobaar Tabdeel Karen',
+      'pay_receive': 'Adaigi aur Wasooli',
+      'reports': 'Reports',
+      'home': 'Home',
+      'accounts': 'Accounts',
+      'calculator': 'Calculator',
+      'total_bank_balance': 'Bank ka Kul Balance',
+      'cash_in_hand': 'Cash Hath Mein',
+      'debit': 'Debit',
+      'credit': 'Credit',
+      'quick_actions': 'Fauri Ikhtiyarat',
+      'add_transaction': 'Transaction Shamil Karen',
+      'add_journal': 'Journal Shamil Karen',
+      'view_journals': 'Journals Dekhein',
+      'ledger': 'Ledger',
+      'reminders': 'Yaad Dahaniyan',
+      'add_account': 'Account Shamil Karen',
+      'update_pin': 'Apna PIN update karen',
+      'change_pin_description': 'Apna current PIN darj karen aur naya 4-digit PIN select karen.',
+      'current_pin': 'Mojooda PIN',
+      'new_pin': 'Naya PIN',
+      'confirm_new_pin': 'Naya PIN dobara darj karen',
+      'save_changes': 'Changes Save Karen',
+      'all_pin_fields_required': 'Baraye mehrbani tamam PIN fields darj karen',
+      'business_not_found': 'Karobaar nahi mila',
+      'current_pin_incorrect': 'Mojooda PIN ghalat hai',
+      'pin_changed_successfully': 'PIN kamyabi se tabdeel ho gaya',
+      'update_business_info': 'Apne karobaar ki maloomat update karen',
+      'edit_business_info_description': 'Karobaar ka naam edit karen aur durust qism select karen.',
+      'edit_business_info_descriptive': 'Karobaar ka naam edit karen aur durust qism select karen.',
+      'business_name_required': 'Karobaar ka naam zaroori hai',
+      'could_not_update_business': 'Karobaar ki maloomat update nahi ho sakin',
+      'error': 'Error',
+      'delete_business_warning': 'Kya aap waqai is karobaar ko delete karna chahte hain? Yeh amal undo nahi ho sakta.',
+      'cancel': 'Cancel',
+      'delete': 'Delete',
+      'business_deleted_successfully': 'Karobaar kamyabi se delete ho gaya',
+      'could_not_delete_business': 'Karobaar delete nahi ho saka',
+      'enter_pin_for_delete': 'Karobaar delete karne ke liye PIN darj karen',
+      'to_delete_business': 'ko delete karne ke liye.',
+      'business_pin': 'Karobaar ka PIN',
+      'incorrect_pin': 'PIN ghalat hai',
     },
   };
 
   String t(String key) {
     final lang = language.value;
-    return _t[lang]?[key] ?? key;
+    return _t[lang]?[key] ?? _t['en']?[key] ?? key;
   }
 
-  void setLanguage(String lang) {
+  Future<void> setLanguage(String lang) async {
     if (!supported.contains(lang)) return;
     language.value = lang;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString('language', lang);
   }
 }

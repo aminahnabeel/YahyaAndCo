@@ -108,11 +108,40 @@ class FirestoreService {
 
   Future<void> deleteBusiness(String businessId) async {
     try {
-      await _businessDocRefForCurrentUser(businessId).delete();
+      final businessRef = _businessDocRefForCurrentUser(businessId);
+      for (final collectionName in [
+        'accounts',
+        'transactions',
+        'expense_categories',
+        'notes',
+        'reminders',
+      ]) {
+        await _deleteCollection(businessRef.collection(collectionName));
+      }
+
+      final journalEntries = await businessRef.collection('journal_entries').get();
+      for (final journalEntry in journalEntries.docs) {
+        await _deleteCollection(journalEntry.reference.collection('journal_lines'));
+      }
+      await _deleteCollection(businessRef.collection('journal_entries'));
+      await businessRef.delete();
     } catch (e) {
       print('Error deleting business: $e');
       rethrow;
     }
+  }
+
+  Future<void> _deleteCollection(
+    CollectionReference<Map<String, dynamic>> collection,
+  ) async {
+    final snapshot = await collection.get();
+    if (snapshot.docs.isEmpty) return;
+
+    final batch = _db.batch();
+    for (final document in snapshot.docs) {
+      batch.delete(document.reference);
+    }
+    await batch.commit();
   }
 
   // ==================== ACCOUNTS COLLECTION ====================

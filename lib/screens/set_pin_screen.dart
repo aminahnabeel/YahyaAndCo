@@ -75,7 +75,7 @@ class _SetPinScreenState extends State<SetPinScreen> {
     setState(() => _isLoading = true);
 
     try {
-      widget.business.pin = _pinController.text;
+      widget.business.pin = _pinController.text.trim();
       final int businessId;
 
       if (widget.business.businessId == null) {

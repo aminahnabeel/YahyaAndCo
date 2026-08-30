@@ -691,13 +691,48 @@ class DatabaseHelper {
   Future deleteBusiness(int businessId) async {
     final db = await database;
 
-    await db.delete(
-      'business',
-
-      where: 'business_id = ?',
-
-      whereArgs: [businessId],
-    );
+    await db.transaction((transaction) async {
+      await transaction.delete(
+        'journal_lines',
+        where: 'journal_id IN (SELECT journal_id FROM journal_entry WHERE business_id = ?)',
+        whereArgs: [businessId],
+      );
+      await transaction.delete(
+        'reminders',
+        where: 'business_id = ?',
+        whereArgs: [businessId],
+      );
+      await transaction.delete(
+        'expense_categories',
+        where: 'business_id = ?',
+        whereArgs: [businessId],
+      );
+      await transaction.delete(
+        'notes',
+        where: 'business_id = ?',
+        whereArgs: [businessId],
+      );
+      await transaction.delete(
+        'transactions',
+        where: 'business_id = ?',
+        whereArgs: [businessId],
+      );
+      await transaction.delete(
+        'journal_entry',
+        where: 'business_id = ?',
+        whereArgs: [businessId],
+      );
+      await transaction.delete(
+        'accounts',
+        where: 'business_id = ?',
+        whereArgs: [businessId],
+      );
+      await transaction.delete(
+        'business',
+        where: 'business_id = ?',
+        whereArgs: [businessId],
+      );
+    });
   }
 
   // ======================================================

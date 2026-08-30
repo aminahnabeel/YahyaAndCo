@@ -18,7 +18,7 @@ class _EnterPinScreenState extends State<EnterPinScreen> {
   final _pinController = TextEditingController();
   final _pinFocus = FocusNode();
   bool _isLoading = false;
-  List<bool> _pinDots = [false, false, false, false];
+  final List<bool> _pinDots = [false, false, false, false];
 
   @override
   void initState() {
@@ -72,7 +72,10 @@ class _EnterPinScreenState extends State<EnterPinScreen> {
     try {
       final business = await DatabaseHelper.instance.getBusinessById(widget.businessId);
 
-      if (business == null || business.pin != _pinController.text) {
+      final storedPin = (business?.pin ?? '').trim();
+      final enteredPin = _pinController.text.trim();
+
+      if (business == null || storedPin != enteredPin) {
         throw Exception(localization.t('invalid_pin'));
       }
 

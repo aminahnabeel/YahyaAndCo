@@ -9,6 +9,7 @@ import 'theme.dart';
 import 'splash_screen/logo_screen.dart';
 import 'services/notification_service.dart';
 import 'services/sync_service.dart';
+import 'services/localization_service.dart';
 import 'helpers/firebase_debug_helper.dart';
 import 'screens/enter_email.dart';
 
@@ -25,6 +26,8 @@ void main() async {
 
   // INITIALIZE SYNC SERVICE
   await SyncService().initialize();
+
+  await LocalizationService.instance.initialize();
 
   // DEBUG: Print Firebase status
   await FirebaseDebugHelper.printFirebaseStatus();

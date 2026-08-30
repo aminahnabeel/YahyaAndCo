@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../db/database_helper.dart';
 import '../../services/accounting_service.dart';
 import '../../services/payment_reminder_service.dart';
+import '../../services/localization_service.dart';
 import '../../theme.dart';
 import '../accounts/account_screen.dart';
 import '../calculator_screen.dart';
@@ -36,6 +37,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final AccountingService _accountingService = AccountingService();
   late Future<Map<String, double>> _summaryFuture;
   late final PageController _pageController;
+  late String _businessName;
   int _selectedIndex = 2;
   int _pressedIndex = -1;
   int _payReceiveRefreshKey = 0;
@@ -44,6 +46,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _businessName = widget.businessName;
     _pageController = PageController(initialPage: _selectedIndex);
     _summaryFuture = _accountingService.getDashboardSummary(widget.businessId);
     unawaited(
@@ -188,16 +191,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   String _money(double value) => value.toStringAsFixed(2);
 
-  void _openSettingsSheet() {
-    Navigator.push(
+  Future<void> _openSettingsSheet() async {
+    final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const SettingsScreen()),
+      MaterialPageRoute(
+        builder: (context) => SettingsScreen(
+          businessId: widget.businessId,
+          initialBusinessName: _businessName,
+          initialBusinessType: 'retail',
+        ),
+      ),
     );
+
+    if (!mounted || result == null) return;
+
+    final updatedName = result['name']?.toString();
+    if (updatedName != null && updatedName.trim().isNotEmpty) {
+      setState(() {
+        _businessName = updatedName;
+      });
+      return;
+    }
+
+    final refreshedBusiness = await DatabaseHelper.instance.getBusinessById(
+      widget.businessId,
+    );
+    if (refreshedBusiness != null) {
+      setState(() {
+        _businessName = refreshedBusiness.name;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ValueListenableBuilder<String>(
+      valueListenable: LocalizationService.instance.language,
+      builder: (context, language, _) => Scaffold(
       appBar: AppBar(
         leading: const Padding(
           padding: EdgeInsets.all(8.0),
@@ -207,7 +237,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             backgroundImage: AssetImage('assets/logo.png'),
           ),
         ),
-        title: Text(widget.businessName, overflow: TextOverflow.ellipsis),
+        title: Text(_businessName, overflow: TextOverflow.ellipsis),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -223,12 +253,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               );
             },
             icon: const Icon(Icons.swap_vert_rounded),
-            tooltip: 'Switch Business',
+            tooltip: LocalizationService.instance.t('switch_business'),
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: _openSettingsSheet,
-            tooltip: 'Settings',
+            tooltip: LocalizationService.instance.t('settings'),
           ),
         ],
       ),
@@ -317,17 +347,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       0,
                       selected: true,
                     ),
-                    label: 'Pay & Receive',
+                    label: LocalizationService.instance.t('pay_receive'),
                   ),
                   BottomNavigationBarItem(
                     icon: _navIcon(Icons.assessment, 1),
                     activeIcon: _navIcon(Icons.assessment, 1, selected: true),
-                    label: 'Reports',
+                    label: LocalizationService.instance.t('reports'),
                   ),
                   BottomNavigationBarItem(
                     icon: _navIcon(Icons.home, 2),
                     activeIcon: _navIcon(Icons.home, 2, selected: true),
-                    label: 'Home',
+                    label: LocalizationService.instance.t('home'),
                   ),
                   BottomNavigationBarItem(
                     icon: _navIcon(Icons.account_balance, 3),
@@ -336,18 +366,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       3,
                       selected: true,
                     ),
-                    label: 'Accounts',
+                    label: LocalizationService.instance.t('accounts'),
                   ),
                   BottomNavigationBarItem(
                     icon: _navIcon(Icons.calculate, 4),
                     activeIcon: _navIcon(Icons.calculate, 4, selected: true),
-                    label: 'Calculator',
+                    label: LocalizationService.instance.t('calculator'),
                   ),
                 ],
               ),
             ),
           ),
         ),
+      ),
       ),
     );
   }
@@ -431,7 +462,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   childAspectRatio: 1.4,
                   children: [
                     _financialCard(
-                      title: 'Total Bank Balance',
+                      title: LocalizationService.instance.t('total_bank_balance'),
                       value: totalBankBalance,
                       color: Colors.blue,
                       icon: Icons.account_balance_wallet,
@@ -439,13 +470,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         final rows = await _getBankAccountsWithAmounts();
                         if (!mounted) return;
                         await _showBreakdownDialog(
-                          title: 'Bank Accounts',
+                          title: LocalizationService.instance.t('accounts'),
                           rows: rows,
                         );
                       },
                     ),
                     _financialCard(
-                      title: 'Cash in Hand',
+                      title: LocalizationService.instance.t('cash_in_hand'),
                       value: cashInHand,
                       color: Colors.orange,
                       icon: Icons.money,
@@ -453,20 +484,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         final rows = await _getCashAndOwnerCapitalAccounts();
                         if (!mounted) return;
                         await _showBreakdownDialog(
-                          title: 'Cash & Owner Capital',
+                          title: LocalizationService.instance.t('cash_in_hand'),
                           rows: rows,
                         );
                       },
                     ),
                     _financialCard(
-                      title: 'Debit',
+                      title: LocalizationService.instance.t('debit'),
                       value: summary['totalDebit'] ?? 0,
                       color: Colors.green,
                       icon: Icons.trending_up,
                       onTap: null,
                     ),
                     _financialCard(
-                      title: 'Credit',
+                      title: LocalizationService.instance.t('credit'),
                       value: summary['totalCredit'] ?? 0,
                       color: Colors.red,
                       icon: Icons.trending_down,
@@ -475,10 +506,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(left: 4, bottom: 12),
                   child: Text(
-                    'Quick Actions',
+                    LocalizationService.instance.t('quick_actions'),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -495,7 +526,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   childAspectRatio: 1.0,
                   children: [
                     _quickActionCard(
-                      title: 'Add Transaction',
+                      title: LocalizationService.instance.t('add_transaction'),
                       icon: Icons.add_circle,
                       color: AppColors.primary,
                       onTap: () => Navigator.push(
@@ -508,7 +539,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                     _quickActionCard(
-                      title: 'Add Journal',
+                      title: LocalizationService.instance.t('add_journal'),
                       icon: Icons.receipt_long,
                       color: Colors.indigo,
                       onTap: () => Navigator.push(
@@ -521,7 +552,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                     _quickActionCard(
-                      title: 'View Journals',
+                      title: LocalizationService.instance.t('view_journals'),
                       icon: Icons.description,
                       color: Colors.deepOrange,
                       onTap: () => Navigator.push(
@@ -533,7 +564,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                     _quickActionCard(
-                      title: 'Ledger',
+                      title: LocalizationService.instance.t('ledger'),
                       icon: Icons.book_outlined,
                       color: Colors.brown,
                       onTap: () => Navigator.push(
@@ -545,7 +576,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                     _quickActionCard(
-                      title: 'Reminders',
+                      title: LocalizationService.instance.t('reminders'),
                       icon: Icons.notifications_active,
                       color: Colors.teal,
                       onTap: () => Navigator.push(
@@ -557,7 +588,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                     _quickActionCard(
-                      title: 'Add Account',
+                      title: LocalizationService.instance.t('add_account'),
                       icon: Icons.add_box,
                       color: Colors.green,
                       onTap: () => Navigator.push(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/business_model.dart';
 import '../services/business_service.dart';
+import '../services/localization_service.dart';
 import '../theme.dart';
 import 'business_details.dart';
 import 'dashboard/dashboard_screen.dart';
@@ -63,6 +64,8 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
     final businessId = business.businessId;
     if (businessId == null) return;
 
+    final localization = LocalizationService.instance;
+
     // 1. Pehle check karein agar context valid hai tabhi dialog open ho
     if (!mounted) return;
 
@@ -80,13 +83,15 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Delete Business'),
+              title: Text(localization.t('delete_business')),
               content: SingleChildScrollView(
                 // Keyboard open hone par overflow nahi hoga
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Enter PIN for "${business.name}" to delete this business.'),
+                    Text(
+                      '${localization.t('enter_pin_for_delete')} "${business.name}" ${localization.t('to_delete_business')}',
+                    ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: pinController,
@@ -94,8 +99,10 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
                       keyboardType: TextInputType.number,
                       maxLength: 4,
                       decoration: InputDecoration(
-                        labelText: 'Business PIN',
-                        errorText: errorText,
+                        labelText: localization.t('business_pin'),
+                        errorText: errorText == null
+                          ? null
+                          : localization.t('incorrect_pin'),
                         suffixIcon: IconButton(
                           icon: Icon(showPin ? Icons.visibility : Icons.visibility_off),
                           onPressed: () {
@@ -112,7 +119,7 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
                   onPressed: () {
                     Navigator.pop(dialogContext, null); // Clear closing
                   },
-                  child: const Text('Cancel'),
+                  child: Text(localization.t('cancel')),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -121,14 +128,14 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
 
                     if (expectedPin.isNotEmpty && enteredPin != expectedPin) {
                       setDialogState(() {
-                        errorText = 'Incorrect PIN';
+                        errorText = localization.t('incorrect_pin');
                       });
                       return;
                     }
 
                     Navigator.pop(dialogContext, enteredPin);
                   },
-                  child: const Text('Delete'),
+                  child: Text(localization.t('delete')),
                 ),
               ],
             );
