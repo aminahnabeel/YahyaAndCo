@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme.dart';
 import '../../services/accounting_service.dart';
+import '../../services/localization_service.dart';
 import 'trial_balance_screen.dart';
 import 'profit_loss_screen.dart';
 import 'balance_sheet_screen.dart';
@@ -40,7 +41,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Reports'),
+        title: Text(LocalizationService.instance.t('reports')),
         elevation: 0,
         backgroundColor: AppColors.primary,
         actions: [
@@ -61,11 +62,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 children: [
                   const Icon(Icons.error_outline, size: 48, color: Colors.red),
                   const SizedBox(height: 16),
-                  const Text('Error loading reports'),
+                  Text(LocalizationService.instance.t('error_loading_reports')),
                   const SizedBox(height: 24),
                   ElevatedButton(
                     onPressed: _refreshData,
-                    child: const Text('Retry'),
+                    child: Text(LocalizationService.instance.t('retry')),
                   ),
                 ],
               ),
@@ -80,8 +81,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   context,
                   icon: Icons.balance_outlined,
                   iconBgColor: const Color(0xFFFFA500),
-                  title: 'Trial Balance',
-                  description: 'debit and credit summary snapshot',
+                  title: LocalizationService.instance.t('trial_balance'),
+                  description: LocalizationService.instance.t(
+                    'debit_and_credit_summary_snapshot',
+                  ),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -95,8 +98,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   context,
                   icon: Icons.attach_money_outlined,
                   iconBgColor: const Color(0xFFFFA500),
-                  title: 'Cash Book',
-                  description: 'cash inflows and outflows',
+                  title: LocalizationService.instance.t('cash_book'),
+                  description: LocalizationService.instance.t(
+                    'cash_inflows_and_outflows',
+                  ),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -110,8 +115,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   context,
                   icon: Icons.trending_up_outlined,
                   iconBgColor: const Color(0xFF06B6D4),
-                  title: 'Profit & Loss',
-                  description: 'Revenue versus expenses overview',
+                  title: LocalizationService.instance.t('profit_loss'),
+                  description: LocalizationService.instance.t(
+                    'revenue_versus_expenses_overview',
+                  ),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -125,8 +132,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   context,
                   icon: Icons.grid_on_outlined,
                   iconBgColor: const Color(0xFF8B5CF6),
-                  title: 'Balance Sheet',
-                  description: 'Assets, liabilities, and equity snapshot',
+                  title: LocalizationService.instance.t('balance_sheet'),
+                  description: LocalizationService.instance.t(
+                    'assets_liabilities_and_equity_snapshot',
+                  ),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(

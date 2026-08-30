@@ -8,6 +8,7 @@ import '../../services/account_service.dart';
 import '../../services/accounting_service.dart';
 import '../../services/journal_service.dart';
 import '../../services/image_upload_service.dart';
+import '../../services/localization_service.dart';
 
 class _JournalFormRow {
   AccountModel? account;
@@ -139,7 +140,10 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
       if (journalEntry == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Journal entry not found'), backgroundColor: Colors.red),
+            SnackBar(
+              content: Text(LocalizationService.instance.t('journal_entry_not_found')),
+              backgroundColor: Colors.red,
+            ),
           );
         }
         return;
@@ -186,7 +190,12 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading journal: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(
+              '${LocalizationService.instance.t('error_loading_journal')}$e',
+            ),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -267,10 +276,10 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
             _isUploadingImage = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Image uploaded successfully!'),
+            SnackBar(
+              content: Text(LocalizationService.instance.t('image_uploaded_successfully')),
               backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
+              duration: const Duration(seconds: 2),
             ),
           );
         } else {
@@ -278,8 +287,8 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
             _isUploadingImage = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to upload image. Please try again.'),
+            SnackBar(
+              content: Text(LocalizationService.instance.t('failed_to_upload_image')),
               backgroundColor: Colors.red,
             ),
           );
@@ -291,7 +300,9 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error picking image: $e'),
+          content: Text(
+            '${LocalizationService.instance.t('error_picking_image')}$e',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -317,8 +328,11 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
                       color: Colors.black,
-                      child: const Center(
-                        child: Text('Failed to load image', style: TextStyle(color: Colors.white)),
+                      child: Center(
+                        child: Text(
+                          LocalizationService.instance.t('failed_to_load_image'),
+                          style: const TextStyle(color: Colors.white),
+                        ),
                       ),
                     );
                   },
@@ -383,7 +397,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
       final account = row.account;
       if (account == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Har row mein account select karein')),
+          SnackBar(content: Text(LocalizationService.instance.t('select_account'))),
         );
         return;
       }
@@ -393,14 +407,14 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
 
       if (debit <= 0 && credit <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Debit ya Credit mein se ek amount zaroor enter karein')),
+          SnackBar(content: Text(LocalizationService.instance.t('enter_amount'))),
         );
         return;
       }
 
       if (debit > 0 && credit > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Har row mein sirf Debit ya sirf Credit enter karein')),
+          SnackBar(content: Text(LocalizationService.instance.t('debit'))),
         );
         return;
       }
@@ -465,7 +479,13 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_isEditMode ? 'Journal updated successfully' : 'Journal saved successfully')),
+        SnackBar(
+          content: Text(
+            _isEditMode
+                ? LocalizationService.instance.t('journal_updated_successfully')
+                : LocalizationService.instance.t('journal_saved_successfully'),
+          ),
+        ),
       );
       Navigator.pop(context);
     } catch (e) {
@@ -485,7 +505,13 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: true, // Default safe resizing active rakhein
-      appBar: AppBar(title: Text(_isEditMode ? 'Edit Journal Entry' : 'Add Journal Entry')),
+      appBar: AppBar(
+        title: Text(
+          _isEditMode
+              ? LocalizationService.instance.t('edit_journal_entry')
+              : LocalizationService.instance.t('add_journal_entry'),
+        ),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
@@ -498,7 +524,10 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Voucher ki qism', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                      Text(
+                        LocalizationService.instance.t('voucher_type'),
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                      ),
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -510,7 +539,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                                 side: BorderSide(color: _voucherType == 'JV' ? Colors.blue : Colors.black54),
                                 padding: const EdgeInsets.symmetric(vertical: 14),
                               ),
-                              child: const Text('Journal Voucher'),
+                              child: Text(LocalizationService.instance.t('journal_voucher')),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -522,7 +551,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                                 side: BorderSide(color: _voucherType == 'CP' ? Colors.blue : Colors.black54),
                                 padding: const EdgeInsets.symmetric(vertical: 14),
                               ),
-                              child: const Text('Cash Payment'),
+                              child: Text(LocalizationService.instance.t('cash_payment')),
                             ),
                           ),
                         ],
@@ -544,10 +573,10 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                         child: AbsorbPointer(
                           child: TextFormField(
                             controller: _dateController,
-                            decoration: const InputDecoration(
-                              labelText: 'Date',
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.calendar_today),
+                            decoration: InputDecoration(
+                              labelText: LocalizationService.instance.t('date'),
+                              border: const OutlineInputBorder(),
+                              prefixIcon: const Icon(Icons.calendar_today),
                             ),
                           ),
                         ),
@@ -559,11 +588,11 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                           child: TextFormField(
                             key: _dueDateFieldKey,
                             controller: _dueDateController,
-                            decoration: const InputDecoration(
-                              labelText: 'Due Date (Optional)',
-                              border: OutlineInputBorder(),
-                              suffixIcon: Icon(Icons.event),
-                              hintText: 'Select due date',
+                            decoration: InputDecoration(
+                              labelText: LocalizationService.instance.t('due_date_optional'),
+                              border: const OutlineInputBorder(),
+                              suffixIcon: const Icon(Icons.event),
+                              hintText: LocalizationService.instance.t('select_due_date'),
                             ),
                           ),
                         ),
@@ -580,12 +609,15 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                           textAlignVertical: TextAlignVertical.top,
                           textInputAction: TextInputAction.newline,
                           scrollPadding: const EdgeInsets.only(bottom: 200),
-                          decoration: const InputDecoration(
-                            labelText: 'Description',
-                            hintText: 'Enter description',
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            labelText: LocalizationService.instance.t('description'),
+                            hintText: LocalizationService.instance.t('description'),
+                            border: const OutlineInputBorder(),
                           ),
-                          validator: (value) => value == null || value.trim().isEmpty ? 'Description required' : null,
+                          validator: (value) =>
+                              value == null || value.trim().isEmpty
+                                  ? LocalizationService.instance.t('description_required')
+                                  : null,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -595,20 +627,22 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                           ElevatedButton.icon(
                             onPressed: _isUploadingImage ? null : _pickImage,
                             icon: const Icon(Icons.attach_file),
-                            label: _isUploadingImage ? const Text('Uploading...') : const Text('Attach Image'),
+                            label: _isUploadingImage
+                                ? Text(LocalizationService.instance.t('uploading'))
+                                : Text(LocalizationService.instance.t('attach_image')),
                           ),
                           const SizedBox(width: 12),
                           if (_isUploadingImage)
-                            const Expanded(
+                            Expanded(
                               child: Row(
                                 children: [
-                                  SizedBox(
+                                  const SizedBox(
                                     width: 20,
                                     height: 20,
                                     child: CircularProgressIndicator(strokeWidth: 2),
                                   ),
-                                  SizedBox(width: 8),
-                                  Text('Uploading image...'),
+                                  const SizedBox(width: 8),
+                                  Text(LocalizationService.instance.t('uploading_image')),
                                 ],
                               ),
                             )
@@ -628,7 +662,11 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                                           return Container(
                                             height: 60,
                                             color: Colors.grey.shade300,
-                                            child: const Center(child: Text('Failed to load')),
+                                            child: Center(
+                                              child: Text(
+                                                LocalizationService.instance.t('failed_to_load'),
+                                              ),
+                                            ),
                                           );
                                         },
                                       ),
@@ -667,7 +705,10 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                         ],
                       ),
                       const SizedBox(height: 20),
-                      const Text('Journal Entries', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                      Text(
+                        LocalizationService.instance.t('journal_entries'),
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                      ),
                       const SizedBox(height: 10),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -675,12 +716,30 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                           color: Colors.grey.shade100,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
-                            Expanded(flex: 5, child: Text('Account', style: TextStyle(fontWeight: FontWeight.w700))),
-                            Expanded(child: Text('Debit', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w700))),
+                            Expanded(
+                              flex: 5,
+                              child: Text(
+                                LocalizationService.instance.t('accounts'),
+                                style: const TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                LocalizationService.instance.t('debit'),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                            ),
                             const SizedBox(width: 8),
-                            Expanded(child: Text('Credit', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w700))),
+                            Expanded(
+                              child: Text(
+                                LocalizationService.instance.t('credit'),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -716,7 +775,10 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                                       row.account = value;
                                     });
                                   },
-                                  validator: (value) => value == null ? 'Select account' : null,
+                                  validator: (value) =>
+                                      value == null
+                                          ? LocalizationService.instance.t('select_account')
+                                          : null,
                                 ),
                                 const SizedBox(height: 10),
                                 Row(
@@ -735,11 +797,11 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                                           textAlignVertical: TextAlignVertical.center,
                                           onTap: () => _clearAmountIfDefault(row.debitController),
                                           scrollPadding: const EdgeInsets.only(bottom: 240),
-                                          decoration: const InputDecoration(
-                                            labelText: 'Debit',
-                                            border: OutlineInputBorder(),
+                                          decoration: InputDecoration(
+                                            labelText: LocalizationService.instance.t('debit'),
+                                            border: const OutlineInputBorder(),
                                             hintText: '0.00',
-                                            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
                                           ),
                                         ),
                                       ),
@@ -759,11 +821,11 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                                           textAlignVertical: TextAlignVertical.center,
                                           onTap: () => _clearAmountIfDefault(row.creditController),
                                           scrollPadding: const EdgeInsets.only(bottom: 240),
-                                          decoration: const InputDecoration(
-                                            labelText: 'Credit',
-                                            border: OutlineInputBorder(),
+                                          decoration: InputDecoration(
+                                            labelText: LocalizationService.instance.t('credit'),
+                                            border: const OutlineInputBorder(),
                                             hintText: '0.00',
-                                            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
                                           ),
                                         ),
                                       ),
@@ -785,7 +847,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                         child: OutlinedButton.icon(
                           onPressed: _isEditMode ? null : _addRow,
                           icon: const Icon(Icons.add),
-                          label: const Text('Line add karein'),
+                          label: Text(LocalizationService.instance.t('add_line')),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -794,7 +856,13 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
                         height: 52,
                         child: ElevatedButton(
                           onPressed: _saving ? null : _save,
-                          child: _saving ? const CircularProgressIndicator() : Text(_isEditMode ? 'Update Journal Entry' : 'Save Journal Entry'),
+                          child: _saving
+                              ? const CircularProgressIndicator()
+                              : Text(
+                                  _isEditMode
+                                      ? LocalizationService.instance.t('update_journal_entry')
+                                      : LocalizationService.instance.t('save_journal_entry'),
+                                ),
                         ),
                       ),
                     ],

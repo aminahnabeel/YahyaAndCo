@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../db/database_helper.dart';
+import '../services/localization_service.dart';
 import '../theme.dart';
 
 class PayReceiveScreen extends StatefulWidget {
@@ -64,7 +65,11 @@ class _PayReceiveScreenState extends State<PayReceiveScreen> {
 
           if (snapshot.hasError) {
             return Center(
-              child: Text('Unable to load payables and receivables.'),
+              child: Text(
+                LocalizationService.instance.t(
+                  'unable_to_load_payables_and_receivables',
+                ),
+              ),
             );
           }
 
@@ -95,7 +100,7 @@ class _PayReceiveScreenState extends State<PayReceiveScreen> {
                   children: [
                     Expanded(
                       child: _summaryCard(
-                        title: 'Total Receivables',
+                        title: LocalizationService.instance.t('total_receivables'),
                         amount: receivables,
                         color: Colors.green,
                         icon: Icons.south_west,
@@ -104,7 +109,7 @@ class _PayReceiveScreenState extends State<PayReceiveScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: _summaryCard(
-                        title: 'Total Payables',
+                        title: LocalizationService.instance.t('total_payables'),
                         amount: payables,
                         color: Colors.red,
                         icon: Icons.north_east,
@@ -114,22 +119,32 @@ class _PayReceiveScreenState extends State<PayReceiveScreen> {
                 ),
                 const SizedBox(height: 24),
                 if (entries.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 40),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 40),
                     child: Center(
-                      child: Text('No pending payables or receivables.'),
+                      child: Text(
+                        LocalizationService.instance.t(
+                          'no_pending_payables_or_receivables',
+                        ),
+                      ),
                     ),
                   )
                 else ...[
                   if (groupedReceivables.isNotEmpty) ...[
-                    _sectionTitle('To Take', Colors.green),
+                    _sectionTitle(
+                      LocalizationService.instance.t('to_take'),
+                      Colors.green,
+                    ),
                     ...groupedReceivables.map(
                       (account) => _accountTile(account, isReceivable: true),
                     ),
                   ],
                   if (groupedPayables.isNotEmpty) ...[
                     const SizedBox(height: 12),
-                    _sectionTitle('To Pay', Colors.red),
+                    _sectionTitle(
+                      LocalizationService.instance.t('to_pay'),
+                      Colors.red,
+                    ),
                     ...groupedPayables.map(
                       (account) => _accountTile(account, isReceivable: false),
                     ),

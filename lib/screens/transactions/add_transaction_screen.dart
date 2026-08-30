@@ -311,14 +311,19 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     // Safety check: if in edit mode, ensure we have a valid transaction ID
     if (isEditMode && (widget.transactionId == null || widget.transactionId! <= 0)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error: Invalid transaction ID for edit mode'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(LocalizationService.instance.t('error_invalid_transaction_id')),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
 
     if (selectedFromAccount == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select source account')),
+        SnackBar(
+          content: Text(LocalizationService.instance.t('please_select_source_account')),
+        ),
       );
       return;
     }
@@ -334,7 +339,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     if (selectedFromAccount!.accountId == cashAccountId) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a non-cash source account')),
+        SnackBar(
+          content: Text(
+            LocalizationService.instance.t('please_select_non_cash_source_account'),
+          ),
+        ),
       );
       return;
     }
@@ -420,7 +429,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isEditMode ? 'Transaction updated successfully!' : 'Transaction saved successfully!'),
+          content: Text(
+            isEditMode
+                ? LocalizationService.instance.t('transaction_updated_successfully')
+                : LocalizationService.instance.t('transaction_saved_successfully'),
+          ),
           backgroundColor: Colors.green,
         ),
       );
@@ -442,7 +455,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     return Scaffold(
       resizeToAvoidBottomInset: true, // Let Scaffold automatically handle view insets
       appBar: AppBar(
-        title: Text(isEditMode ? 'Edit Transaction' : 'Add Transaction'),
+        title: Text(
+          isEditMode
+              ? LocalizationService.instance.t('edit_transaction')
+              : LocalizationService.instance.t('add_transaction'),
+        ),
       ),
       body: SafeArea(
         // Removed AnimatedPadding with MediaQuery viewInsets bottom
@@ -461,10 +478,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         accounts.any((account) => account.accountId == selectedFromAccount!.accountId))
                     ? selectedFromAccount
                     : null,
-                decoration: const InputDecoration(
-                  labelText: 'From Account (Source)',
-                  border: OutlineInputBorder(),
-                  hintText: 'Select source account',
+                decoration: InputDecoration(
+                  labelText: LocalizationService.instance.t('from_account_source'),
+                  border: const OutlineInputBorder(),
+                  hintText: LocalizationService.instance.t('select_source_account'),
                 ),
                 items: accounts.map((account) {
                   return DropdownMenuItem(
@@ -477,7 +494,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     selectedFromAccount = value;
                   });
                 },
-                validator: (value) => value == null ? 'Please select a source account' : null,
+                validator: (value) =>
+                    value == null
+                        ? LocalizationService.instance.t('please_select_source_account')
+                        : null,
               ),
               const SizedBox(height: 15),
 
@@ -486,9 +506,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               // =====================
               // DEBIT/CREDIT SELECTOR (MOVED BEFORE AMOUNT)
               // =====================
-              const Text(
-                'Money Direction',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              Text(
+                LocalizationService.instance.t('money_direction'),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
               Container(
@@ -512,12 +532,15 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
+                              children: [
                                 Text(
-                                  'Debit (Money Out)',
-                                  style: TextStyle(fontWeight: FontWeight.w600, color: Colors.red),
+                                  LocalizationService.instance.t('debit_money_out'),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.red,
+                                  ),
                                 ),
-                                Text(
+                                const Text(
                                   'Debit کرو - پیسے نکالیں',
                                   style: TextStyle(fontSize: 12, color: Colors.grey),
                                 ),
@@ -540,12 +563,15 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
+                              children: [
                                 Text(
-                                  'Credit (Money In)',
-                                  style: TextStyle(fontWeight: FontWeight.w600, color: Colors.green),
+                                  LocalizationService.instance.t('credit_money_in'),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.green,
+                                  ),
                                 ),
-                                Text(
+                                const Text(
                                   'Credit کرو - پیسے جمع کریں',
                                   style: TextStyle(fontSize: 12, color: Colors.grey),
                                 ),
@@ -570,13 +596,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   textAlignVertical: TextAlignVertical.center,
                   textInputAction: TextInputAction.next,
                   scrollPadding: const EdgeInsets.only(bottom: 240), // Increased to give comfortable separation from keyboard
-                  decoration: const InputDecoration(
-                    labelText: 'Amount',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: LocalizationService.instance.t('amount'),
+                    border: const OutlineInputBorder(),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Enter amount';
+                      return LocalizationService.instance.t('enter_amount');
                     }
                     return null;
                   },
@@ -595,7 +621,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Date: ${_selectedDate.toString().split('.').first}'),
+                      Text(
+                        '${LocalizationService.instance.t('date')}: ${_selectedDate.toString().split('.').first}',
+                      ),
                       const Icon(Icons.calendar_today),
                     ],
                   ),
@@ -612,7 +640,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Due Date: ${_dueDate == null ? 'Optional' : _dueDate.toString().split(' ').first}'),
+                      Text(
+                        '${LocalizationService.instance.t('due_date_optional')}: ${_dueDate == null ? 'Optional' : _dueDate.toString().split(' ').first}',
+                      ),
                       const Icon(Icons.event_available),
                     ],
                   ),
@@ -626,20 +656,22 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   ElevatedButton.icon(
                     onPressed: _isUploadingImage ? null : _pickImage,
                     icon: const Icon(Icons.attach_file),
-                    label: _isUploadingImage ? const Text('Uploading...') : const Text('Attach Image'),
+                    label: _isUploadingImage
+                        ? Text(LocalizationService.instance.t('uploading'))
+                        : Text(LocalizationService.instance.t('attach_image')),
                   ),
                   const SizedBox(width: 12),
                   if (_isUploadingImage)
-                    const Expanded(
+                    Expanded(
                       child: Row(
                         children: [
-                          SizedBox(
+                          const SizedBox(
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           ),
-                          SizedBox(width: 8),
-                          Text('Uploading image...'),
+                          const SizedBox(width: 8),
+                          Text(LocalizationService.instance.t('uploading_image')),
                         ],
                       ),
                     )
@@ -659,7 +691,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                   return Container(
                                     height: 60,
                                     color: Colors.grey.shade300,
-                                    child: const Center(child: Text('Failed to load')),
+                                    child: Center(
+                                      child: Text(
+                                        LocalizationService.instance.t('failed_to_load'),
+                                      ),
+                                    ),
                                   );
                                 },
                               ),
@@ -711,9 +747,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   textAlignVertical: TextAlignVertical.top,
                   textInputAction: TextInputAction.newline,
                   scrollPadding: const EdgeInsets.only(bottom: 240), // Increased scroll margin
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: LocalizationService.instance.t('description'),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
               ),
@@ -724,9 +760,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               // =====================
               DropdownButtonFormField(
                 value: paymentMethod,
-                decoration: const InputDecoration(
-                  labelText: 'Payment Method',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: LocalizationService.instance.t('payment_method'),
+                  border: const OutlineInputBorder(),
                 ),
                 items: [
                   'Cash',
@@ -755,7 +791,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   onPressed: isLoading ? null : saveTransaction,
                   child: isLoading
                       ? const CircularProgressIndicator()
-                      : Text(isEditMode ? 'Update Transaction' : 'Save Transaction'),
+                      : Text(
+                          isEditMode
+                              ? LocalizationService.instance.t('update_transaction')
+                              : LocalizationService.instance.t('save_transaction'),
+                        ),
                 ),
               ),
             ],

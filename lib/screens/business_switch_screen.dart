@@ -163,17 +163,19 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
 
       // Success message show karwein
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Business deleted successfully'),
+        SnackBar(
+          content: Text(LocalizationService.instance.t('business_deleted_successfully')),
           backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
+          duration: const Duration(seconds: 2),
         ),
       );
     } catch (e, st) {
       debugPrint('Business delete error: $e\n$st');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
+        SnackBar(
+          content: Text('${LocalizationService.instance.t('error')}: ${e.toString()}'),
+        ),
       );
     }
   }
@@ -183,7 +185,7 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: const Text('Switch Business'),
+        title: Text(LocalizationService.instance.t('switch_business')),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -201,9 +203,9 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                const Text(
-                  'Your Businesses',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                Text(
+                  LocalizationService.instance.t('your_businesses'),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 12),
                 if (businesses.isEmpty)
@@ -213,7 +215,11 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: const Text('No business found. Add your first business below.'),
+                    child: Text(
+                      LocalizationService.instance.t(
+                        'no_business_found_add_first_business',
+                      ),
+                    ),
                   )
                 else
                   ...businesses.map((business) {
@@ -229,7 +235,9 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
                           ),
                         ),
                         title: Text(business.name),
-                        subtitle: Text('${business.type}${isCurrent ? ' • Current' : ''}'),
+                        subtitle: Text(
+                          '${business.type}${isCurrent ? ' • ${LocalizationService.instance.t('current')}' : ''}',
+                        ),
                         trailing: PopupMenuButton<String>(
                           onSelected: (value) {
                             if (value == 'open') {
@@ -238,14 +246,14 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
                               _deleteBusiness(business);
                             }
                           },
-                          itemBuilder: (context) => const [
+                          itemBuilder: (context) => [
                             PopupMenuItem<String>(
                               value: 'open',
                               child: Row(
                                 children: [
-                                  Icon(Icons.open_in_new, size: 18),
-                                  SizedBox(width: 8),
-                                  Text('Open'),
+                                  const Icon(Icons.open_in_new, size: 18),
+                                  const SizedBox(width: 8),
+                                  Text(LocalizationService.instance.t('open')),
                                 ],
                               ),
                             ),
@@ -253,9 +261,12 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
                               value: 'delete',
                               child: Row(
                                 children: [
-                                  Icon(Icons.delete, size: 18, color: Colors.red),
-                                  SizedBox(width: 8),
-                                  Text('Delete', style: TextStyle(color: Colors.red)),
+                                  const Icon(Icons.delete, size: 18, color: Colors.red),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    LocalizationService.instance.t('delete'),
+                                    style: const TextStyle(color: Colors.red),
+                                  ),
                                 ],
                               ),
                             ),
@@ -271,7 +282,7 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
                   child: ElevatedButton.icon(
                     onPressed: _addNewBusiness,
                     icon: const Icon(Icons.add_business_outlined),
-                    label: const Text('Add New Business'),
+                    label: Text(LocalizationService.instance.t('add_new_business')),
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),

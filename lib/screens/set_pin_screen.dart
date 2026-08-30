@@ -15,15 +15,18 @@ class SetPinScreen extends StatefulWidget {
 }
 
 class _SetPinScreenState extends State<SetPinScreen> {
+  final _currentPinController = TextEditingController();
   final _pinController = TextEditingController();
   final _confirmPinController = TextEditingController();
   final _businessService = BusinessService();
   bool _isLoading = false;
+  bool _showCurrentPin = false;
   bool _showPin = false;
   bool _showConfirmPin = false;
 
   @override
   void dispose() {
+    _currentPinController.dispose();
     _pinController.dispose();
     _confirmPinController.dispose();
     super.dispose();
@@ -31,6 +34,37 @@ class _SetPinScreenState extends State<SetPinScreen> {
 
   Future<void> _setPin() async {
     final localization = LocalizationService.instance;
+
+    if (_currentPinController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid current PIN'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_currentPinController.text.length != 4) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid current PIN'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final storedPin = (widget.business.pin ?? '').trim();
+    if (storedPin.isNotEmpty && _currentPinController.text.trim() != storedPin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid current PIN'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     if (_pinController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -155,6 +189,62 @@ class _SetPinScreenState extends State<SetPinScreen> {
                     style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                   ),
                   const SizedBox(height: 32),
+
+                  // Current PIN
+                  Text(
+                    'Current PIN',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _currentPinController,
+                    enabled: !_isLoading,
+                    obscureText: !_showCurrentPin,
+                    keyboardType: TextInputType.number,
+                    maxLength: 4,
+                    decoration: InputDecoration(
+                      hintText: 'Enter current PIN',
+                      hintStyle: TextStyle(color: Colors.grey.shade400),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: AppColors.primary,
+                          width: 2,
+                        ),
+                      ),
+                      suffixIcon: Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: IconButton(
+                          icon: Icon(
+                            _showCurrentPin ? Icons.visibility : Icons.visibility_off,
+                            color: Colors.grey.shade600,
+                          ),
+                          onPressed: () {
+                            setState(() => _showCurrentPin = !_showCurrentPin);
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
 
                   // Enter PIN
                   Text(
@@ -295,9 +385,9 @@ class _SetPinScreenState extends State<SetPinScreen> {
                                 ),
                               ),
                             )
-                          : Text(
-                              localization.t('sign_up'),
-                              style: const TextStyle(
+                          : const Text(
+                              'Save',
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                               ),
