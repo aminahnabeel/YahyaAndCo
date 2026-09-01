@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/localization_service.dart';
 import '../services/business_service.dart';
@@ -34,35 +35,58 @@ class _SetPinScreenState extends State<SetPinScreen> {
 
   Future<void> _setPin() async {
     final localization = LocalizationService.instance;
+    final enteredPassword = _currentPinController.text.trim();
 
-    if (_currentPinController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Invalid current PIN'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    if (enteredPassword.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password incorrect'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
       return;
     }
 
-    if (_currentPinController.text.length != 4) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Invalid current PIN'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.email == null || user.email!.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please log in again'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
       return;
     }
 
-    final storedPin = (widget.business.pin ?? '').trim();
-    if (storedPin.isNotEmpty && _currentPinController.text.trim() != storedPin) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Invalid current PIN'),
-          backgroundColor: Colors.red,
-        ),
+    try {
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: enteredPassword,
       );
+      await user.reauthenticateWithCredential(credential);
+    } on FirebaseAuthException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password incorrect'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password incorrect'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
       return;
     }
 
@@ -190,9 +214,9 @@ class _SetPinScreenState extends State<SetPinScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // Current PIN
+                  // Login Password
                   Text(
-                    'Current PIN',
+                    'Login Password',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -204,10 +228,9 @@ class _SetPinScreenState extends State<SetPinScreen> {
                     controller: _currentPinController,
                     enabled: !_isLoading,
                     obscureText: !_showCurrentPin,
-                    keyboardType: TextInputType.number,
-                    maxLength: 4,
+                    keyboardType: TextInputType.visiblePassword,
                     decoration: InputDecoration(
-                      hintText: 'Enter current PIN',
+                      hintText: 'Enter your login password',
                       hintStyle: TextStyle(color: Colors.grey.shade400),
                       filled: true,
                       fillColor: Colors.grey.shade50,
