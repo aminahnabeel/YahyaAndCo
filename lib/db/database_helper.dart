@@ -1,5 +1,6 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/account_model.dart';
 import '../models/business_model.dart';
@@ -34,7 +35,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 7,
+      version: 8,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -42,7 +43,12 @@ class DatabaseHelper {
       onUpgrade: onUpgrade,
       onOpen: (db) async {
         // Repair columns that may be missing from databases created by older builds.
-        await _addColumnIfMissing(db, 'transactions', 'to_account_id', 'INTEGER');
+        await _addColumnIfMissing(
+          db,
+          'transactions',
+          'to_account_id',
+          'INTEGER',
+        );
       },
     );
   }
@@ -112,6 +118,10 @@ class DatabaseHelper {
       // Ensure reminders table exists for older DB versions
       await _createRemindersTable(db);
     }
+
+    if (oldVersion < 8) {
+      await _addColumnIfMissing(db, 'business', 'owner_uid', 'TEXT');
+    }
   }
 
   Future<void> _addColumnIfMissing(
@@ -174,6 +184,8 @@ class DatabaseHelper {
       PRIMARY KEY AUTOINCREMENT,
 
       firestore_id TEXT UNIQUE,
+
+      owner_uid TEXT,
 
       name TEXT,
 
@@ -633,10 +645,13 @@ class DatabaseHelper {
 
   Future<List<BusinessModel>> getBusinesses() async {
     final db = await database;
+    final ownerUid = FirebaseAuth.instance.currentUser?.uid;
+    if (ownerUid == null) return const <BusinessModel>[];
 
     final List<Map<String, dynamic>> maps = await db.query(
       'business',
-
+      where: 'owner_uid = ?',
+      whereArgs: [ownerUid],
       orderBy: 'business_id DESC',
     );
 
@@ -647,11 +662,13 @@ class DatabaseHelper {
 
   Future<BusinessModel?> getBusinessById(int businessId) async {
     final db = await database;
+    final ownerUid = FirebaseAuth.instance.currentUser?.uid;
+    if (ownerUid == null) return null;
 
     final List<Map<String, dynamic>> maps = await db.query(
       'business',
-      where: 'business_id = ?',
-      whereArgs: [businessId],
+      where: 'business_id = ? AND owner_uid = ?',
+      whereArgs: [businessId, ownerUid],
       limit: 1,
     );
 
@@ -662,9 +679,13 @@ class DatabaseHelper {
 
   Future<BusinessModel?> getLatestBusiness() async {
     final db = await database;
+    final ownerUid = FirebaseAuth.instance.currentUser?.uid;
+    if (ownerUid == null) return null;
 
     final List<Map<String, dynamic>> maps = await db.query(
       'business',
+      where: 'owner_uid = ?',
+      whereArgs: [ownerUid],
       orderBy: 'business_id DESC',
       limit: 1,
     );
@@ -676,11 +697,15 @@ class DatabaseHelper {
 
   Future updateBusiness(BusinessModel business) async {
     final db = await database;
+    final map = business.toMap()..remove('business_id');
+    if (business.ownerUid == null) {
+      map.remove('owner_uid');
+    }
 
     await db.update(
       'business',
 
-      business.toMap(),
+      map,
 
       where: 'business_id = ?',
 
@@ -694,7 +719,8 @@ class DatabaseHelper {
     await db.transaction((transaction) async {
       await transaction.delete(
         'journal_lines',
-        where: 'journal_id IN (SELECT journal_id FROM journal_entry WHERE business_id = ?)',
+        where:
+            'journal_id IN (SELECT journal_id FROM journal_entry WHERE business_id = ?)',
         whereArgs: [businessId],
       );
       await transaction.delete(
@@ -1253,8 +1279,7 @@ class DatabaseHelper {
       INNER JOIN accounts ON accounts.account_id = journal_lines.account_id
       WHERE journal_entry.business_id = ?
       GROUP BY journal_entry.journal_id
-      ORDER BY journal_entry.date DESC,
-        journal_entry.created_at DESC,
+      ORDER BY journal_entry.created_at DESC,
         journal_entry.journal_id DESC
       ''',
       [businessId],

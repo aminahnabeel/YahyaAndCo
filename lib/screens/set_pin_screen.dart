@@ -1,10 +1,8 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/localization_service.dart';
-import '../services/business_service.dart';
 import '../models/business_model.dart';
 import '../theme.dart';
-import 'enter_pin_screen.dart';
+import 'confirm_pin_screen.dart';
 
 class SetPinScreen extends StatefulWidget {
   final BusinessModel business;
@@ -16,166 +14,60 @@ class SetPinScreen extends StatefulWidget {
 }
 
 class _SetPinScreenState extends State<SetPinScreen> {
-  final _currentPinController = TextEditingController();
   final _pinController = TextEditingController();
-  final _confirmPinController = TextEditingController();
-  final _businessService = BusinessService();
-  bool _isLoading = false;
-  bool _showCurrentPin = false;
+  final _pinFocus = FocusNode();
   bool _showPin = false;
-  bool _showConfirmPin = false;
+  final List<bool> _pinDots = [false, false, false, false];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _pinFocus.requestFocus();
+    });
+  }
 
   @override
   void dispose() {
-    _currentPinController.dispose();
     _pinController.dispose();
-    _confirmPinController.dispose();
+    _pinFocus.dispose();
     super.dispose();
+  }
+
+  void _updatePinDots(String value) {
+    setState(() {
+      for (var index = 0; index < 4; index++) {
+        _pinDots[index] = index < value.length;
+      }
+    });
   }
 
   Future<void> _setPin() async {
     final localization = LocalizationService.instance;
-    final enteredPassword = _currentPinController.text.trim();
-
-    if (enteredPassword.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Password incorrect'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    final pin = _pinController.text.trim();
+    if (pin.isEmpty) {
+      _showError(localization.t('please_enter_pin'));
       return;
     }
 
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null || user.email == null || user.email!.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please log in again'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    if (pin.length != 4) {
+      _showError(localization.t('pin_too_short'));
       return;
     }
 
-    try {
-      final credential = EmailAuthProvider.credential(
-        email: user.email!,
-        password: enteredPassword,
-      );
-      await user.reauthenticateWithCredential(credential);
-    } on FirebaseAuthException {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Password incorrect'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return;
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Password incorrect'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return;
-    }
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => ConfirmPinScreen(business: widget.business, pin: pin),
+      ),
+    );
+  }
 
-    if (_pinController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(localization.t('please_enter_pin')),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    if (_pinController.text.length != 4) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(localization.t('pin_too_short')),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    if (_confirmPinController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(localization.t('please_enter_pin')),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    if (_pinController.text != _confirmPinController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(localization.t('pins_dont_match')),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      widget.business.pin = _pinController.text.trim();
-      final int businessId;
-
-      if (widget.business.businessId == null) {
-        businessId = await _businessService.createBusiness(widget.business);
-      } else {
-        await _businessService.updateBusiness(widget.business);
-        businessId = widget.business.businessId!;
-      }
-
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(localization.t('pin_set_success')),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // Navigate to Enter PIN screen after 1 second
-        await Future.delayed(const Duration(seconds: 1));
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => EnterPinScreen(businessId: businessId),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   @override
@@ -194,105 +86,98 @@ class _SetPinScreenState extends State<SetPinScreen> {
           ),
           body: SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 40),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header
                   Text(
-                    localization.t('set_pin'),
+                    'Create 4-digit PIN',
                     style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 29,
+                      fontWeight: FontWeight.w800,
                       color: AppColors.primary,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    localization.t('secure_your_account'),
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Login Password
-                  Text(
-                    'Login Password',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Create a PIN to login to your business',
+                    style: TextStyle(
+                      fontSize: 15,
+                      height: 1.5,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.15,
+                      color: AppColors.muted,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _currentPinController,
-                    enabled: !_isLoading,
-                    obscureText: !_showCurrentPin,
-                    keyboardType: TextInputType.visiblePassword,
-                    decoration: InputDecoration(
-                      hintText: 'Enter your login password',
-                      hintStyle: TextStyle(color: Colors.grey.shade400),
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
+                  const SizedBox(height: 36),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.10),
                       ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: AppColors.primary,
-                          width: 2,
-                        ),
-                      ),
-                      suffixIcon: Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: IconButton(
-                          icon: Icon(
-                            _showCurrentPin ? Icons.visibility : Icons.visibility_off,
-                            color: Colors.grey.shade600,
+                    ),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'Your PIN',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                            color: AppColors.muted,
                           ),
-                          onPressed: () {
-                            setState(() => _showCurrentPin = !_showCurrentPin);
-                          },
                         ),
-                      ),
+                        const SizedBox(height: 14),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(
+                            4,
+                            (index) => Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                width: 16,
+                                height: 16,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: _pinDots[index]
+                                      ? AppColors.primary
+                                      : Colors.grey.shade300,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 24),
-
-                  // Enter PIN
-                  Text(
-                    localization.t('enter_pin'),
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
                   TextField(
                     controller: _pinController,
-                    enabled: !_isLoading,
+                    focusNode: _pinFocus,
                     obscureText: !_showPin,
                     keyboardType: TextInputType.number,
                     maxLength: 4,
+                    textAlign: TextAlign.center,
+                    onChanged: _updatePinDots,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      letterSpacing: 8,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
                     decoration: InputDecoration(
-                      hintText: localization.t('pin_hint'),
+                      hintText: 'Enter PIN',
                       hintStyle: TextStyle(color: Colors.grey.shade400),
                       filled: true,
-                      fillColor: Colors.grey.shade50,
+                      fillColor: Colors.white,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
-                        vertical: 14,
+                        vertical: 16,
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -308,6 +193,10 @@ class _SetPinScreenState extends State<SetPinScreen> {
                           color: AppColors.primary,
                           width: 2,
                         ),
+                      ),
+                      disabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
                       ),
                       suffixIcon: Padding(
                         padding: const EdgeInsets.only(right: 8),
@@ -321,73 +210,17 @@ class _SetPinScreenState extends State<SetPinScreen> {
                           },
                         ),
                       ),
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      counterText: '',
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
 
-                  // Confirm PIN
-                  Text(
-                    localization.t('confirm_pin'),
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _confirmPinController,
-                    enabled: !_isLoading,
-                    obscureText: !_showConfirmPin,
-                    keyboardType: TextInputType.number,
-                    maxLength: 4,
-                    decoration: InputDecoration(
-                      hintText: localization.t('confirm_pin_hint'),
-                      hintStyle: TextStyle(color: Colors.grey.shade400),
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: AppColors.primary,
-                          width: 2,
-                        ),
-                      ),
-                      suffixIcon: Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: IconButton(
-                          icon: Icon(
-                            _showConfirmPin
-                                ? Icons.visibility
-                                : Icons.visibility_off,
-                            color: Colors.grey.shade600,
-                          ),
-                          onPressed: () {
-                            setState(() => _showConfirmPin = !_showConfirmPin);
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 48),
-
-                  // SignUp Button
+                  const SizedBox(height: 4),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: _isLoading ? null : _setPin,
+                      onPressed: _setPin,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         disabledBackgroundColor: Colors.grey.shade400,
@@ -396,25 +229,15 @@ class _SetPinScreenState extends State<SetPinScreen> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
+                        elevation: 0,
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
-                              ),
-                            )
-                          : const Text(
-                              'Save',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                      child: const Text(
+                        'Save',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
                 ],

@@ -30,7 +30,7 @@ class RestoreService {
     final rootBusinessDocs = rootDocs.docs.where((doc) {
       final data = doc.data();
       final ownerUid = data['owner_uid'];
-      return ownerUid == null || ownerUid == user.uid;
+      return ownerUid == user.uid;
     }).toList();
 
     if (rootBusinessDocs.isNotEmpty) {
@@ -73,6 +73,7 @@ class RestoreService {
             BusinessModel(
               businessId: null,
               firestoreId: businessId,
+              ownerUid: user.uid,
               name: (businessData['name'] ?? 'Business').toString(),
               type: (businessData['type'] ?? 'General').toString(),
               pin: businessData['pin']?.toString(),

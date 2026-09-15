@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../db/database_helper.dart';
 import '../services/localization_service.dart';
 import 'dashboard/dashboard_screen.dart';
-import 'set_pin_screen.dart';
+import 'reset_pin_screen.dart';
 import '../theme.dart';
 
 class EnterPinScreen extends StatefulWidget {
@@ -204,11 +204,11 @@ class _EnterPinScreenState extends State<EnterPinScreen> {
                       child: ElevatedButton(
                         onPressed: () async {
                           Navigator.pop(dialogContext);
-                          final business = await DatabaseHelper.instance.getBusinessById(widget.businessId);
+                            final business = await DatabaseHelper.instance.getBusinessById(widget.businessId);
                           if (!mounted || business == null) return;
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => SetPinScreen(business: business),
+                                builder: (_) => ResetPinScreen(business: business),
                             ),
                           );
                         },

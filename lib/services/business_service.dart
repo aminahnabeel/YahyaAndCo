@@ -1,5 +1,6 @@
 import '../db/database_helper.dart';
 import '../models/business_model.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'firestore_service.dart';
 import 'sync_service.dart';
 
@@ -12,8 +13,21 @@ class BusinessService {
   // =========================
 
   Future<int> createBusiness(BusinessModel business) async {
+    final ownerUid = FirebaseAuth.instance.currentUser?.uid;
+    final ownedBusiness = BusinessModel(
+      businessId: business.businessId,
+      firestoreId: business.firestoreId,
+      ownerUid: ownerUid,
+      name: business.name,
+      type: business.type,
+      pin: business.pin,
+      createdAt: business.createdAt,
+    );
+
     // Step 1: Create in SQLite
-    final businessId = await DatabaseHelper.instance.insertBusiness(business);
+    final businessId = await DatabaseHelper.instance.insertBusiness(
+      ownedBusiness,
+    );
 
     // Step 2: Create in Firestore and capture the document ID
     if (_syncService.isConnected && _firestoreService.isUserLoggedIn()) {
@@ -34,10 +48,11 @@ class BusinessService {
           final updatedBusiness = BusinessModel(
             businessId: businessId,
             firestoreId: firestoreDocId, // ✅ Store the Firestore ID
-            name: business.name,
-            type: business.type,
-            pin: business.pin,
-            createdAt: business.createdAt,
+            ownerUid: ownerUid,
+            name: ownedBusiness.name,
+            type: ownedBusiness.type,
+            pin: ownedBusiness.pin,
+            createdAt: ownedBusiness.createdAt,
           );
 
           await DatabaseHelper.instance.updateBusiness(updatedBusiness);
