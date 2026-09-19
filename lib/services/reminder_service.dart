@@ -2,6 +2,7 @@ import '../db/database_helper.dart';
 import '../models/business_model.dart';
 import '../models/reminder_model.dart';
 import 'firestore_service.dart';
+import 'app_notification_manager.dart';
 
 class ReminderService {
   final DatabaseHelper _database = DatabaseHelper.instance;
@@ -70,10 +71,26 @@ class ReminderService {
       final recordType = (row['record_type'] ?? '').toString().toLowerCase();
       final recordId = row['record_id']?.toString() ?? '';
       final voucherNo = (row['voucher_no'] ?? '').toString().trim();
-      final key = recordId.isNotEmpty
-          ? '$recordType:$recordId'
-          : '$recordType:$voucherNo';
-      uniqueRows.putIfAbsent(key, () => row);
+      final key = voucherNo.isNotEmpty
+          ? 'voucher:$voucherNo'
+          : recordId.isNotEmpty
+              ? '$recordType:$recordId'
+              : '$recordType:${row['source_table'] ?? 'unknown'}';
+
+      final current = uniqueRows[key];
+      if (current == null) {
+        uniqueRows[key] = row;
+        continue;
+      }
+
+      final currentType = (current['record_type'] ?? '').toString().toLowerCase();
+      final incomingType = recordType;
+      final preferIncoming = incomingType == 'transaction' &&
+          currentType != 'transaction';
+
+      if (preferIncoming) {
+        uniqueRows[key] = row;
+      }
     }
     return uniqueRows.values.toList();
   }
@@ -95,6 +112,15 @@ class ReminderService {
       limit: 1,
     );
     if (rows.isEmpty) return;
+
+    try {
+      await AppNotificationManager.instance.cancelPaymentReminders(
+        recordType: table == 'transactions' ? 'transaction' : 'journal',
+        recordId: recordId,
+      );
+    } catch (e) {
+      print('Notification cancellation failed for paid entry: $e');
+    }
 
     final businessId = (rows.first['business_id'] as num).toInt();
     await db.update(
@@ -142,6 +168,16 @@ class ReminderService {
           recordId,
         );
         if (linkedJournal?.journalId != null) {
+          try {
+            await AppNotificationManager.instance.cancelPaymentReminders(
+              recordType: 'journal',
+              recordId: linkedJournal!.journalId!,
+            );
+          } catch (e) {
+            print('Linked journal notification cancellation failed: $e');
+          }
+        }
+        if (linkedJournal?.journalId != null) {
           final firestoreJournalId = await _database.getJournalFirestoreId(
             linkedJournal!.journalId!,
           );
@@ -158,6 +194,17 @@ class ReminderService {
         final firestoreJournalId = await _database.getJournalFirestoreId(
           recordId,
         );
+        final transactionId = (rows.first['transaction_id'] as num?)?.toInt();
+        if (transactionId != null) {
+          try {
+            await AppNotificationManager.instance.cancelPaymentReminders(
+              recordType: 'transaction',
+              recordId: transactionId,
+            );
+          } catch (e) {
+            print('Linked transaction notification cancellation failed: $e');
+          }
+        }
         if (firestoreJournalId != null) {
           await _firestoreService.updateJournalPaymentStatus(
             businessId: firestoreBusinessId,
@@ -167,7 +214,6 @@ class ReminderService {
           );
         }
 
-        final transactionId = (rows.first['transaction_id'] as num?)?.toInt();
         if (transactionId != null) {
           final firestoreTransactionId = await _database
               .getTransactionFirestoreId(transactionId);
@@ -183,7 +229,8 @@ class ReminderService {
       }
     }
 
-    await refreshReminders(businessId);
+    // Fire-and-forget: don't block mark-as-paid on reminder sync
+    refreshReminders(businessId);
   }
 
   ReminderModel _fromSourceRow(Map<String, dynamic> row, int businessId) {

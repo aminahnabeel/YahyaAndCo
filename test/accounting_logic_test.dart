@@ -48,5 +48,28 @@ void main() {
 
       expect((totalTbDebit - totalTbCredit).abs() < 0.01, isTrue);
     });
+
+    test('voucher numbers continue per business and ignore other businesses', () {
+      final rows = [
+        {'business_id': 1, 'voucher_type': 'JV', 'voucher_no': 'JV-1'},
+        {'business_id': 1, 'voucher_type': 'JV', 'voucher_no': 'JV-2'},
+        {'business_id': 2, 'voucher_type': 'JV', 'voucher_no': 'JV-9'},
+        {'business_id': 1, 'voucher_type': 'CP', 'voucher_no': 'CP-3'},
+        {'business_id': 2, 'voucher_type': 'CP', 'voucher_no': 'CP-8'},
+      ];
+
+      expect(
+        AccountingService.nextVoucherNumberForBusiness(rows, 1, 'JV'),
+        3,
+      );
+      expect(
+        AccountingService.nextVoucherNumberForBusiness(rows, 1, 'CP'),
+        4,
+      );
+      expect(
+        AccountingService.nextVoucherNumberForBusiness(rows, 2, 'JV'),
+        10,
+      );
+    });
   });
 }

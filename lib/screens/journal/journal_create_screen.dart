@@ -6,6 +6,7 @@ import '../../models/journal_entry_model.dart';
 import '../../models/journal_line_model.dart';
 import '../../services/account_service.dart';
 import '../../services/accounting_service.dart';
+import '../../services/app_notification_manager.dart';
 import '../../services/journal_service.dart';
 import '../../services/image_upload_service.dart';
 import '../../services/localization_service.dart';
@@ -205,9 +206,9 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
 
   Future<String> _generateVoucherNo() {
     if (_voucherType == 'CP') {
-      return _accountingService.generateCashVoucher();
+      return _accountingService.generateCashVoucher(widget.businessId);
     }
-    return _accountingService.generateJournalVoucher();
+    return _accountingService.generateJournalVoucher(widget.businessId);
   }
 
   Future<void> _switchVoucherType(String type) async {
@@ -461,6 +462,7 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
         createdAt: DateTime.now().toIso8601String(),
       );
 
+      var savedJournalId = widget.journalId;
       if (_isEditMode && widget.journalId != null) {
         // Update existing journal entry
         await _accountingService.updateCompleteJournal(
@@ -470,10 +472,43 @@ class _JournalCreateScreenState extends State<JournalCreateScreen> {
         );
       } else {
         // Create new journal entry
-        await _accountingService.createCompleteJournal(
+        savedJournalId = await _accountingService.createCompleteJournal(
           journalEntry: journalEntry,
           journalLines: journalLines,
         );
+      }
+
+      final accountName = _rows
+          .map((row) => row.account?.name)
+          .whereType<String>()
+          .toSet()
+          .join(', ');
+      try {
+        if (!_isEditMode) {
+          await AppNotificationManager.instance.showSaveSuccessNotification(
+            voucherNo: journalEntry.voucherNo,
+            amount: totalDebit,
+            accountName: accountName.isEmpty ? 'Account' : accountName,
+          );
+        }
+      } catch (e) {
+        print('Success notification failed after journal save: $e');
+      }
+
+      try {
+        if (savedJournalId != null) {
+          await AppNotificationManager.instance.schedulePaymentReminders(
+            recordType: 'journal',
+            recordId: savedJournalId,
+            voucherNo: journalEntry.voucherNo,
+            amount: totalDebit,
+            accountName: accountName.isEmpty ? 'Account' : accountName,
+            dueDate: journalEntry.dueDate,
+            paymentStatus: journalEntry.paymentStatus,
+          );
+        }
+      } catch (e) {
+        print('Reminder scheduling failed after journal save: $e');
       }
 
       if (!mounted) return;

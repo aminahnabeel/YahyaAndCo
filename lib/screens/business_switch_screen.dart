@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../db/database_helper.dart';
 import '../models/business_model.dart';
 import '../services/business_service.dart';
 import '../services/localization_service.dart';
+import '../services/restore_service.dart';
 import '../theme.dart';
 import 'business_details.dart';
 import 'dashboard/dashboard_screen.dart';
@@ -33,15 +35,22 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
 
     if (business.pin != null && business.pin!.isNotEmpty) {
       if (!mounted) return;
+      if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
-          builder: (_) => EnterPinScreen(businessId: businessId),
+          builder: (_) => EnterPinScreen(
+            businessId: businessId,
+            currentBusinessId: widget.currentBusinessId,
+          ),
         ),
         (route) => false,
       );
       return;
     }
 
+    if (!mounted) return;
+    await _prepareBusinessSwitch(business);
+    if (!mounted) return;
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
@@ -52,6 +61,21 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
       ),
       (route) => false,
     );
+  }
+
+  Future<void> _prepareBusinessSwitch(BusinessModel business) async {
+    if (business.businessId == null ||
+        business.businessId == widget.currentBusinessId) {
+      return;
+    }
+
+    await DatabaseHelper.instance.clearAllBusinessOperationalData();
+
+    if (business.firestoreId != null) {
+      await RestoreService().restoreUserDataOnLogin(
+        businessFirestoreId: business.firestoreId,
+      );
+    }
   }
 
   void _addNewBusiness() {

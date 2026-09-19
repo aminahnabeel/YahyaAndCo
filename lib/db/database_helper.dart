@@ -431,7 +431,7 @@ class DatabaseHelper {
           t.transaction_id AS transaction_id,
           NULL AS journal_id,
           t.account_id AS account_id,
-          COALESCE(je.voucher_no, 'TX-' || t.transaction_id) AS voucher_no,
+          COALESCE(je.voucher_no, 'TXN-' || t.transaction_id) AS voucher_no,
           t.amount AS amount,
           t.remaining_amount AS remaining_amount,
           t.due_date AS due_date,
@@ -469,7 +469,7 @@ class DatabaseHelper {
         FROM journal_entry je
         LEFT JOIN journal_lines jl ON jl.journal_id = je.journal_id
         LEFT JOIN accounts a ON a.account_id = jl.account_id
-        WHERE je.business_id = ?
+        WHERE je.business_id = ? AND je.transaction_id IS NULL
         GROUP BY je.journal_id
       )
       ORDER BY COALESCE(due_date, date) DESC, record_type ASC, record_id DESC
@@ -693,6 +693,140 @@ class DatabaseHelper {
     if (maps.isEmpty) return null;
 
     return BusinessModel.fromMap(maps.first);
+  }
+
+  Future<void> purgeOtherUsersLocalData(String currentUserUid) async {
+    final db = await database;
+
+    final staleBusinesses = await db.query(
+      'business',
+      columns: ['business_id'],
+      where: 'owner_uid IS NULL OR owner_uid != ?',
+      whereArgs: [currentUserUid],
+    );
+
+    if (staleBusinesses.isEmpty) return;
+
+    final staleBusinessIds = staleBusinesses
+        .map((row) => (row['business_id'] as num).toInt())
+        .toList();
+
+    final placeholders = staleBusinessIds.map((_) => '?').join(',');
+    final businessArgs = staleBusinessIds;
+
+    if (placeholders.isEmpty) return;
+
+    await db.delete(
+      'reminders',
+      where: 'business_id IN ($placeholders)',
+      whereArgs: businessArgs,
+    );
+
+    await db.rawDelete(
+      'DELETE FROM journal_lines WHERE journal_id IN (SELECT journal_id FROM journal_entry WHERE business_id IN ($placeholders))',
+      businessArgs,
+    );
+
+    await db.delete(
+      'transactions',
+      where: 'business_id IN ($placeholders)',
+      whereArgs: businessArgs,
+    );
+
+    await db.delete(
+      'journal_entry',
+      where: 'business_id IN ($placeholders)',
+      whereArgs: businessArgs,
+    );
+
+    await db.delete(
+      'accounts',
+      where: 'business_id IN ($placeholders)',
+      whereArgs: businessArgs,
+    );
+
+    await db.delete(
+      'business',
+      where: 'business_id IN ($placeholders)',
+      whereArgs: businessArgs,
+    );
+  }
+
+  Future<void> clearAllLocalData() async {
+    final db = await database;
+    await db.transaction((transaction) async {
+      await transaction.delete('journal_lines');
+      await transaction.delete('reminders');
+      await transaction.delete('transactions');
+      await transaction.delete('journal_entry');
+      await transaction.delete('accounts');
+      await transaction.delete('expense_categories');
+      await transaction.delete('notes');
+      await transaction.delete('business');
+      await transaction.delete('users');
+    });
+  }
+
+  Future<void> clearBusinessOperationalData(int businessId) async {
+    final db = await database;
+    await db.transaction((transaction) async {
+      await transaction.delete(
+        'journal_lines',
+        where:
+            'journal_id IN (SELECT journal_id FROM journal_entry WHERE business_id = ?)',
+        whereArgs: [businessId],
+      );
+      await transaction.delete(
+        'reminders',
+        where: 'business_id = ?',
+        whereArgs: [businessId],
+      );
+      await transaction.delete(
+        'transactions',
+        where: 'business_id = ?',
+        whereArgs: [businessId],
+      );
+      await transaction.delete(
+        'journal_entry',
+        where: 'business_id = ?',
+        whereArgs: [businessId],
+      );
+      await transaction.delete(
+        'accounts',
+        where: 'business_id = ?',
+        whereArgs: [businessId],
+      );
+      await transaction.delete(
+        'expense_categories',
+        where: 'business_id = ?',
+        whereArgs: [businessId],
+      );
+      await transaction.delete(
+        'notes',
+        where: 'business_id = ?',
+        whereArgs: [businessId],
+      );
+    });
+  }
+
+  Future<void> clearAllBusinessOperationalData() async {
+    final db = await database;
+    final businesses = await db.query(
+      'business',
+      columns: ['business_id'],
+    );
+
+    await db.transaction((transaction) async {
+      await transaction.delete('journal_lines');
+      await transaction.delete('reminders');
+      await transaction.delete('transactions');
+      await transaction.delete('journal_entry');
+      await transaction.delete('accounts');
+      await transaction.delete('expense_categories');
+      await transaction.delete('notes');
+    });
+
+    if (businesses.isEmpty) return;
   }
 
   Future updateBusiness(BusinessModel business) async {

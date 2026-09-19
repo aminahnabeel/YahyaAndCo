@@ -7,7 +7,7 @@ import 'db/database_helper.dart';
 import 'firebase_options.dart';
 import 'theme.dart';
 import 'splash_screen/logo_screen.dart';
-import 'services/notification_service.dart';
+import 'services/app_notification_manager.dart';
 import 'services/sync_service.dart';
 import 'services/localization_service.dart';
 import 'helpers/firebase_debug_helper.dart';
@@ -18,8 +18,7 @@ void main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // INITIALIZE NOTIFICATION SERVICE
-  await NotificationService().initialize();
+  await AppNotificationManager.instance.initialize();
 
   // INITIALIZE DATABASE
   unawaited(DatabaseHelper.instance.database);

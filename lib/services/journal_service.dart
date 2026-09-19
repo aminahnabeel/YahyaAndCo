@@ -3,6 +3,7 @@ import '../models/business_model.dart';
 import '../models/journal_entry_model.dart';
 import '../models/journal_line_model.dart';
 import 'firestore_service.dart';
+import 'app_notification_manager.dart';
 import 'reminder_service.dart';
 import 'sync_service.dart';
 
@@ -81,7 +82,8 @@ class JournalService {
       }
     }
 
-    await _reminderService.refreshReminders(businessId);
+    // Fire-and-forget: don't block journal save on reminder sync
+    _reminderService.refreshReminders(businessId);
     return journalId;
   }
 
@@ -137,7 +139,38 @@ class JournalService {
       operationName: 'Update Journal Entry',
     );
 
-    await _reminderService.refreshReminders(journal.businessId);
+    // Fire-and-forget: don't block journal update on reminder sync
+    _reminderService.refreshReminders(journal.businessId);
+    if (journal.journalId != null) {
+      try {
+        final lines = await getJournalLines(journal.journalId!);
+        final amount = lines.fold<double>(
+          0,
+          (sum, line) => sum + ((line['debit'] as num?)?.toDouble() ?? 0),
+        );
+        final accountNames = <String>[];
+        for (final line in lines) {
+          final account = await DatabaseHelper.instance.getAccountById(
+            (line['account_id'] as num).toInt(),
+          );
+          final accountName = account?.name;
+          if (accountName != null && !accountNames.contains(accountName)) {
+            accountNames.add(accountName);
+          }
+        }
+        await AppNotificationManager.instance.schedulePaymentReminders(
+          recordType: 'journal',
+          recordId: journal.journalId!,
+          voucherNo: journal.voucherNo,
+          amount: amount,
+          accountName: accountNames.join(', '),
+          dueDate: journal.dueDate,
+          paymentStatus: journal.paymentStatus,
+        );
+      } catch (e) {
+        print('Notification scheduling failed after journal update: $e');
+      }
+    }
   }
 
   // =========================
@@ -147,6 +180,14 @@ class JournalService {
   Future deleteJournalEntry(int journalId) async {
     final journal = await getJournalEntryById(journalId);
     if (journal != null) {
+      try {
+        await AppNotificationManager.instance.cancelPaymentReminders(
+          recordType: 'journal',
+          recordId: journalId,
+        );
+      } catch (e) {
+        print('Journal notification cancellation failed: $e');
+      }
       // Fetch business to get Firestore ID
       final businesses = await DatabaseHelper.instance.getBusinesses();
       BusinessModel? business;

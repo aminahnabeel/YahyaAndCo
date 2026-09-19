@@ -52,6 +52,14 @@ class _ReminderScreenState extends State<ReminderScreen> {
     if (mounted) {
       setState(() => _loading = false);
     }
+    // Background refresh: sync with source tables & Firestore, then update UI
+    _reminderService.refreshReminders(widget.businessId).then((_) async {
+      if (!mounted) return;
+      final fresh = await _reminderService.loadReminders(widget.businessId);
+      if (mounted) {
+        setState(() => _entries = fresh);
+      }
+    });
   }
 
   Future<void> _refresh() async {
@@ -117,10 +125,26 @@ class _ReminderScreenState extends State<ReminderScreen> {
       final recordType = (entry['record_type'] ?? '').toString().toLowerCase();
       final recordId = entry['record_id']?.toString() ?? '';
       final voucherNo = (entry['voucher_no'] ?? '').toString().trim();
-      final key = recordId.isNotEmpty
-          ? '$recordType:$recordId'
-          : '$recordType:$voucherNo';
-      uniqueEntries.putIfAbsent(key, () => entry);
+      final key = voucherNo.isNotEmpty
+          ? 'voucher:$voucherNo'
+          : recordId.isNotEmpty
+              ? '$recordType:$recordId'
+              : '$recordType:${entry['source_table'] ?? 'unknown'}';
+
+      final current = uniqueEntries[key];
+      if (current == null) {
+        uniqueEntries[key] = entry;
+        continue;
+      }
+
+      final currentType = (current['record_type'] ?? '').toString().toLowerCase();
+      final incomingType = recordType;
+      final preferIncoming = incomingType == 'transaction' &&
+          currentType != 'transaction';
+
+      if (preferIncoming) {
+        uniqueEntries[key] = entry;
+      }
     }
     return uniqueEntries.values.toList();
   }
@@ -289,7 +313,12 @@ class _ReminderScreenState extends State<ReminderScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                (item['voucher_no'] ?? '').toString(),
+                                () {
+                                  final vNo = (item['voucher_no'] ?? '').toString().trim();
+                                  if (vNo.isNotEmpty) return vNo;
+                                  final rId = (item['record_id'] ?? '').toString();
+                                  return '${(item['record_type'] ?? 'Entry')}-$rId';
+                                }(),
                                 style: const TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.w800,
@@ -330,11 +359,11 @@ class _ReminderScreenState extends State<ReminderScreen> {
                         children: [
                           _metaRow('Account', accountName),
                           const SizedBox(height: 8),
-                          _metaRow('Amount', '₹${amount.toStringAsFixed(2)}'),
+                          _metaRow('Amount', amount.toStringAsFixed(2)),
                           const SizedBox(height: 8),
                           _metaRow(
                             'Remaining',
-                            '₹${remaining.toStringAsFixed(2)}',
+                            remaining.toStringAsFixed(2),
                           ),
                           const SizedBox(height: 8),
                           _metaRow(
@@ -423,9 +452,6 @@ class _ReminderScreenState extends State<ReminderScreen> {
       },
     );
 
-    if (mounted) {
-      await _load();
-    }
   }
 
   Widget _metaRow(String label, String value) {
@@ -722,7 +748,12 @@ class _ReminderScreenState extends State<ReminderScreen> {
                             children: [
                               Expanded(
                                 child: Text(
-                                  (item['voucher_no'] ?? '').toString(),
+                                  () {
+                                    final vNo = (item['voucher_no'] ?? '').toString().trim();
+                                    if (vNo.isNotEmpty) return vNo;
+                                    final rId = (item['record_id'] ?? '').toString();
+                                    return '$recordType-$rId';
+                                  }(),
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -753,10 +784,10 @@ class _ReminderScreenState extends State<ReminderScreen> {
                                 runSpacing: 8,
                                 children: [
                                   _chip(
-                                    'Amount: ₹${amount.toStringAsFixed(2)}',
+                                    'Amount: ${amount.toStringAsFixed(2)}',
                                   ),
                                   _chip(
-                                    'Remaining: ₹${remaining.toStringAsFixed(2)}',
+                                    'Remaining: ${remaining.toStringAsFixed(2)}',
                                   ),
                                   _chip(
                                     'Date: ${date.isEmpty ? '-' : date.split('T').first}',

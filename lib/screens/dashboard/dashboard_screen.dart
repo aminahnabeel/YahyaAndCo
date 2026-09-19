@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../db/database_helper.dart';
 import '../../services/accounting_service.dart';
-import '../../services/payment_reminder_service.dart';
+import '../../services/app_notification_manager.dart';
 import '../../services/localization_service.dart';
 import '../../theme.dart';
 import '../accounts/account_screen.dart';
@@ -50,7 +50,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _pageController = PageController(initialPage: _selectedIndex);
     _summaryFuture = _accountingService.getDashboardSummary(widget.businessId);
     unawaited(
-      PaymentReminderService.instance.syncDueReminders(widget.businessId),
+      AppNotificationManager.instance.syncDueReminders(widget.businessId),
     );
   }
 

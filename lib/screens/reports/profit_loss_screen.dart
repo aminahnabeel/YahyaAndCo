@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../services/accounting_service.dart';
-import '../../services/notification_service.dart';
+import '../../services/app_notification_manager.dart';
 import '../../services/pdf_download_service.dart';
 import '../../theme.dart';
 import '../../widgets/date_filter_dialog.dart';
@@ -258,7 +258,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
         );
 
         // Show notification with clickable action to open PDF
-        await NotificationService().showDownloadNotification(
+        await AppNotificationManager.instance.showDownloadNotification(
           filePath: filePath,
           fileName: fileName,
         );
