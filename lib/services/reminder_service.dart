@@ -16,7 +16,7 @@ class ReminderService {
 
   Future<void> refreshReminders(int businessId) async {
     final sourceRows = _deduplicateSourceRows(
-      await _database.getReminderSourceRows(businessId),
+      await _database.getJournalLedgerRows(businessId),
     );
     final existing = await _database.getRemindersByBusiness(businessId);
     final activeIds = <String>{};
@@ -68,29 +68,8 @@ class ReminderService {
   ) {
     final uniqueRows = <String, Map<String, dynamic>>{};
     for (final row in rows) {
-      final recordType = (row['record_type'] ?? '').toString().toLowerCase();
-      final recordId = row['record_id']?.toString() ?? '';
-      final voucherNo = (row['voucher_no'] ?? '').toString().trim();
-      final key = voucherNo.isNotEmpty
-          ? 'voucher:$voucherNo'
-          : recordId.isNotEmpty
-              ? '$recordType:$recordId'
-              : '$recordType:${row['source_table'] ?? 'unknown'}';
-
-      final current = uniqueRows[key];
-      if (current == null) {
-        uniqueRows[key] = row;
-        continue;
-      }
-
-      final currentType = (current['record_type'] ?? '').toString().toLowerCase();
-      final incomingType = recordType;
-      final preferIncoming = incomingType == 'transaction' &&
-          currentType != 'transaction';
-
-      if (preferIncoming) {
-        uniqueRows[key] = row;
-      }
+      final journalId = row['journal_id']?.toString() ?? '';
+      if (journalId.isNotEmpty) uniqueRows[journalId] = row;
     }
     return uniqueRows.values.toList();
   }
@@ -234,8 +213,9 @@ class ReminderService {
   }
 
   ReminderModel _fromSourceRow(Map<String, dynamic> row, int businessId) {
-    final recordType = row['record_type'].toString();
-    final recordId = (row['record_id'] as num).toInt();
+    final journalId = (row['journal_id'] as num).toInt();
+    final recordType = row['transaction_id'] == null ? 'Journal' : 'Transaction';
+    final recordId = journalId;
     final remaining = (row['remaining_amount'] as num?)?.toDouble() ?? 0;
     final dueDate = row['due_date']?.toString();
     final status = remaining <= 0
@@ -258,12 +238,15 @@ class ReminderService {
       date: row['date']?.toString(),
       transactionId: (row['transaction_id'] as num?)?.toInt(),
       journalId: (row['journal_id'] as num?)?.toInt(),
-      amount: (row['amount'] as num?)?.toDouble() ?? 0,
+        amount:
+          (row['amount'] as num?)?.toDouble() ??
+          (row['remaining_amount'] as num?)?.toDouble() ??
+          0,
       remainingAmount: remaining,
       dueDate: dueDate,
       paymentStatus: status,
       description: row['description']?.toString(),
-      sourceTable: row['source_table'].toString(),
+      sourceTable: 'journal_entry',
       createdAt: row['created_at']?.toString(),
       updatedAt: updatedAt,
     );

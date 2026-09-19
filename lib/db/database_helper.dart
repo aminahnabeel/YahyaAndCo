@@ -493,7 +493,7 @@ class DatabaseHelper {
       'reminders',
       where: 'business_id = ?',
       whereArgs: [businessId],
-      orderBy: 'due_date DESC, updated_at DESC, record_id DESC',
+      orderBy: 'created_at DESC, record_id DESC',
     );
     return maps.map(ReminderModel.fromMap).toList();
   }

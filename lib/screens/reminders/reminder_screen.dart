@@ -20,7 +20,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
 
   bool _loading = true;
   String _searchQuery = '';
-  String _statusFilter = 'All';
+  String _statusFilter = 'Unpaid';
   String _typeFilter = 'All';
   DateTimeRange? _dateRange;
 
@@ -88,9 +88,11 @@ class _ReminderScreenState extends State<ReminderScreen> {
         paymentMethod.contains(query) ||
         voucherType.contains(query);
 
-    final statusMatch =
-        _statusFilter == 'All' ||
-        status.toLowerCase() == _statusFilter.toLowerCase();
+    final statusMatch = _statusFilter == 'Paid'
+      ? status == 'Paid'
+      : _statusFilter == 'All'
+        ? true
+        : status != 'Paid';
     final typeMatch =
         _typeFilter == 'All' ||
         recordType.toLowerCase() == _typeFilter.toLowerCase();
@@ -568,6 +570,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
                         border: OutlineInputBorder(),
                       ),
                       items: const [
+                        DropdownMenuItem(value: 'Unpaid', child: Text('Unpaid')),
                         DropdownMenuItem(value: 'All', child: Text('All')),
                         DropdownMenuItem(value: 'Paid', child: Text('Paid')),
                         DropdownMenuItem(
