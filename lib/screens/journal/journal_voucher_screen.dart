@@ -6,6 +6,7 @@ import '../../models/journal_line_model.dart';
 
 import '../../services/account_service.dart';
 import '../../services/accounting_service.dart';
+import '../../services/app_notification_manager.dart';
 
 class JournalVoucherScreen
     extends StatefulWidget {
@@ -151,7 +152,7 @@ class _JournalVoucherScreenState
 
       String voucherNo =
           await _accountingService
-              .generateJournalVoucher();
+              .generateJournalVoucher(widget.businessId);
 
       List<JournalLineModel>
           journalLines = [];
@@ -232,7 +233,7 @@ class _JournalVoucherScreenState
 
         paymentStatus:
           _accountingService.calculatePaymentStatus(
-          amount: totalAmount,
+          amount: totalDebit,
           remainingAmount: dueDate == null ? 0 : totalAmount,
           dueDate: dueDate?.toIso8601String(),
         ),
@@ -248,7 +249,7 @@ class _JournalVoucherScreenState
                 .toString(),
       );
 
-      await _accountingService
+        final journalId = await _accountingService
           .createCompleteJournal(
 
         journalEntry:
@@ -257,6 +258,30 @@ class _JournalVoucherScreenState
         journalLines:
             journalLines,
       );
+
+      final accountName = journalRows
+          .map((row) => (row['account'] as AccountModel?)?.name)
+          .whereType<String>()
+          .toSet()
+          .join(', ');
+      try {
+        await AppNotificationManager.instance.showSaveSuccessNotification(
+          voucherNo: journalEntry.voucherNo,
+          amount: totalDebit,
+          accountName: accountName.isEmpty ? 'Account' : accountName,
+        );
+        await AppNotificationManager.instance.schedulePaymentReminders(
+          recordType: 'journal',
+          recordId: journalId,
+          voucherNo: journalEntry.voucherNo,
+          amount: totalAmount,
+          accountName: accountName.isEmpty ? 'Account' : accountName,
+          dueDate: journalEntry.dueDate,
+          paymentStatus: journalEntry.paymentStatus,
+        );
+      } catch (e) {
+        print('Notification scheduling failed after journal save: $e');
+      }
 
       setState(() {
 

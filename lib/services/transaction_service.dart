@@ -4,6 +4,7 @@ import '../models/journal_line_model.dart';
 import '../models/journal_entry_model.dart';
 import '../models/transaction_model.dart';
 import 'accounting_service.dart';
+import 'app_notification_manager.dart';
 import 'firestore_service.dart';
 import 'reminder_service.dart';
 import 'sync_service.dart';
@@ -55,7 +56,9 @@ class TransactionService {
       journalEntry: JournalEntryModel(
         businessId: transaction.businessId,
         transactionId: transactionId,
-        voucherNo: await _accountingService.generateCashVoucher(),
+        voucherNo: await _accountingService.generateCashVoucher(
+          transaction.businessId,
+        ),
         voucherType: 'CP',
         description: transaction.note,
         dueDate: transaction.dueDate,
@@ -80,6 +83,42 @@ class TransactionService {
         ),
       ],
     );
+
+    try {
+        final account = await DatabaseHelper.instance.getAccountById(
+        transaction.accountId,
+      );
+      final linkedJournal = await DatabaseHelper.instance
+          .getJournalEntryByTransactionId(transactionId);
+      final voucherNo = linkedJournal?.voucherNo ?? '-';
+      await AppNotificationManager.instance.showSaveSuccessNotification(
+        voucherNo: voucherNo,
+        amount: transaction.amount,
+        accountName: account?.name ?? 'Account',
+      );
+    } catch (e) {
+      print('Success notification failed after transaction save: $e');
+    }
+
+    try {
+      final account = await DatabaseHelper.instance.getAccountById(
+        transaction.accountId,
+      );
+      final linkedJournal = await DatabaseHelper.instance
+          .getJournalEntryByTransactionId(transactionId);
+      final voucherNo = linkedJournal?.voucherNo ?? '-';
+      await AppNotificationManager.instance.schedulePaymentReminders(
+        recordType: 'transaction',
+        recordId: transactionId,
+        voucherNo: voucherNo,
+        amount: transaction.amount,
+        accountName: account?.name ?? 'Account',
+        dueDate: transaction.dueDate,
+        paymentStatus: transaction.paymentStatus,
+      );
+    } catch (e) {
+      print('Reminder scheduling failed after transaction save: $e');
+    }
 
     if (_syncService.isConnected && _firestoreService.isUserLoggedIn()) {
       try {
@@ -137,7 +176,8 @@ class TransactionService {
       }
     }
 
-    await _reminderService.refreshReminders(transaction.businessId);
+    // Fire-and-forget: don't block transaction save on reminder sync
+    _reminderService.refreshReminders(transaction.businessId);
     return transactionId;
   }
 
@@ -358,7 +398,8 @@ class TransactionService {
       surfaceFirestoreFailure: true,
     );
 
-    await _reminderService.refreshReminders(transaction.businessId);
+    // Fire-and-forget: don't block transaction update on reminder sync
+    _reminderService.refreshReminders(transaction.businessId);
   }
 
   // =========================
@@ -369,6 +410,14 @@ class TransactionService {
     // Get transaction to get businessId
     final transaction = await getTransactionById(transactionId);
     if (transaction != null) {
+      try {
+        await AppNotificationManager.instance.cancelPaymentReminders(
+          recordType: 'transaction',
+          recordId: transactionId,
+        );
+      } catch (e) {
+        print('Transaction notification cancellation failed: $e');
+      }
       // Fetch business to get Firestore ID
       final businesses = await DatabaseHelper.instance.getBusinesses();
       BusinessModel? business;

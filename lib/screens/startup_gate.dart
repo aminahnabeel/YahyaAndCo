@@ -26,7 +26,9 @@ class _StartupGateState extends State<StartupGate> {
     final restoreService = RestoreService();
 
     for (var attempt = 1; attempt <= 3; attempt++) {
-      final restored = await restoreService.restoreUserDataOnLogin();
+      final restored = await restoreService.restoreUserDataOnLogin(
+        restoreOperationalData: false,
+      );
       if (restored) {
         return true;
       }
@@ -49,6 +51,9 @@ class _StartupGateState extends State<StartupGate> {
       return const [];
     }
 
+    print('StartupGate: user UID = ${user.uid}; purging stale local business data');
+    await DatabaseHelper.instance.purgeOtherUsersLocalData(user.uid);
+
     print('StartupGate: user UID = ${user.uid}; attempting Firestore restore');
     final restoreFuture = _restoreWithRetry();
     await Future.wait<void>([
@@ -65,6 +70,12 @@ class _StartupGateState extends State<StartupGate> {
     print(
       'StartupGate: restored businesses count = ${restoredBusinesses.length}',
     );
+    if (restoredBusinesses.length == 1 &&
+        restoredBusinesses.first.firestoreId != null) {
+      await RestoreService().restoreUserDataOnLogin(
+        businessFirestoreId: restoredBusinesses.first.firestoreId,
+      );
+    }
     return restoredBusinesses;
   }
 

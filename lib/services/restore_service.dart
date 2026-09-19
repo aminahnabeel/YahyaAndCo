@@ -8,7 +8,7 @@ class RestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
-  _getBusinessDocsForUser(User user) async {
+  _getBusinessDocsForUser(User user, {String? businessFirestoreId}) async {
     final nestedDocs = await _firestore
         .collection('users')
         .doc(user.uid)
@@ -18,7 +18,8 @@ class RestoreService {
     final nestedBusinessDocs = nestedDocs.docs.where((doc) {
       final data = doc.data();
       final ownerUid = data['owner_uid'];
-      return ownerUid == null || ownerUid == user.uid;
+      return (ownerUid == null || ownerUid == user.uid) &&
+          (businessFirestoreId == null || doc.id == businessFirestoreId);
     }).toList();
 
     if (nestedBusinessDocs.isNotEmpty) {
@@ -30,7 +31,8 @@ class RestoreService {
     final rootBusinessDocs = rootDocs.docs.where((doc) {
       final data = doc.data();
       final ownerUid = data['owner_uid'];
-      return ownerUid == user.uid;
+      return ownerUid == user.uid &&
+          (businessFirestoreId == null || doc.id == businessFirestoreId);
     }).toList();
 
     if (rootBusinessDocs.isNotEmpty) {
@@ -40,7 +42,10 @@ class RestoreService {
     return const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
   }
 
-  Future<bool> restoreUserDataOnLogin() async {
+  Future<bool> restoreUserDataOnLogin({
+    String? businessFirestoreId,
+    bool restoreOperationalData = true,
+  }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       print('RestoreService: no current user');
@@ -51,7 +56,10 @@ class RestoreService {
       print(
         'RestoreService: checking Firestore businesses for user ${user.uid}',
       );
-      final businessesDocs = await _getBusinessDocsForUser(user);
+      final businessesDocs = await _getBusinessDocsForUser(
+        user,
+        businessFirestoreId: businessFirestoreId,
+      );
       print(
         'RestoreService: found ${businessesDocs.length} business documents',
       );
@@ -81,6 +89,10 @@ class RestoreService {
             ),
           );
           restoredBusinessFound = true;
+
+          if (!restoreOperationalData) {
+            continue;
+          }
 
           final businessRef = businessDoc.reference;
           final journalEntriesSnapshot = await businessRef

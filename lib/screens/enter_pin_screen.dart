@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import '../db/database_helper.dart';
 import '../services/localization_service.dart';
+import '../services/restore_service.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'reset_pin_screen.dart';
 import '../theme.dart';
 
 class EnterPinScreen extends StatefulWidget {
   final int businessId;
+  final int currentBusinessId;
 
-  const EnterPinScreen({super.key, required this.businessId});
+  const EnterPinScreen({
+    super.key,
+    required this.businessId,
+    this.currentBusinessId = -1,
+  });
 
   @override
   State<EnterPinScreen> createState() => _EnterPinScreenState();
@@ -80,6 +86,15 @@ class _EnterPinScreenState extends State<EnterPinScreen> {
       }
 
       if (mounted) {
+        if (widget.currentBusinessId != widget.businessId) {
+          await DatabaseHelper.instance.clearAllBusinessOperationalData();
+          if (business.firestoreId != null) {
+            await RestoreService().restoreUserDataOnLogin(
+              businessFirestoreId: business.firestoreId,
+            );
+          }
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(localization.t('pin_verified_success')),

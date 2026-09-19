@@ -80,33 +80,19 @@ class AccountingService {
   // Pattern: JV-1, JV-2, JV-3, etc.
   // These are required for audit trail and accounting standards
 
-  Future<String> generateJournalVoucher() {
-    return _generateNextVoucher('JV');
-  }
-
-  // =====================================================
-  // GENERATE CASH VOUCHER
-  // =====================================================
-  // Auto-generates sequential voucher numbers for cash transactions
-  // Pattern: CP-1, CP-2, CP-3, etc. (CP = Cash Payment/Receipt)
-
-  Future<String> generateCashVoucher() {
-    return _generateNextVoucher('CP');
-  }
-
-  Future<String> _generateNextVoucher(String voucherType) async {
-    final db = await DatabaseHelper.instance.database;
-    final rows = await db.query(
-      'journal_entry',
-      columns: ['voucher_no'],
-      where: 'voucher_type = ?',
-      whereArgs: [voucherType],
-    );
-
+  static int nextVoucherNumberForBusiness(
+    List<Map<String, dynamic>> rows,
+    int businessId,
+    String voucherType,
+  ) {
     var highestNumber = 0;
     final prefix = '$voucherType-';
+
     for (final row in rows) {
-      final voucherNo = row['voucher_no']?.toString() ?? '';
+      final rowBusinessId = (row['business_id'] as num?)?.toInt();
+      final voucherNo = (row['voucher_no'] ?? '').toString().trim();
+
+      if (rowBusinessId != businessId) continue;
       if (!voucherNo.startsWith(prefix)) continue;
 
       final number = int.tryParse(voucherNo.substring(prefix.length));
@@ -115,14 +101,53 @@ class AccountingService {
       }
     }
 
-    return '$prefix${highestNumber + 1}';
+    return highestNumber + 1;
+  }
+
+  Future<String> generateJournalVoucher([int? businessId]) {
+    return _generateNextVoucher(
+      businessId ?? 0,
+      'JV',
+    );
+  }
+
+  // =====================================================
+  // GENERATE CASH VOUCHER
+  // =====================================================
+  // Auto-generates sequential voucher numbers for cash transactions
+  // Pattern: CP-1, CP-2, CP-3, etc. (CP = Cash Payment/Receipt)
+
+  Future<String> generateCashVoucher([int? businessId]) {
+    return _generateNextVoucher(
+      businessId ?? 0,
+      'CP',
+    );
+  }
+
+  Future<String> _generateNextVoucher(int businessId, String voucherType) async {
+    if (businessId <= 0) {
+      throw StateError(
+        'Voucher generation requires a valid businessId. Current business sequence was not provided.',
+      );
+    }
+
+    final db = await DatabaseHelper.instance.database;
+    final rows = await db.query(
+      'journal_entry',
+      columns: ['business_id', 'voucher_no'],
+      where: 'business_id = ? AND voucher_type = ?',
+      whereArgs: [businessId, voucherType],
+    );
+
+    final nextNumber = nextVoucherNumberForBusiness(rows, businessId, voucherType);
+    return '$voucherType-$nextNumber';
   }
 
   // =====================================================
   // CREATE COMPLETE JOURNAL
   // =====================================================
 
-  Future createCompleteJournal({
+  Future<int> createCompleteJournal({
     required JournalEntryModel journalEntry,
     required List<JournalLineModel> journalLines,
   }) async {
@@ -266,6 +291,8 @@ class AccountingService {
     } else {
       print('⚠️  Offline mode - Journal saved to SQLite only');
     }
+
+    return journalId;
   }
 
   Future<void> updateCompleteJournal({
@@ -496,7 +523,8 @@ class AccountingService {
     );
     if (sourceRows.isNotEmpty) {
       final businessId = (sourceRows.first['business_id'] as num).toInt();
-      await _reminderService.refreshReminders(businessId);
+      // Fire-and-forget: don't block payment status update on reminder sync
+      _reminderService.refreshReminders(businessId);
     }
 
     // Then attempt to sync to Firestore (surface failures to caller)
@@ -980,7 +1008,7 @@ class AccountingService {
     return await db.rawQuery(
       '''
       SELECT * FROM (
-        SELECT 'Transaction' AS record_type, t.transaction_id AS record_id, COALESCE(je.voucher_no, 'TX-' || t.transaction_id) AS voucher_no,
+        SELECT 'Transaction' AS record_type, t.transaction_id AS record_id, je.voucher_no AS voucher_no,
                t.amount AS amount, t.remaining_amount AS remaining_amount, t.due_date AS due_date,
                t.payment_status AS payment_status, t.type AS voucher_type, t.payment_method AS payment_method,
                t.note AS description, a.name AS account_name
@@ -1013,7 +1041,7 @@ class AccountingService {
     return await db.rawQuery(
       '''
       SELECT * FROM (
-        SELECT 'Transaction' AS record_type, t.transaction_id AS record_id, COALESCE(je.voucher_no, 'TX-' || t.transaction_id) AS voucher_no,
+        SELECT 'Transaction' AS record_type, t.transaction_id AS record_id, je.voucher_no AS voucher_no,
                t.amount AS amount, t.remaining_amount AS remaining_amount, t.due_date AS due_date,
                t.payment_status AS payment_status, t.type AS voucher_type, t.payment_method AS payment_method,
                t.note AS description, a.name AS account_name
@@ -1047,7 +1075,7 @@ class AccountingService {
     return await db.rawQuery(
       '''
       SELECT * FROM (
-        SELECT 'Transaction' AS record_type, t.transaction_id AS record_id, COALESCE(je.voucher_no, 'TX-' || t.transaction_id) AS voucher_no,
+        SELECT 'Transaction' AS record_type, t.transaction_id AS record_id, je.voucher_no AS voucher_no,
                t.amount AS amount, t.remaining_amount AS remaining_amount, t.due_date AS due_date,
                t.payment_status AS payment_status, t.type AS voucher_type, t.payment_method AS payment_method,
                t.note AS description, a.name AS account_name
@@ -1082,7 +1110,7 @@ class AccountingService {
           t.transaction_id AS record_id,
           t.transaction_id AS transaction_id,
           NULL AS journal_id,
-          COALESCE(je.voucher_no, 'TX-' || t.transaction_id) AS voucher_no,
+          je.voucher_no AS voucher_no,
           t.amount AS amount,
           t.remaining_amount AS remaining_amount,
           t.due_date AS due_date,

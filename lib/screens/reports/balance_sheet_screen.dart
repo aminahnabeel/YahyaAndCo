@@ -3,7 +3,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../theme.dart';
 import '../../services/accounting_service.dart';
-import '../../services/notification_service.dart';
+import '../../services/app_notification_manager.dart';
 import '../../services/pdf_download_service.dart';
 import '../../widgets/date_filter_dialog.dart';
 
@@ -236,7 +236,7 @@ class _BalanceSheetScreenState extends State<BalanceSheetScreen> {
         );
 
         // Show notification with clickable action to open PDF
-        await NotificationService().showDownloadNotification(
+        await AppNotificationManager.instance.showDownloadNotification(
           filePath: filePath,
           fileName: fileName,
         );

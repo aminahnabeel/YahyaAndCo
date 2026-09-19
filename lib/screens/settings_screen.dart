@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../db/database_helper.dart';
 import '../models/business_model.dart';
+import '../services/app_notification_manager.dart';
 import '../services/business_service.dart';
 import '../services/localization_service.dart';
 import 'auth_screen.dart';
@@ -161,19 +162,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _handleSignOut() async {
     try {
       await FirebaseAuth.instance.signOut();
-
-      if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const AuthScreen()),
-          (route) => false,
-        );
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Sign out failed: $e')),
         );
       }
+      return;
+    }
+
+    try {
+      await DatabaseHelper.instance.clearAllLocalData();
+    } catch (_) {
+      // Ignore local cache cleanup failures so sign-out still completes.
+    }
+
+    try {
+      await AppNotificationManager.instance.cancelAllNotifications();
+    } catch (_) {
+      // Ignore notification cleanup failures because they should not block sign-out.
+    }
+
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const AuthScreen()),
+        (route) => false,
+      );
     }
   }
 
