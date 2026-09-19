@@ -198,7 +198,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    '₹${openingBalanceDisplay.toStringAsFixed(2)}',
+                                    '${openingBalanceDisplay.toStringAsFixed(2)}',
                                     style: const TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.w800,
@@ -231,7 +231,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    '₹${closingBalance.toStringAsFixed(2)}',
+                                    '${closingBalance.toStringAsFixed(2)}',
                                     style: const TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.w800,
@@ -448,7 +448,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
             ),
           ),
           Text(
-            '${isDebit ? '+' : '-'}₹${transaction.amount.toStringAsFixed(2)}',
+            '${isDebit ? '+' : '-'}${transaction.amount.toStringAsFixed(2)}',
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: color,
@@ -483,14 +483,14 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                   children: [
                     if (line.debit > 0) ...[
                       Text(
-                        'Debit: ₹${line.debit.toStringAsFixed(2)}',
+                        'Debit: ${line.debit.toStringAsFixed(2)}',
                         style: const TextStyle(fontSize: 12, color: Colors.green),
                       ),
                       const SizedBox(width: 12),
                     ],
                     if (line.credit > 0) ...[
                       Text(
-                        'Credit: ₹${line.credit.toStringAsFixed(2)}',
+                        'Credit: ${line.credit.toStringAsFixed(2)}',
                         style: const TextStyle(fontSize: 12, color: Colors.red),
                       ),
                     ],
