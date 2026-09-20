@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../services/accounting_service.dart';
+import '../../services/app_notification_manager.dart';
 import '../../services/pdf_download_service.dart';
 import '../../theme.dart';
 
@@ -415,6 +416,11 @@ class _LedgerReportScreenState extends State<LedgerReportScreen> {
           'Ledger_${widget.accountName}_${_selectedMonth!.year}_${_selectedMonth!.month.toString().padLeft(2, '0')}.pdf';
       final filePath = await PdfDownloadService.savePdfToDownloads(
         pdfBytes: await pdf.save(),
+        fileName: fileName,
+      );
+
+      await AppNotificationManager.instance.showDownloadNotification(
+        filePath: filePath,
         fileName: fileName,
       );
 

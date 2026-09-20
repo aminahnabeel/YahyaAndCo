@@ -250,16 +250,49 @@ class _ReminderScreenState extends State<ReminderScreen> {
   }
 
   Future<void> _markAsPaid(Map<String, dynamic> item) async {
-    final recordType = (item['record_type'] ?? '').toString();
     final id = (item['record_id'] as num?)?.toInt();
     if (id == null) return;
 
-    await _reminderService.markAsPaid(
-      sourceTable: item['source_table'].toString(),
-      recordId: id,
-    );
+    final sourceTable = item['source_table'].toString();
+    final statusBefore = item['payment_status'];
+    final remainingBefore = item['remaining_amount'];
 
-    await _load();
+    if (mounted) {
+      setState(() {
+        final index = _entries.indexWhere((entry) {
+          final entryTable = (entry['source_table'] ?? '').toString();
+          final entryId = (entry['record_id'] as num?)?.toInt();
+          return entryTable == sourceTable && entryId == id;
+        });
+
+        if (index != -1) {
+          _entries[index]['payment_status'] = 'Paid';
+          _entries[index]['remaining_amount'] = 0;
+        }
+      });
+    }
+
+    try {
+      await _reminderService.markAsPaid(
+        sourceTable: sourceTable,
+        recordId: id,
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          final index = _entries.indexWhere((entry) {
+            final entryTable = (entry['source_table'] ?? '').toString();
+            final entryId = (entry['record_id'] as num?)?.toInt();
+            return entryTable == sourceTable && entryId == id;
+          });
+
+          if (index != -1) {
+            _entries[index]['payment_status'] = statusBefore;
+            _entries[index]['remaining_amount'] = remainingBefore;
+          }
+        });
+      }
+    }
   }
 
   Future<void> _showReceipt(Map<String, dynamic> item) async {
@@ -434,8 +467,8 @@ class _ReminderScreenState extends State<ReminderScreen> {
                           child: ElevatedButton(
                             onPressed: status == 'Paid'
                                 ? null
-                                : () async {
-                                    await _markAsPaid(item);
+                                : () {
+                                    _markAsPaid(item);
                                     if (Navigator.of(sheetContext).canPop()) {
                                       Navigator.pop(sheetContext);
                                     }

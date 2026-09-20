@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 import '../../models/journal_entry_model.dart';
 import '../../screens/journal/journal_detail_screen.dart';
 import '../../services/accounting_service.dart';
+import '../../services/app_notification_manager.dart';
 import '../../services/pdf_download_service.dart';
 import '../../widgets/date_filter_dialog.dart';
 
@@ -227,6 +228,11 @@ class _CashBookScreenState extends State<CashBookScreen> {
       final fileName = 'CashBook_${monthName}_$year.pdf';
       final filePath = await PdfDownloadService.savePdfToDownloads(
         pdfBytes: await pdf.save(),
+        fileName: fileName,
+      );
+
+      await AppNotificationManager.instance.showDownloadNotification(
+        filePath: filePath,
         fileName: fileName,
       );
 

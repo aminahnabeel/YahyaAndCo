@@ -9,7 +9,7 @@ class AppNotificationManager {
   AppNotificationManager._();
 
   static final AppNotificationManager instance = AppNotificationManager._();
-  static const _reminderSlotCount = 7;
+  static const _reminderSlotCount = 8;
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -219,23 +219,24 @@ class AppNotificationManager {
     // tz.TZDateTime(location, y, m, d, h) places the alarm at exactly
     // the stated wall-clock time in the given timezone — no conversion.
     //
-    // Slot layout (7 slots, matches _reminderSlotCount = 7):
+    // Slot layout (8 slots, matches _reminderSlotCount = 8):
     //   0 → day-before 13:00 PKT
     //   1 → day-before 17:00 PKT
     //   2 → day-before 21:00 PKT
     //   3 → due day    00:00 PKT
     //   4 → due day    04:00 PKT
     //   5 → due day    08:00 PKT
-    //   6 → due day    12:00 PKT
+    //   6 → due day    09:30 PKT
+    //   7 → due day    12:00 PKT
     // -----------------------------------------------------------------
     final reminderTimes = <tz.TZDateTime>[
       tz.TZDateTime(karachi, dueYear, dueMonth, dueDay - 1, 13),
-      tz.TZDateTime(karachi, dueYear, dueMonth, dueDay - 1, 17),
-      tz.TZDateTime(karachi, dueYear, dueMonth, dueDay - 1, 21),
-      tz.TZDateTime(karachi, dueYear, dueMonth, dueDay,      0),
-      tz.TZDateTime(karachi, dueYear, dueMonth, dueDay,      4),
-      tz.TZDateTime(karachi, dueYear, dueMonth, dueDay,      8),
-      tz.TZDateTime(karachi, dueYear, dueMonth, dueDay,      12),
+      
+      tz.TZDateTime(karachi, dueYear, dueMonth, dueDay - 1, 16),
+      
+      tz.TZDateTime(karachi, dueYear, dueMonth, dueDay,      13),
+      tz.TZDateTime(karachi, dueYear, dueMonth, dueDay,      16),
+      
     ];
 
     final androidPlugin = _plugin
@@ -264,7 +265,6 @@ class AppNotificationManager {
         continue;
       }
 
-      final dueLabel = index < 3 ? 'tomorrow' : 'today';
       final body =
           'Account: $accountName\nVoucher: $voucherNo\nAmount: Rs ${amount.toStringAsFixed(2)}\nDue date: $dueDate';
       final details = NotificationDetails(
@@ -276,7 +276,7 @@ class AppNotificationManager {
           priority: Priority.high,
           styleInformation: BigTextStyleInformation(
             body,
-            contentTitle: 'Payment due $dueLabel',
+            contentTitle: 'Payment due',
             summaryText: 'Payment details',
           ),
           enableVibration: true,
@@ -292,7 +292,7 @@ class AppNotificationManager {
       try {
         await _plugin.zonedSchedule(
           notifId,
-          'Payment due $dueLabel',
+          'Payment due',
           body,
           scheduled,
           details,
