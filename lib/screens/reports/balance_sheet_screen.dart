@@ -223,6 +223,11 @@ class _BalanceSheetScreenState extends State<BalanceSheetScreen> {
         fileName: fileName,
       );
 
+      await AppNotificationManager.instance.showDownloadNotification(
+        filePath: filePath,
+        fileName: fileName,
+      );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -233,12 +238,6 @@ class _BalanceSheetScreenState extends State<BalanceSheetScreen> {
             backgroundColor: Colors.green,
             duration: Duration(seconds: 2),
           ),
-        );
-
-        // Show notification with clickable action to open PDF
-        await AppNotificationManager.instance.showDownloadNotification(
-          filePath: filePath,
-          fileName: fileName,
         );
       }
     } catch (e) {

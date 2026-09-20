@@ -75,7 +75,7 @@ class AppNotificationManager {
 
     await _plugin.show(
       filePath.hashCode,
-      'PDF Downloaded',
+      'PDF Downloaded Successfully',
       fileName,
       details,
       payload: filePath,
@@ -222,7 +222,7 @@ class AppNotificationManager {
     // Slot layout (7 slots, matches _reminderSlotCount = 7):
     //   0 → day-before 13:00 PKT
     //   1 → day-before 17:00 PKT
-    //   2 → day-before 20:00 PKT
+    //   2 → day-before 21:00 PKT
     //   3 → due day    00:00 PKT
     //   4 → due day    04:00 PKT
     //   5 → due day    08:00 PKT
@@ -231,7 +231,7 @@ class AppNotificationManager {
     final reminderTimes = <tz.TZDateTime>[
       tz.TZDateTime(karachi, dueYear, dueMonth, dueDay - 1, 13),
       tz.TZDateTime(karachi, dueYear, dueMonth, dueDay - 1, 17),
-      tz.TZDateTime(karachi, dueYear, dueMonth, dueDay - 1, 20),
+      tz.TZDateTime(karachi, dueYear, dueMonth, dueDay - 1, 21),
       tz.TZDateTime(karachi, dueYear, dueMonth, dueDay,      0),
       tz.TZDateTime(karachi, dueYear, dueMonth, dueDay,      4),
       tz.TZDateTime(karachi, dueYear, dueMonth, dueDay,      8),
