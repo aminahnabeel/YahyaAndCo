@@ -198,13 +198,10 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
       final destination = remainingBusinesses.isEmpty
           ? const BusinessDetailsScreen()
           : const BusinessSwitchScreen(currentBusinessId: -1);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => destination),
-          (route) => false,
-        );
-      });
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => destination),
+        (route) => false,
+      );
       return;
     } catch (e, st) {
       debugPrint('Business delete error: $e\n$st');

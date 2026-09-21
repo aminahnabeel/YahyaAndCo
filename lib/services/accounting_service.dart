@@ -5,6 +5,7 @@ import '../models/journal_line_model.dart';
 import '../models/account_model.dart';
 import '../models/transaction_model.dart';
 import 'firestore_service.dart';
+import 'app_notification_manager.dart';
 import 'reminder_service.dart';
 import 'sync_service.dart';
 
@@ -512,6 +513,52 @@ class AccountingService {
       where: '$idColumn = ?',
       whereArgs: [id],
     );
+
+    if (status.toLowerCase() == 'paid') {
+      try {
+        final recordType = tableName == 'transactions'
+            ? 'transaction'
+            : 'journal';
+        await AppNotificationManager.instance.cancelPaymentReminders(
+          recordType: recordType,
+          recordId: id,
+        );
+
+        if (tableName == 'transactions') {
+          final linkedJournal = await db.query(
+            'journal_entry',
+            columns: ['journal_id'],
+            where: 'transaction_id = ?',
+            whereArgs: [id],
+            limit: 1,
+          );
+          final linkedJournalId = linkedJournal.firstOrNull?['journal_id'];
+          if (linkedJournalId is num) {
+            await AppNotificationManager.instance.cancelPaymentReminders(
+              recordType: 'journal',
+              recordId: linkedJournalId.toInt(),
+            );
+          }
+        } else {
+          final linkedTransaction = await db.query(
+            'transactions',
+            columns: ['transaction_id'],
+            where: 'transaction_id IN (SELECT transaction_id FROM journal_entry WHERE journal_id = ?)',
+            whereArgs: [id],
+            limit: 1,
+          );
+          final linkedTransactionId = linkedTransaction.firstOrNull?['transaction_id'];
+          if (linkedTransactionId is num) {
+            await AppNotificationManager.instance.cancelPaymentReminders(
+              recordType: 'transaction',
+              recordId: linkedTransactionId.toInt(),
+            );
+          }
+        }
+      } catch (e) {
+        print('Notification cancellation failed after paid update: $e');
+      }
+    }
 
     // Refresh reminders locally
     final sourceRows = await db.query(
