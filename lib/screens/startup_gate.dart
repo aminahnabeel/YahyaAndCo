@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../db/database_helper.dart';
 import '../models/business_model.dart';
@@ -21,6 +22,7 @@ class StartupGate extends StatefulWidget {
 class _StartupGateState extends State<StartupGate> {
   Future<List<BusinessModel>>? _businessesFuture;
   String? _businessesUserId;
+  int? _preferredBusinessId;
 
   Future<bool> _restoreWithRetry() async {
     final restoreService = RestoreService();
@@ -76,6 +78,8 @@ class _StartupGateState extends State<StartupGate> {
         businessFirestoreId: restoredBusinesses.first.firestoreId,
       );
     }
+    final preferences = await SharedPreferences.getInstance();
+    _preferredBusinessId = preferences.getInt('active_business_id_${user.uid}');
     return restoredBusinesses;
   }
 
@@ -102,6 +106,7 @@ class _StartupGateState extends State<StartupGate> {
         if (user == null) {
           _businessesFuture = null;
           _businessesUserId = null;
+          _preferredBusinessId = null;
           return const AuthScreen();
         }
 
@@ -127,11 +132,19 @@ class _StartupGateState extends State<StartupGate> {
               return const BusinessDetailsScreen();
             }
 
-            if (businesses.length > 1) {
+            final activeBusiness = businesses.length > 1 &&
+                    _preferredBusinessId != null
+                ? businesses.cast<BusinessModel?>().firstWhere(
+                    (business) =>
+                        business?.businessId == _preferredBusinessId,
+                    orElse: () => null,
+                  )
+                : null;
+            if (businesses.length > 1 && activeBusiness == null) {
               return BusinessSwitchScreen(currentBusinessId: -1);
             }
 
-            final business = businesses.first;
+            final business = activeBusiness ?? businesses.first;
             if (business.pin != null && business.pin!.isNotEmpty) {
               return EnterPinScreen(businessId: business.businessId!);
             }

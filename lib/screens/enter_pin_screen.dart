@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../db/database_helper.dart';
 import '../services/localization_service.dart';
 import '../services/restore_service.dart';
@@ -86,6 +88,14 @@ class _EnterPinScreenState extends State<EnterPinScreen> {
       }
 
       if (mounted) {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          final preferences = await SharedPreferences.getInstance();
+          await preferences.setInt(
+            'active_business_id_${user.uid}',
+            widget.businessId,
+          );
+        }
         if (widget.currentBusinessId != widget.businessId) {
           await DatabaseHelper.instance.clearAllBusinessOperationalData();
           if (business.firestoreId != null) {

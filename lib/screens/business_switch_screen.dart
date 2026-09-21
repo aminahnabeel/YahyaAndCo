@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../db/database_helper.dart';
 import '../models/business_model.dart';
@@ -22,6 +24,7 @@ class BusinessSwitchScreen extends StatefulWidget {
 class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
   final BusinessService _businessService = BusinessService();
   late Future<List<BusinessModel>> _businessesFuture;
+  bool _isDeleting = false;
 
   @override
   void initState() {
@@ -32,6 +35,11 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
   Future<void> _openBusiness(BusinessModel business) async {
     final businessId = business.businessId;
     if (businessId == null) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setInt('active_business_id_${user.uid}', businessId);
+    }
 
     if (business.pin != null && business.pin!.isNotEmpty) {
       if (!mounted) return;
@@ -174,28 +182,34 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
     if (verifiedPin == null) return;
 
     try {
+      if (mounted) {
+        setState(() => _isDeleting = true);
+      }
+
       // 2. Business delete operation perform karein
       await _businessService.deleteBusiness(businessId);
 
       // 3. CRITICAL: Check karein ke widget abhi bhi tree mein mounted hai ya nahi
       if (!mounted) return;
 
-      // Screen ko yahin par refresh karein bina kahin navigate kiye
-      setState(() {
-        _businessesFuture = _businessService.getBusinesses();
-      });
+      final remainingBusinesses = await _businessService.getBusinesses();
+      if (!mounted) return;
 
-      // Success message show karwein
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(LocalizationService.instance.t('business_deleted_successfully')),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      final destination = remainingBusinesses.isEmpty
+          ? const BusinessDetailsScreen()
+          : const BusinessSwitchScreen(currentBusinessId: -1);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => destination),
+          (route) => false,
+        );
+      });
+      return;
     } catch (e, st) {
       debugPrint('Business delete error: $e\n$st');
       if (!mounted) return;
+      setState(() => _isDeleting = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${LocalizationService.instance.t('error')}: ${e.toString()}'),
@@ -206,6 +220,12 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isDeleting) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(

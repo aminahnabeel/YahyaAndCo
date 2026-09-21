@@ -206,6 +206,164 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
     return months[month - 1];
   }
 
+  List<pw.Widget> _buildPdfGroupedContent() {
+    final grouped = _groupAccountsByName();
+    const groupOrder = [
+      'Bank\nAccount',
+      'Capital',
+      'Employee\nAccount',
+      'Owner\nDrawing',
+      'Direct\nIncome',
+      'Company\nExpenses',
+      'Cash\nAccount',
+    ];
+    final sortedGroups = grouped.keys.toList()
+      ..sort((a, b) {
+        var aIndex = groupOrder.indexOf(a);
+        var bIndex = groupOrder.indexOf(b);
+        if (aIndex == -1) aIndex = groupOrder.length;
+        if (bIndex == -1) bIndex = groupOrder.length;
+        return aIndex.compareTo(bIndex);
+      });
+
+    final content = <pw.Widget>[];
+    for (final groupName in sortedGroups) {
+      final accounts = grouped[groupName] ?? [];
+      if (accounts.isEmpty) continue;
+
+      var groupDebit = 0.0;
+      var groupCredit = 0.0;
+      final accountRows = <pw.TableRow>[];
+      for (final account in accounts) {
+        final debit = (account['total_debit'] as num?)?.toDouble() ?? 0;
+        final credit = (account['total_credit'] as num?)?.toDouble() ?? 0;
+        groupDebit += debit;
+        groupCredit += credit;
+        accountRows.add(
+          pw.TableRow(
+            children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(6),
+                child: pw.Text(account['account_id']?.toString() ?? ''),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(6),
+                child: pw.Text(account['name']?.toString() ?? ''),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(6),
+                child: pw.Text(
+                  debit > 0 ? _formatPdfCurrency(debit) : '',
+                  textAlign: pw.TextAlign.right,
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(6),
+                child: pw.Text(
+                  credit > 0 ? _formatPdfCurrency(credit) : '',
+                  textAlign: pw.TextAlign.right,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      content.add(
+        pw.Container(
+          color: PdfColors.grey200,
+          padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+          child: pw.Text(
+            groupName,
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+        ),
+      );
+      content.add(
+        pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.grey400),
+          columnWidths: const {
+            0: pw.FlexColumnWidth(1),
+            1: pw.FlexColumnWidth(3),
+            2: pw.FlexColumnWidth(1.5),
+            3: pw.FlexColumnWidth(1.5),
+          },
+          children: [
+            ...accountRows,
+            pw.TableRow(
+              decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(6),
+                  child: pw.Text(''),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(6),
+                  child: pw.Text(
+                    'Group Total',
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(6),
+                  child: pw.Text(
+                    groupDebit > 0 ? _formatPdfCurrency(groupDebit) : '',
+                    textAlign: pw.TextAlign.right,
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(6),
+                  child: pw.Text(
+                    groupCredit > 0 ? _formatPdfCurrency(groupCredit) : '',
+                    textAlign: pw.TextAlign.right,
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+      content.add(pw.SizedBox(height: 8));
+    }
+
+    content.add(
+      pw.Table(
+        border: pw.TableBorder.all(),
+        children: [
+          pw.TableRow(
+            decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+            children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(8),
+                child: pw.Text(
+                  'Grand Total',
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(8),
+                child: pw.Text(
+                  'Debit: ${_formatPdfCurrency(totalDebit)}',
+                  textAlign: pw.TextAlign.right,
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(8),
+                child: pw.Text(
+                  'Credit: ${_formatPdfCurrency(totalCredit)}',
+                  textAlign: pw.TextAlign.right,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    return content;
+  }
+
   void _onDownloadPressed() async {
     try {
       ScaffoldMessenger.of(
@@ -217,13 +375,11 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
       final year = selectedYear ?? DateTime.now().year;
 
       pdf.addPage(
-        pw.Page(
+        pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
           margin: const pw.EdgeInsets.all(20),
           build: (pw.Context context) {
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
+            return [
                 pw.Text(
                   'Trial Balance Report',
                   style: pw.TextStyle(
@@ -238,93 +394,8 @@ class _TrialBalanceScreenState extends State<TrialBalanceScreen> {
                 ),
                 pw.Divider(),
                 pw.SizedBox(height: 16),
-                pw.Table(
-                  border: pw.TableBorder.all(),
-                  columnWidths: {
-                    0: const pw.FlexColumnWidth(2),
-                    1: const pw.FlexColumnWidth(2),
-                    2: const pw.FlexColumnWidth(2),
-                  },
-                  children: [
-                    pw.TableRow(
-                      decoration: const pw.BoxDecoration(
-                        color: PdfColors.grey300,
-                      ),
-                      children: [
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(
-                            'Account',
-                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                          ),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(
-                            'Debit',
-                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                          ),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(
-                            'Credit',
-                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                    ...trialBalance.map((item) {
-                      return pw.TableRow(
-                        children: [
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(8),
-                            child: pw.Text(item['name']?.toString() ?? ''),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(8),
-                            child: pw.Text(
-                              _formatPdfCurrency(item['total_debit']),
-                            ),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(8),
-                            child: pw.Text(
-                              _formatPdfCurrency(item['total_credit']),
-                            ),
-                          ),
-                        ],
-                      );
-                    }).toList(),
-                    pw.TableRow(
-                      children: [
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(
-                            'Total',
-                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                          ),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(
-                            _formatPdfCurrency(totalDebit),
-                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                          ),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(
-                            _formatPdfCurrency(totalCredit),
-                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            );
+                ..._buildPdfGroupedContent(),
+            ];
           },
         ),
       );
