@@ -101,8 +101,6 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
     // 1. Pehle check karein agar context valid hai tabhi dialog open ho
     if (!mounted) return;
 
-    final pinController = TextEditingController();
-
     // Dialog directly show karein aur fresh validation dialog ke andar handle karein ya directly check karein
     final verifiedPin = await showDialog<String?>(
       context: context,
@@ -110,6 +108,7 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
       builder: (dialogContext) {
         bool showPin = false;
         String? errorText;
+        String enteredPin = '';
         final expectedPin = business.pin ?? '';
 
         return StatefulBuilder(
@@ -126,10 +125,10 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
                     ),
                     const SizedBox(height: 12),
                     TextField(
-                      controller: pinController,
                       obscureText: !showPin,
                       keyboardType: TextInputType.number,
                       maxLength: 4,
+                      onChanged: (value) => enteredPin = value.trim(),
                       decoration: InputDecoration(
                         labelText: localization.t('business_pin'),
                         errorText: errorText == null
@@ -156,8 +155,6 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                   onPressed: () {
-                    final enteredPin = pinController.text.trim();
-
                     if (expectedPin.isNotEmpty && enteredPin != expectedPin) {
                       setDialogState(() {
                         errorText = localization.t('incorrect_pin');
@@ -175,8 +172,6 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
         );
       },
     );
-
-    pinController.dispose();
 
     // Agar user ne cancel kiya to yahin se return ho jaye
     if (verifiedPin == null) return;
@@ -284,11 +279,14 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
                         ),
                         trailing: PopupMenuButton<String>(
                           onSelected: (value) {
-                            if (value == 'open') {
-                              _openBusiness(business);
-                            } else if (value == 'delete') {
-                              _deleteBusiness(business);
-                            }
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (!mounted) return;
+                              if (value == 'open') {
+                                _openBusiness(business);
+                              } else if (value == 'delete') {
+                                _deleteBusiness(business);
+                              }
+                            });
                           },
                           itemBuilder: (context) => [
                             PopupMenuItem<String>(
