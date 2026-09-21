@@ -231,9 +231,8 @@ class AppNotificationManager {
     // -----------------------------------------------------------------
     final reminderTimes = <tz.TZDateTime>[
       tz.TZDateTime(karachi, dueYear, dueMonth, dueDay - 1, 13),
-      
       tz.TZDateTime(karachi, dueYear, dueMonth, dueDay - 1, 16),
-      
+      tz.TZDateTime(karachi, dueYear, dueMonth, dueDay - 1, 19, 30),
       tz.TZDateTime(karachi, dueYear, dueMonth, dueDay,      13),
       tz.TZDateTime(karachi, dueYear, dueMonth, dueDay,      16),
       

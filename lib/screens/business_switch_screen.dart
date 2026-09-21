@@ -198,7 +198,10 @@ class _BusinessSwitchScreenState extends State<BusinessSwitchScreen> {
       final destination = remainingBusinesses.isEmpty
           ? const BusinessDetailsScreen()
           : const BusinessSwitchScreen(currentBusinessId: -1);
-      Navigator.of(context).pushAndRemoveUntil(
+      await Future<void>.delayed(Duration.zero);
+      if (!mounted) return;
+
+      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => destination),
         (route) => false,
       );
